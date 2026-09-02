@@ -754,6 +754,35 @@ tbody tr.openable:hover { background: var(--brand-soft); }
   margin-top: .8rem; flex-wrap: wrap;
 }
 
+/* Findings and the reference */
+
+.finding {
+  padding: .7rem .8rem; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  margin-bottom: .6rem; background: var(--raised);
+}
+.finding-head { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+.finding-area { font-size: .72rem; color: var(--ink-faint); text-transform: uppercase; letter-spacing: .05em; }
+.finding-amount { margin-left: auto; font-weight: 650; }
+.finding-title { font-weight: 650; margin-top: .3rem; font-size: .92rem; }
+.finding-detail { font-size: .84rem; color: var(--ink-soft); margin-top: .18rem; line-height: 1.55; }
+.finding-ref {
+  font-size: .74rem; color: var(--brand-ink); margin-top: .35rem; font-weight: 550;
+}
+
+.ref-item { padding: .6rem 0; border-bottom: 1px solid var(--line-soft); }
+.ref-item:last-child { border-bottom: 0; }
+.ref-heading { font-weight: 650; font-size: .88rem; }
+.ref-body { font-size: .85rem; color: var(--ink-soft); margin-top: .18rem; line-height: 1.6; }
+.ref-foot { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: .3rem; }
+.ref-source {
+  font-size: .73rem; color: var(--brand-ink); font-weight: 600;
+  background: var(--brand-soft); border-radius: 4px; padding: .06rem .4rem;
+}
+.ref-caution {
+  font-size: .73rem; color: var(--warn); background: var(--warn-soft);
+  border-radius: 4px; padding: .06rem .4rem;
+}
+
 /* Reconciliation */
 
 .recon-summary { display: grid; gap: .5rem; }

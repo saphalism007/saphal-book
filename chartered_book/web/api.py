@@ -1556,3 +1556,154 @@ def party_statement(request):
     except settlements.SettlementError as exc:
         raise ApiError(str(exc))
     return result
+
+
+# Audit tools
+
+
+@route("GET", "/api/reports/stock-ageing")
+def stock_ageing(request):
+    conn = request.company()
+    _, to_ad = _dates(request, conn)
+    return reports.stock_ageing(conn, request.arg("as_at") or min(today(), to_ad))
+
+
+@route("GET", "/api/audit/review")
+def audit_review_run(request):
+    from ..modules import audit_review, statements
+    conn = request.company()
+    from_ad, to_ad = _dates(request, conn)
+    # Reviewing up to a date that has not happened yet reports things as missing
+    # that simply have not been done, so the period is capped at today.
+    to_ad = min(to_ad, today()) if to_ad > today() else to_ad
+    compare = statements.previous_period(from_ad, to_ad) if request.arg("compare") != "0" else None
+    return audit_review.review(conn, from_ad, to_ad, compare)
+
+
+@route("POST", "/api/audit/trial-balance")
+def read_trial_balance(request):
+    from ..modules import tb_import
+    request.require_user()
+    text = request.body.get("text") or ""
+    try:
+        parsed = tb_import.parse(text)
+    except tb_import.ImportError_ as exc:
+        raise ApiError(str(exc))
+    tb_import.suggest_mapping(parsed["lines"])
+    parsed["summary"] = tb_import.summarise(parsed["lines"])
+    parsed["groups"] = [{"code": g[0], "name": g[1], "statement": g[5], "section": g[6]}
+                        for g in coa.GROUPS]
+    parsed["review"] = _review_imported(parsed)
+    return parsed
+
+
+@route("POST", "/api/audit/trial-balance/remap")
+def remap_trial_balance(request):
+    from ..modules import tb_import
+    request.require_user()
+    lines = request.body.get("lines") or []
+    if not lines:
+        raise ApiError("Nothing to work on.")
+    groups = {g[0]: g for g in coa.GROUPS}
+    for line in lines:
+        group = groups.get(line.get("group_code"))
+        line["group_name"] = group[1] if group else line.get("group_code", "")
+        line["balance"] = int(line.get("debit") or 0) - int(line.get("credit") or 0)
+    summary = tb_import.summarise(lines)
+    parsed = {
+        "lines": lines,
+        "total_debit": sum(int(l.get("debit") or 0) for l in lines),
+        "total_credit": sum(int(l.get("credit") or 0) for l in lines),
+        "summary": summary,
+    }
+    parsed["difference"] = parsed["total_debit"] - parsed["total_credit"]
+    parsed["balanced"] = parsed["difference"] == 0
+    parsed["review"] = _review_imported(parsed)
+    return {"summary": summary, "review": parsed["review"],
+            "balanced": parsed["balanced"], "difference": parsed["difference"]}
+
+
+def _review_imported(parsed):
+    """
+    What can be said about a trial balance handed over on paper.
+
+    Far less than about a full set of books, because there are no vouchers
+    behind it, but the shape of it still says a good deal.
+    """
+    findings = []
+    summary = parsed["summary"]
+
+    def add(severity, title, detail, reference="", amount=0):
+        findings.append({"severity": severity, "area": "Trial balance", "title": title,
+                         "detail": detail, "reference": reference, "amount": amount,
+                         "count": 0, "items": []})
+
+    if not parsed.get("balanced", True):
+        add("high", "The trial balance does not cast",
+            "Debit and credit differ by %s. Everything below assumes that gets resolved."
+            % money.format_money(abs(parsed["difference"])),
+            "", abs(parsed["difference"]))
+
+    unmapped = [l for l in parsed["lines"] if l.get("confidence") == "none"]
+    if unmapped:
+        add("medium", "Lines that could not be recognised",
+            "%d line%s were not recognised from the name and have been put somewhere neutral. "
+            "Set them properly before relying on the statements."
+            % (len(unmapped), "" if len(unmapped) == 1 else "s"), "",
+            sum(abs(l["balance"]) for l in unmapped))
+
+    if summary["revenue"] and summary["gross_profit"] < 0:
+        add("high", "Gross profit is negative",
+            "Cost of sales exceeds revenue. Either closing stock is missing from the trial "
+            "balance or something is misclassified.", "", -summary["gross_profit"])
+
+    if summary["revenue"]:
+        margin = summary["gross_profit"] * 100.0 / summary["revenue"]
+        if margin > 60:
+            add("medium", "The gross margin looks high",
+                "A margin of %.1f percent is unusual for trade. Check that opening and closing "
+                "stock are both in, and that nothing has been posted to the wrong side."
+                % margin)
+        elif 0 < margin < 3:
+            add("medium", "The gross margin looks thin",
+                "A margin of %.1f percent leaves nothing to cover overheads. Worth asking "
+                "about." % margin)
+
+    opening = sum(l["balance"] for l in parsed["lines"] if l.get("group_code") == "5300")
+    closing = sum(l["balance"] for l in parsed["lines"] if l.get("group_code") == "1210")
+    if opening and not closing:
+        add("high", "Opening stock is in but closing stock is not",
+            "Cost of sales, and so the profit, is overstated by whatever the closing stock "
+            "comes to.", "NAS 02")
+
+    if not summary["depreciation"]:
+        owns = any(l.get("group_code") in ("1110", "1140") and l["balance"] > 0
+                   for l in parsed["lines"])
+        if owns:
+            add("high", "Fixed assets but no depreciation",
+                "The trial balance shows assets with nothing written off them.", "NAS 16")
+
+    if not summary["tax"] and summary["profit_before_tax"] > 0:
+        add("medium", "No tax charge against a profit",
+            "A profit of %s is shown with no provision for income tax."
+            % money.format_money(summary["profit_before_tax"]),
+            "Income Tax Act, 2058", summary["profit_before_tax"])
+
+    if not summary["balanced"]:
+        add("high", "The statements do not balance after mapping",
+            "Assets differ from equity and liabilities by %s once the profit is taken in. "
+            "Usually a line mapped to the wrong side."
+            % money.format_money(abs(summary["difference"])), "", abs(summary["difference"]))
+
+    order = {"high": 0, "medium": 1, "low": 2, "info": 3}
+    findings.sort(key=lambda f: (order.get(f["severity"], 9), -abs(f["amount"])))
+    counts = {level: sum(1 for f in findings if f["severity"] == level)
+              for level in ("high", "medium", "low", "info")}
+    return {"findings": findings, "counts": counts, "total": len(findings)}
+
+
+@route("GET", "/api/reference")
+def reference(request):
+    from ..modules import guidance
+    request.require_user()
+    return {"sections": guidance.SECTIONS, "updated": guidance.LAST_REVIEWED}

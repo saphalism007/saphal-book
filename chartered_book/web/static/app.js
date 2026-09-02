@@ -75,6 +75,12 @@ var App = (function () {
       { key: "balance-sheet", label: "Balance sheet, quick" }
     ];
 
+    var auditTools = [
+      { key: "audit-tools", label: "Red flags and review" },
+      { key: "reference", label: "Law and standards" },
+      { key: "audit", label: "Audit trail" }
+    ];
+
     var yearEnd = [{ key: "period-end", label: goods ? "Closing stock and year end" : "Year end" }];
 
     return [
@@ -83,13 +89,13 @@ var App = (function () {
       { title: "Records", items: records },
       { title: "Reports", items: reports },
       { title: "Financial statements", items: statements },
+      { title: "Audit", items: auditTools },
       { title: "Year end", items: yearEnd },
       { title: "Setup", items: [
         { key: "company", label: "Company" },
         { key: "users", label: "Users" },
         { key: "devices", label: "Use on your phone" },
         { key: "backup", label: "Backup and safety" },
-        { key: "audit", label: "Audit trail" },
         { key: "dates", label: "Date converter" },
         { key: "guide", label: "Notes and rules" }
       ]}

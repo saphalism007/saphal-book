@@ -8,7 +8,7 @@
    to the server or fails honestly, because a stale balance shown as if it were
    current would be worse than no balance at all. */
 
-var VERSION = "chartered-book-v6";
+var VERSION = "chartered-book-v7";
 var SHELL = [
   "/",
   "/static/style.css",
@@ -22,6 +22,7 @@ var SHELL = [
   "/static/statements.js",
   "/static/banking.js",
   "/static/assets.js",
+  "/static/audit.js",
   "/static/manifest.json",
   "/static/icons/icon-192.png",
   "/static/icons/icon-512.png"
