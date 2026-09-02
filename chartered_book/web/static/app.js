@@ -1,0 +1,1325 @@
+/* Chartered Book, application core.
+   Holds the signed in state, the menu, the router and the screens that do not
+   belong to vouchers, masters or reports. */
+
+var App = (function () {
+  "use strict";
+
+  var state = {
+    user: null,
+    company: null,
+    companies: [],
+    fiscalYear: null,
+    fiscalYears: [],
+    settings: {},
+    permissions: {},
+    lookups: null,
+    today: null,
+    route: "dashboard"
+  };
+
+  var el = UI.el, qs = UI.qs, api = UI.api;
+
+  /* The menu is built from what the company actually does. A practice that
+     sells only its time is not shown stock screens it will never open. */
+
+  function buildMenu() {
+    var company = state.company || {};
+    var goods = company.has_goods === undefined ? true : !!company.has_goods;
+    var services = !!company.has_services;
+    var vat = !!company.vat_registered;
+
+    var daily = [{ key: "dashboard", label: "Dashboard", accel: "F1" }];
+    daily.push({ key: "sales", label: goods && !services ? "Sales invoice"
+      : !goods && services ? "Fee invoice" : "Sales invoice", accel: "F5" });
+    daily.push({ key: "purchase", label: goods ? "Purchase bill" : "Expense bill", accel: "F6" });
+    daily.push({ key: "receipt", label: "Receipt", accel: "F7" });
+    daily.push({ key: "payment", label: "Payment", accel: "F8" });
+    daily.push({ key: "journal", label: "Journal", accel: "F9" });
+    daily.push({ key: "contra", label: "Contra" });
+    daily.push({ key: "daybook", label: "Day book" });
+
+    var corrections = [];
+    if (goods) {
+      corrections.push({ key: "sales_return", label: "Sales return" });
+      corrections.push({ key: "purchase_return", label: "Purchase return" });
+    }
+    corrections.push({ key: "credit_note", label: "Credit note" });
+    corrections.push({ key: "debit_note", label: "Debit note" });
+    if (goods) { corrections.push({ key: "stock_adjust", label: "Stock adjustment" }); }
+
+    var records = [
+      { key: "parties", label: "Customers and suppliers" },
+      { key: "items", label: goods && services ? "Items and services"
+        : goods ? "Items and stock" : "Services and fees" },
+      { key: "banking", label: "Cash and bank" },
+      { key: "assets", label: "Fixed assets" },
+      { key: "accounts", label: "Chart of accounts" }
+    ];
+
+    var reports = [
+      { key: "trial-balance", label: "Trial balance" },
+      { key: "ledger", label: "Ledger" },
+      { key: "groups", label: "Group summary" }
+    ];
+    if (goods) { reports.push({ key: "stock", label: "Stock" }); }
+    reports.push({ key: "outstanding", label: "Receivable and payable" });
+    reports.push({ key: "ageing", label: "Ageing" });
+    reports.push({ key: "statement", label: "Statement of account" });
+    reports.push({ key: "reconcile", label: "Bank reconciliation" });
+    if (vat) { reports.push({ key: "vat", label: "VAT return" }); }
+
+    var statements = [
+      { key: "statements", label: "Financial statements" },
+      { key: "profit-loss", label: "Profit and loss, quick" },
+      { key: "balance-sheet", label: "Balance sheet, quick" }
+    ];
+
+    var yearEnd = [{ key: "period-end", label: goods ? "Closing stock and year end" : "Year end" }];
+
+    return [
+      { title: "Daily work", items: daily },
+      { title: "Corrections", items: corrections },
+      { title: "Records", items: records },
+      { title: "Reports", items: reports },
+      { title: "Financial statements", items: statements },
+      { title: "Year end", items: yearEnd },
+      { title: "Setup", items: [
+        { key: "company", label: "Company" },
+        { key: "users", label: "Users" },
+        { key: "devices", label: "Use on your phone" },
+        { key: "backup", label: "Backup and safety" },
+        { key: "audit", label: "Audit trail" },
+        { key: "dates", label: "Date converter" },
+        { key: "guide", label: "Notes and rules" }
+      ]}
+    ];
+  }
+
+  var SCREENS = {};
+
+  function register(key, builder) { SCREENS[key] = builder; }
+
+  /* Boot */
+
+  var installPrompt = null;
+
+  function start() {
+    UI.setupCalculator();
+    wireChrome();
+    registerWorker();
+    refresh().catch(function (error) {
+      qs("#boot").classList.add("hidden");
+      UI.flash(error.message, "bad");
+    });
+  }
+
+  function registerWorker() {
+    // The worker is what lets a phone, tablet or desktop install this as an
+    // app. It never caches an accounting figure, only the screens themselves.
+    if (!("serviceWorker" in navigator)) { return; }
+    if (location.protocol !== "https:" && location.hostname !== "localhost"
+        && location.hostname !== "127.0.0.1") {
+      // Browsers only allow installing over a secure connection or from this
+      // machine. Over plain wifi the screens still work, they just cannot be
+      // installed, so there is nothing to register.
+      return;
+    }
+    navigator.serviceWorker.register("/sw.js").catch(function (error) {
+      UI.noteError("service worker", error && error.message);
+    });
+  }
+
+  window.addEventListener("beforeinstallprompt", function (event) {
+    event.preventDefault();
+    installPrompt = event;
+  });
+
+  window.addEventListener("appinstalled", function () { installPrompt = null; });
+
+  function canInstall() {
+    return !!installPrompt;
+  }
+
+  function runInstall() {
+    if (!installPrompt) { return Promise.resolve(false); }
+    var prompt = installPrompt;
+    installPrompt = null;
+    prompt.prompt();
+    return prompt.userChoice.then(function (choice) {
+      return choice && choice.outcome === "accepted";
+    });
+  }
+
+  function refresh() {
+    return api("/api/bootstrap").then(function (data) {
+      state.today = data.today;
+      state.companies = data.companies || [];
+      state.permissions = data.permissions || {};
+      state.user = data.user;
+      state.company = data.company;
+      state.fiscalYear = data.fiscal_year || null;
+      state.fiscalYears = data.fiscal_years || [];
+      state.settings = data.settings || {};
+      state.settings = data.settings || {};
+      qs("#boot").classList.add("hidden");
+      if (!data.user) { return showGate(data.needs_setup); }
+      qs("#gate").classList.add("hidden");
+      qs("#shell").classList.remove("hidden");
+      paintChrome();
+      if (!state.company) { return openCompanyChooser(); }
+      return loadLookups().then(function () { go(state.route || "dashboard"); });
+    });
+  }
+
+  function loadLookups() {
+    return api("/api/lookups").then(function (data) { state.lookups = data; });
+  }
+
+  /* Sign in */
+
+  function showGate(needsSetup) {
+    qs("#shell").classList.add("hidden");
+    var gate = qs("#gate");
+    gate.classList.remove("hidden");
+    qs("#gate-title").textContent = needsSetup ? "Create your login" : "Sign in";
+    qs("#gate-help").textContent = needsSetup
+      ? "This is the first time Chartered Book has been opened on this computer. Choose a username and a password you will remember. There is no way to recover it, so write it somewhere safe."
+      : "";
+    qs("#gate-submit").textContent = needsSetup ? "Create and continue" : "Sign in";
+    UI.qsa(".hidden-when-login").forEach(function (node) {
+      node.classList.toggle("hidden", !needsSetup);
+    });
+    qs("#login-password").setAttribute("autocomplete", needsSetup ? "new-password" : "current-password");
+    qs("#login-username").focus();
+
+    var form = qs("#login-form");
+    form.onsubmit = function (event) {
+      event.preventDefault();
+      qs("#gate-error").textContent = "";
+      var body = {
+        username: qs("#login-username").value.trim(),
+        password: qs("#login-password").value
+      };
+      if (needsSetup) { body.full_name = qs("#setup-fullname").value.trim(); }
+      api(needsSetup ? "/api/setup" : "/api/login", { body: body })
+        .then(function () {
+          qs("#login-password").value = "";
+          return refresh();
+        })
+        .catch(function (error) { qs("#gate-error").textContent = error.message; });
+    };
+  }
+
+  /* Chrome */
+
+  function wireChrome() {
+    qs("#btn-calc").addEventListener("click", UI.toggleCalculator);
+    qs("#btn-menu").addEventListener("click", function () {
+      UI.qs(".sidebar").classList.toggle("open");
+    });
+    qs("#today-chip").addEventListener("click", openCalendar);
+    qs("#modal-close").addEventListener("click", UI.closeModal);
+    qs("#modal").addEventListener("click", function (event) {
+      if (event.target.id === "modal") { UI.closeModal(); }
+    });
+    UI.installGuards();
+    UI.applyTheme();
+    UI.watchSystemTheme();
+    qs("#company-select").addEventListener("change", function (event) {
+      api("/api/companies/select", { body: { company_id: +event.target.value } })
+        .then(function () { state.route = "dashboard"; return refresh(); })
+        .catch(function (error) { UI.flash(error.message, "bad"); });
+    });
+    qs("#user-chip").addEventListener("click", openUserMenu);
+    qs("#btn-backup-quick").addEventListener("click", function () {
+      UI.flash("Taking a backup", "warn");
+      api("/api/backup/create", { body: { note: "Quick backup from the sidebar" } })
+        .then(function (data) { UI.flash("Backed up to " + data.backup.filename, "good"); })
+        .catch(function (error) { UI.flash(error.message, "bad"); });
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") { UI.closeModal(); UI.hidePicker(); }
+      if (event.key === "F2") { event.preventDefault(); UI.toggleCalculator(); }
+      if (event.key === "F3") { event.preventDefault(); openCalendar(); }
+      var inField = /^(INPUT|SELECT|TEXTAREA)$/.test((event.target.tagName || ""));
+      var shortcuts = { F1: "dashboard", F5: "sales", F6: "purchase",
+                        F7: "receipt", F8: "payment", F9: "journal" };
+      if (shortcuts[event.key] && state.user && state.company) {
+        event.preventDefault();
+        go(shortcuts[event.key]);
+      }
+      if (event.ctrlKey && event.key === "p" && !inField) {
+        event.preventDefault(); UI.printPage();
+      }
+    });
+  }
+
+  function paintChrome() {
+    if (!state.user) { return; }
+    // On a narrow screen the first name is enough. The full name is in the title.
+    var whole = state.user.full_name || state.user.username;
+    qs("#user-chip").textContent = window.innerWidth <= 600 ? whole.split(" ")[0] : whole;
+    qs("#user-chip").title = "Signed in as " + state.user.username;
+    var today = state.today || {};
+    var chip = UI.clear(qs("#today-chip"));
+    chip.appendChild(el("span.date-full", {
+      text: (today.bs_long || "") + "   " + (today.ad_long || "") }));
+    chip.appendChild(el("span.date-short", { text: today.bs_parts
+      ? NP.formatBs(today.bs_parts, "short") : "" }));
+    chip.title = "Open the Nepali calendar";
+    var fyChip = qs("#fy-chip");
+    fyChip.textContent = state.fiscalYear ? "FY " + state.fiscalYear.label : "";
+    fyChip.classList.toggle("hidden", !state.company || !state.fiscalYear);
+    qs("#side-company").textContent = state.company ? state.company.name : "Choose a company";
+    qs("#side-company").title = state.company ? state.company.name : "";
+
+
+    var picker = UI.clear(qs("#company-select"));
+    state.companies.forEach(function (company) {
+      picker.appendChild(el("option", {
+        value: company.id, text: company.name,
+        selected: state.company && company.id === state.company.id
+      }));
+    });
+    picker.appendChild(el("option", { value: "__new", text: "Add a new company" }));
+    picker.onchange = function (event) {
+      if (event.target.value === "__new") { openCompanyForm(); return; }
+      api("/api/companies/select", { body: { company_id: +event.target.value } })
+        .then(function () { state.route = "dashboard"; return refresh(); })
+        .catch(function (error) { UI.flash(error.message, "bad"); });
+    };
+
+    var nav = UI.clear(qs("#nav"));
+    buildMenu().forEach(function (group) {
+      var block = el("div.nav-group", {}, [el("div.nav-group-title", { text: group.title })]);
+      group.items.forEach(function (item) {
+        block.appendChild(el("button.nav-item" + (state.route === item.key ? ".active" : ""), {
+          onclick: function () { go(item.key); }
+        }, [
+          el("span", { text: item.label }),
+          item.accel ? el("span.nav-key", { text: item.accel }) : null
+        ]));
+      });
+      nav.appendChild(block);
+    });
+  }
+
+  /* The Nepali calendar, from anywhere.
+
+     A month at a time with the Gregorian date under each day, today marked,
+     Saturdays in red, and the fiscal year the month falls in. */
+
+  function openCalendar() {
+    var todayIso = NP.todayIso();
+    var view = NP.adToBs(todayIso);
+    var body = el("div");
+
+    function draw() {
+      UI.clear(body);
+      var days = NP.daysInMonth(view.year, view.month);
+      if (!days) { return; }
+      var firstAd = NP.bsToAd(view.year, view.month, 1);
+      var fy = NP.fiscalYearOf(firstAd);
+
+      body.appendChild(el("div.cal-head", {}, [
+        el("button.icon-button", { text: "‹", title: "Previous month",
+                                   onclick: function () { step(-1); } }),
+        el("div", { style: "text-align:center" }, [
+          el("div.cal-month", { text: NP.MONTHS_EN[view.month - 1] + " " + view.year }),
+          el("div.cal-sub", { text: firstAd.slice(0, 7) + "  ·  " + days + " days"
+            + "  ·  fiscal year " + fy.label })
+        ]),
+        el("button.icon-button", { text: "›", title: "Next month",
+                                   onclick: function () { step(1); } })
+      ]));
+
+      var grid = el("div.cal-grid");
+      NP.DOW_EN.forEach(function (name) { grid.appendChild(el("div.cal-dow", { text: name })); });
+      for (var blank = 0; blank < NP.weekdayIndex(firstAd); blank++) {
+        grid.appendChild(el("div"));
+      }
+      for (var d = 1; d <= days; d++) {
+        var iso = NP.bsToAd(view.year, view.month, d);
+        var classes = "div.cal-day";
+        if (iso === todayIso) { classes += ".today"; }
+        if (NP.weekdayIndex(iso) === 6) { classes += ".saturday"; }
+        grid.appendChild(el(classes, {}, [
+          el("div.cal-bs", { text: String(d) }),
+          el("div.cal-ad", { text: iso.slice(8) + " " + monthShort(iso) })
+        ]));
+      }
+      body.appendChild(grid);
+
+      body.appendChild(el("div.cal-foot", {}, [
+        el("button.link-button", { text: "Back to this month", onclick: function () {
+          view = NP.adToBs(todayIso); draw();
+        }}),
+        el("span.card-note", { text: "Saturday shown in red. Public holidays are not built in." })
+      ]));
+    }
+
+    function monthShort(iso) {
+      var names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      return names[parseInt(iso.slice(5, 7), 10) - 1];
+    }
+
+    function step(direction) {
+      view.month += direction;
+      if (view.month > 12) { view.month = 1; view.year += 1; }
+      if (view.month < 1) { view.month = 12; view.year -= 1; }
+      if (!NP.daysInMonth(view.year, view.month)) { view.month -= direction; return; }
+      draw();
+    }
+
+    draw();
+    UI.modal("Nepali calendar", body, [
+      { label: "Close" },
+      { label: "Date converter", action: function () { UI.closeModal(); go("dates"); return false; } }
+    ], { slim: true });
+  }
+
+  function openUserMenu() {
+    var themeChoice = UI.getTheme();
+    var segmented = el("div.segmented");
+    [["light", "Light"], ["dark", "Dark"], ["system", "Follow the device"]].forEach(function (pair) {
+      segmented.appendChild(el("button" + (themeChoice === pair[0] ? ".on" : ""), {
+        text: pair[1],
+        onclick: function (event) {
+          UI.setTheme(pair[0]);
+          UI.qsa("button", segmented).forEach(function (b) { b.classList.remove("on"); });
+          event.currentTarget.classList.add("on");
+        }
+      }));
+    });
+
+    var body = el("div", {}, [
+      el("p", { text: (state.user.full_name || state.user.username)
+        + ", signed in as " + (state.roles && state.roles[state.user.role] || state.user.role) + "." }),
+      UI.field("Appearance", segmented),
+      canInstall() ? el("div.install-bar", {}, [
+        el("span", { text: "Install Chartered Book on this device and it gets its own icon." }),
+        el("button.primary", { text: "Install", onclick: function () {
+          runInstall().then(function (yes) {
+            if (yes) { UI.flash("Installed. Look for the icon with your other apps.", "good"); }
+            UI.closeModal();
+          });
+        }})
+      ]) : null,
+      el("div.row", { style: "margin-top:.8rem" }, [
+        el("button.secondary", { text: "Change my password", onclick: function () {
+          UI.closeModal(); openPasswordForm();
+        }}),
+        el("button.secondary", { text: "Switch company", onclick: function () {
+          UI.closeModal(); state.company = null; openCompanyChooser();
+        }}),
+        el("button.secondary", { text: "Sign out", onclick: function () {
+          api("/api/logout", { body: {} }).then(function () { location.reload(); });
+        }})
+      ])
+    ]);
+    UI.modal("Your account", body, [{ label: "Close" }], { slim: true });
+  }
+
+  function openPasswordForm() {
+    var current = el("input", { type: "password", autocomplete: "current-password" });
+    var fresh = el("input", { type: "password", autocomplete: "new-password" });
+    var again = el("input", { type: "password", autocomplete: "new-password" });
+    var body = el("div", {}, [
+      UI.field("Current password", current),
+      UI.field("New password", fresh, "At least eight characters."),
+      UI.field("Type the new password again", again)
+    ]);
+    UI.modal("Change password", body, [
+      { label: "Cancel" },
+      { label: "Change it", kind: "primary", action: function () {
+        if (fresh.value !== again.value) {
+          UI.flash("The two new passwords are not the same.", "bad");
+          return false;
+        }
+        return api("/api/change-password", {
+          body: { current_password: current.value, new_password: fresh.value }
+        }).then(function () { UI.flash("Password changed.", "good"); });
+      }}
+    ]);
+  }
+
+  /* Routing */
+
+  function go(key) {
+    state.route = key;
+    paintChrome();
+    UI.qs(".sidebar").classList.remove("open");
+    var page = UI.clear(qs("#page"));
+    var builder = SCREENS[key];
+    var label = "Dashboard";
+    buildMenu().forEach(function (group) {
+      group.items.forEach(function (item) { if (item.key === key) { label = item.label; } });
+    });
+    qs("#page-title").textContent = label;
+    if (!builder) {
+      page.appendChild(el("div.card", {}, [el("div.empty", { text: "That screen is not ready yet." })]));
+      return;
+    }
+    var result = builder(page);
+    if (result && typeof result.catch === "function") {
+      result.catch(function (error) {
+        if (error.status === 409) {
+          UI.flash(error.message, "warn");
+          refresh();
+          return;
+        }
+        UI.flash(error.message, "bad");
+      });
+    }
+    window.scrollTo(0, 0);
+  }
+
+  /* Company chooser and form */
+
+  function openCompanyChooser() {
+    var page = UI.clear(qs("#page"));
+    qs("#page-title").textContent = "Choose a company";
+    var wrap = el("div.chooser");
+
+    wrap.appendChild(el("div", { style: "text-align:center;margin-bottom:1.4rem" }, [
+      el("h2", { text: "Which set of books do you want to open?",
+                 style: "font-size:1.2rem;margin-bottom:.25rem" }),
+      el("p.card-note", { text: "Each business keeps its own books in its own file, so nothing "
+        + "can leak from one into another. Switch at any time from the box at the top left." })
+    ]));
+
+    var grid = el("div.chooser-grid");
+    var typeLabels = { trading: "Goods", service: "Services", both: "Goods and services" };
+    state.companies.forEach(function (company) {
+      grid.appendChild(el("button.chooser-card", {
+        onclick: function () { openCompany(company.id); }
+      }, [
+        el("div.name", { text: company.name }),
+        company.name_np ? el("div.meta", { text: company.name_np }) : null,
+        el("div.tags", {}, [
+          el("span.pill.brand", { text: typeLabels[company.business_type] || company.business_type })
+        ])
+      ]));
+    });
+    if (state.permissions["company.create"]) {
+      grid.appendChild(el("button.chooser-card.new", { onclick: openCompanyForm }, [
+        el("div", { text: "+", style: "font-size:1.5rem;line-height:1" }),
+        el("div", { text: state.companies.length ? "Add another company" : "Create the first company" })
+      ]));
+    }
+    wrap.appendChild(grid);
+
+    if (!state.companies.length) {
+      wrap.appendChild(el("div.card", { style: "margin-top:1.2rem" }, [
+        el("p.card-note", { text: "Nothing has been set up yet. Creating a company lays out the "
+          + "full Nepali chart of accounts, the units a hardware shop uses, the voucher types and "
+          + "the tax deduction rates, so you can start entering the same day." })
+      ]));
+    }
+    page.appendChild(wrap);
+  }
+
+  function openCompany(companyId) {
+    return api("/api/companies/select", { body: { company_id: companyId } })
+      .then(function () {
+        localStorage.setItem("cb_last_company", String(companyId));
+        state.route = "dashboard";
+        return refresh();
+      })
+      .catch(function (error) { UI.flash(error.message, "bad"); });
+  }
+
+  function openCompanyForm() {
+    var name = el("input", { type: "text" });
+    var nameNp = el("input", { type: "text" });
+
+    var chosenType = "trading";
+    var typeButtons = {};
+    function typeButton(value, label, note) {
+      var button = el("button.chooser-card", {
+        onclick: function () {
+          chosenType = value;
+          Object.keys(typeButtons).forEach(function (key) {
+            typeButtons[key].style.borderColor = key === value ? "var(--brand)" : "";
+            typeButtons[key].style.background = key === value ? "var(--brand-soft)" : "";
+          });
+        }
+      }, [
+        el("div.name", { text: label, style: "font-size:.92rem" }),
+        el("div.meta", { text: note })
+      ]);
+      typeButtons[value] = button;
+      return button;
+    }
+    var typeGrid = el("div.chooser-grid", { style: "grid-template-columns:repeat(auto-fit,minmax(190px,1fr))" }, [
+      typeButton("trading", "Goods only", "A shop that buys and sells. Stock, items, purchase bills."),
+      typeButton("service", "Services only", "A practice that bills its time. No stock to count."),
+      typeButton("both", "Goods and services", "Both, with every screen switched on.")
+    ]);
+    setTimeout(function () { typeButtons.trading.click(); }, 0);
+
+    var entityType = UI.select([
+      { value: "proprietorship", label: "Sole proprietorship" },
+      { value: "partnership", label: "Partnership firm" },
+      { value: "private_limited", label: "Private limited company" },
+      { value: "public_limited", label: "Public limited company" },
+      { value: "cooperative", label: "Cooperative" },
+      { value: "ngo", label: "Non government organisation" },
+      { value: "other", label: "Other" }
+    ], "proprietorship");
+    var pan = el("input", { type: "text", maxlength: "9", inputmode: "numeric" });
+    var vat = el("input", { type: "checkbox" });
+    pan.addEventListener("input", function () {
+      if (pan.value.trim().length === 9) { vat.checked = true; }
+    });
+    var address = el("input", { type: "text" });
+    var city = el("input", { type: "text" });
+    var district = el("input", { type: "text" });
+    var phone = el("input", { type: "text" });
+    var email = el("input", { type: "text" });
+    var ird = el("input", { type: "text" });
+    var beginField = UI.dateField(NP.fiscalYearOf(NP.todayIso()).startAd);
+
+    var body = el("div", {}, [
+      el("div.section-title", { text: "What is it" }),
+      el("div.row", {}, [
+        UI.field("Company name", name),
+        UI.field("Name in Nepali", nameNp, "Printed on the invoice where Nepali is expected")
+      ]),
+      el("div.field", {}, [
+        el("label", { text: "What does this business do" }),
+        typeGrid,
+        el("div.hint", { text: "This decides which screens appear. It can be changed later." })
+      ]),
+      el("div.section-title", { text: "Registration" }),
+      el("div.row", {}, [
+        UI.field("How is it registered", entityType),
+        UI.field("PAN or VAT number", pan, "Nine digits"),
+        UI.field("Registered for VAT", el("label.check", {}, [vat, el("span", { text: "Yes, charge 13 percent" })]))
+      ]),
+      UI.field("Inland Revenue office", ird),
+      el("div.section-title", { text: "Where it is" }),
+      UI.field("Address", address),
+      el("div.row", {}, [UI.field("City", city), UI.field("District", district)]),
+      el("div.row", {}, [UI.field("Phone", phone), UI.field("Email", email)]),
+      el("div.section-title", { text: "When the books start" }),
+      UI.field("Books begin on", beginField,
+        "Usually 1 Shrawan. Nothing can be posted before this date, so set it to the day you are "
+        + "carrying the opening balances in from.")
+    ]);
+
+    UI.modal("New company", body, [
+      { label: "Cancel" },
+      { label: "Create the books", kind: "primary", action: function () {
+        if (!name.value.trim()) { UI.flash("Give the company a name.", "bad"); return false; }
+        var pn = pan.value.trim();
+        if (pn && (pn.length !== 9 || !/^\d+$/.test(pn))) {
+          UI.flash("A Nepali PAN is nine digits.", "bad");
+          return false;
+        }
+        return api("/api/companies/create", { body: {
+          name: name.value.trim(), name_np: nameNp.value.trim(),
+          business_type: chosenType, entity_type: entityType.value,
+          pan: pn, vat_registered: vat.checked ? 1 : 0,
+          ird_office: ird.value.trim(),
+          address: address.value.trim(), city: city.value.trim(),
+          district: district.value.trim(), phone: phone.value.trim(),
+          email: email.value.trim(), books_begin_ad: beginField.getIso()
+        }}).then(function (made) {
+          UI.flash("The books are ready. The full Nepali chart of accounts is set up.", "good");
+          localStorage.setItem("cb_last_company", String(made.id));
+          state.route = "dashboard";
+          return refresh();
+        });
+      }}
+    ], { wide: true });
+  }
+
+  /* Dashboard */
+
+  register("dashboard", function (page) {
+    return api("/api/dashboard").then(function (data) {
+      var tiles = el("div.grid.four", {}, [
+        tile("Revenue this year", UI.rs(data.revenue), "Sales and service income", "violet"),
+        tile("Gross profit", UI.rs(data.gross_profit),
+          data.pending_closing_stock ? "Counting stock still on the shelf" : "Revenue less cost of sales",
+          "teal"),
+        tile("Profit", UI.rs(data.profit), "After every expense", data.profit >= 0 ? "good" : "bad"),
+        tile("Stock on hand", UI.rs(data.stock_value), data.counts.items + " items on the list", "amber")
+      ]);
+      var tiles2 = el("div.grid.four", {}, [
+        tile("Receivable", UI.rs(data.receivable), "Owed to you by customers", "violet"),
+        tile("Payable", UI.rs(data.payable), "Owed by you to suppliers", "amber"),
+        tile("Cash and bank", UI.rs(data.cash_and_bank.total),
+             data.cash_and_bank.rows.length + " accounts", "teal"),
+        data.vat
+          ? tile(data.vat.net >= 0 ? "VAT payable, " + data.vat.month_name : "VAT credit, " + data.vat.month_name,
+                 UI.rs(Math.abs(data.vat.net)), "Due by " + data.vat.due_date_bs, "rose")
+          : tile("Vouchers posted", String(data.counts.vouchers), "This year", "teal")
+      ]);
+      page.appendChild(tiles);
+      page.appendChild(tiles2);
+      if (data.pending_closing_stock) {
+        page.appendChild(el("div.card", { style: "border-color:#f0dcb4;background:var(--warn-soft)" }, [
+          el("div", { style: "display:flex;gap:.8rem;align-items:center;flex-wrap:wrap" }, [
+            el("span", { style: "color:var(--warn);font-size:.86rem", text:
+              "The figures above count " + UI.rs(data.pending_closing_stock)
+              + " of stock that is on the shelf but not yet brought into the accounts. "
+              + "Pass the closing stock entry to make the profit and loss read the same way." }),
+            el("button.secondary", { text: "Go to closing stock",
+              onclick: function () { go("period-end"); } })
+          ])
+        ]));
+      }
+
+      var actions = el("div.card", {}, [
+        el("div.card-head", {}, [el("h2", { text: "Start something" })]),
+        el("div.row", {}, [
+          el("button.primary", { text: "New sales invoice", onclick: function () { go("sales"); } }),
+          el("button.secondary", { text: "New purchase bill", onclick: function () { go("purchase"); } }),
+          el("button.secondary", { text: "Receipt", onclick: function () { go("receipt"); } }),
+          el("button.secondary", { text: "Payment", onclick: function () { go("payment"); } }),
+          el("button.secondary", { text: "Add a customer", onclick: function () { Masters.openPartyForm(null, "customer"); } }),
+          el("button.secondary", { text: "Add an item", onclick: function () { Masters.openItemForm(null); } })
+        ])
+      ]);
+      page.appendChild(actions);
+
+      var columns = el("div.grid.two");
+      var recent = (data.recent_vouchers || []).map(function (row) {
+        return el("tr.clickable", { onclick: function () { Vouchers.view(row.id); } }, [
+          el("td", { text: UI.bs(row.date_ad, "short") }),
+          el("td", { text: row.type_name }),
+          el("td", { text: row.number }),
+          el("td", { text: row.party_name || "" }),
+          el("td.num", { text: UI.rs(row.total_paisa) })
+        ]);
+      });
+      columns.appendChild(el("div.card", {}, [
+        el("div.card-head", {}, [
+          el("h2", { text: "Latest entries" }),
+          el("button.link-button", { text: "Open the day book", onclick: function () { go("daybook"); } })
+        ]),
+        UI.table(["Date", "Type", "Number", "Party", { label: "Amount", num: true }], recent, null,
+          { emptyText: "No vouchers yet. Start with a sales invoice or a purchase bill." })
+      ]));
+
+      var low = (data.low_stock || []).map(function (row) {
+        return el("tr", {}, [
+          el("td", { text: row.name }),
+          el("td.num", { text: NP.formatQty(row.qty) + " " + row.unit }),
+          el("td.num", { text: NP.formatQty(row.reorder_qty) })
+        ]);
+      });
+      columns.appendChild(el("div.card", {}, [
+        el("div.card-head", {}, [el("h2", { text: "Running low" })]),
+        UI.table(["Item", { label: "In stock", num: true }, { label: "Reorder at", num: true }],
+          low, null, { emptyText: "Nothing is below its reorder level." })
+      ]));
+      page.appendChild(columns);
+    });
+  });
+
+  function tile(label, value, note, kind) {
+    return el("div.tile" + (kind ? "." + kind : ""), {}, [
+      el("div.tile-label", { text: label }),
+      el("div.tile-value", { text: value }),
+      note ? el("div.tile-note", { text: note }) : null
+    ]);
+  }
+
+  /* Company settings */
+
+  register("company", function (page) {
+    return api("/api/company").then(function (data) {
+      var profile = data.profile;
+      var fields = {};
+      function text(key, label, hint, attrs) {
+        fields[key] = el("input", Object.assign({ type: "text", value: profile[key] || "" }, attrs || {}));
+        return UI.field(label, fields[key], hint);
+      }
+
+      var vatBox = el("input", { type: "checkbox" });
+      vatBox.checked = !!profile.vat_registered;
+
+      var card = el("div.card", {}, [
+        el("div.card-head", {}, [el("h2", { text: "Company details" }),
+          el("span.card-note", { text: "These appear on every invoice and report." })]),
+        el("div.row", {}, [text("name", "Name"), text("name_np", "Name in Nepali")]),
+        el("div.row", {}, [
+          text("pan", "PAN or VAT number", "Nine digits", { maxlength: "9" }),
+          UI.field("Registered for VAT", el("div", { style: "padding-top:.3rem" }, [vatBox])),
+          text("ird_office", "Inland Revenue office")
+        ]),
+        el("div.row", {}, [text("address", "Address"), text("address_np", "Address in Nepali")]),
+        el("div.row", {}, [text("ward_no", "Ward"), text("city", "City"), text("district", "District"), text("province", "Province")]),
+        el("div.row", {}, [text("phone", "Phone"), text("mobile", "Mobile"), text("email", "Email"), text("website", "Website")]),
+        el("div.row", {}, [text("registration_no", "Registration number"), text("registration_date", "Registration date")])
+      ]);
+
+      var footer = el("input", { type: "text", value: (data.settings || {}).invoice_footer || "" });
+      var terms = el("textarea", { rows: "3" });
+      terms.value = (data.settings || {}).invoice_terms || "";
+      var roundBox = el("input", { type: "checkbox" });
+      roundBox.checked = (data.settings || {}).auto_round_invoice !== "0";
+      var wordsBox = el("input", { type: "checkbox" });
+      wordsBox.checked = (data.settings || {}).show_amount_in_words !== "0";
+      var negativeBox = el("input", { type: "checkbox" });
+      negativeBox.checked = (data.settings || {}).allow_negative_stock === "1";
+
+      var invoiceCard = el("div.card", {}, [
+        el("div.card-head", {}, [el("h2", { text: "Invoice settings" })]),
+        UI.field("Line printed at the foot of every invoice", footer),
+        UI.field("Terms and conditions", terms),
+        el("div.row", {}, [
+          UI.field("Round invoices to the rupee", el("div", { style: "padding-top:.3rem" }, [roundBox])),
+          UI.field("Print the amount in words", el("div", { style: "padding-top:.3rem" }, [wordsBox])),
+          UI.field("Allow stock to go negative", el("div", { style: "padding-top:.3rem" }, [negativeBox]))
+        ])
+      ]);
+
+      var yearRows = (data.fiscal_years || []).map(function (fy) {
+        return el("tr", {}, [
+          el("td", { text: fy.label }),
+          el("td", { text: UI.bs(fy.start_ad, "short") + " to " + UI.bs(fy.end_ad, "short") }),
+          el("td", { text: fy.start_ad + " to " + fy.end_ad }),
+          el("td", {}, [el("span.pill" + (fy.status === "open" ? ".good" : ""), { text: fy.status })]),
+          el("td", {}, [
+            data.fiscal_year && fy.id === data.fiscal_year.id
+              ? el("span.pill", { text: "in use" })
+              : el("button.link-button", { text: "Work in this year", onclick: function () {
+                  api("/api/fiscal-years/select", { body: { fiscal_year_id: fy.id } })
+                    .then(function () { return refresh(); })
+                    .catch(function (error) { UI.flash(error.message, "bad"); });
+                }})
+          ])
+        ]);
+      });
+
+      var nextYear = data.fiscal_year
+        ? (+String(data.fiscal_year.label).split("/")[0] + 1) : NP.adToBs(NP.todayIso()).year;
+      var yearCard = el("div.card", {}, [
+        el("div.card-head", {}, [
+          el("h2", { text: "Fiscal years" }),
+          el("button.secondary", { text: "Open " + nextYear + "/" + NP.pad((nextYear + 1) % 100, 2),
+            onclick: function () {
+              api("/api/fiscal-years/create", { body: { start_bs_year: nextYear } })
+                .then(function () { UI.flash("Fiscal year opened.", "good"); go("company"); })
+                .catch(function (error) { UI.flash(error.message, "bad"); });
+            }})
+        ]),
+        el("p.card-note", { text: "A Nepali fiscal year runs from 1 Shrawan to the last day of Ashadh. Open the next year before you start entering vouchers dated in it." }),
+        UI.table(["Year", "Bikram Sambat", "Gregorian", "Status", ""], yearRows)
+      ]);
+
+      var save = el("button.primary", { text: "Save changes", onclick: function () {
+        var body = { settings: {
+          invoice_footer: footer.value, invoice_terms: terms.value,
+          auto_round_invoice: roundBox.checked ? "1" : "0",
+          show_amount_in_words: wordsBox.checked ? "1" : "0",
+          allow_negative_stock: negativeBox.checked ? "1" : "0"
+        }};
+        Object.keys(fields).forEach(function (key) { body[key] = fields[key].value.trim(); });
+        body.vat_registered = vatBox.checked ? 1 : 0;
+        api("/api/company/update", { body: body })
+          .then(function () { UI.flash("Saved.", "good"); return refresh(); })
+          .catch(function (error) { UI.flash(error.message, "bad"); });
+      }});
+
+      page.appendChild(card);
+      page.appendChild(invoiceCard);
+      page.appendChild(el("div", { style: "margin:-.3rem 0 1rem" }, [save]));
+      page.appendChild(yearCard);
+    });
+  });
+
+  /* Users */
+
+  register("users", function (page) {
+    if (!state.permissions["user.manage"]) {
+      page.appendChild(el("div.card", {}, [el("div.empty", { text: "Only an owner can manage users." })]));
+      return;
+    }
+    return api("/api/users").then(function (data) {
+      var rows = data.rows.map(function (user) {
+        return el("tr", {}, [
+          el("td", { text: user.username }),
+          el("td", { text: user.full_name }),
+          el("td", { text: user.role }),
+          el("td", {}, [el("span.pill" + (user.active ? ".good" : ".bad"),
+            { text: user.active ? "active" : "disabled" })]),
+          el("td", { text: user.last_login_at || "never" }),
+          el("td", {}, [
+            el("button.link-button", { text: "Edit", onclick: function () { openUserForm(user); } })
+          ])
+        ]);
+      });
+      page.appendChild(el("div.card", {}, [
+        el("div.card-head", {}, [
+          el("h2", { text: "People who can sign in" }),
+          el("button.primary", { text: "Add a user", onclick: function () { openUserForm(null); } })
+        ]),
+        el("p.card-note", { text: "Owner can do everything. Accountant can post, edit and cancel. Operator enters day to day vouchers. View only can read reports and nothing else." }),
+        UI.table(["Username", "Name", "Role", "Status", "Last signed in", ""], rows)
+      ]));
+    });
+  });
+
+  function openUserForm(user) {
+    var username = el("input", { type: "text", value: user ? user.username : "", readonly: !!user });
+    var fullName = el("input", { type: "text", value: user ? user.full_name : "" });
+    var password = el("input", { type: "password", autocomplete: "new-password" });
+    var role = UI.select(Object.keys({ owner: 1, accountant: 1, operator: 1, viewer: 1 }).map(function (key) {
+      return { value: key, label: key.charAt(0).toUpperCase() + key.slice(1) };
+    }), user ? user.role : "operator");
+    var active = el("input", { type: "checkbox" });
+    active.checked = user ? !!user.active : true;
+
+    var body = el("div", {}, [
+      UI.field("Username", username),
+      UI.field("Full name", fullName),
+      UI.field(user ? "New password, leave blank to keep the old one" : "Password", password,
+        "At least eight characters."),
+      UI.field("Role", role),
+      user ? UI.field("Can sign in", el("div", {}, [active])) : null
+    ]);
+
+    UI.modal(user ? "Edit user" : "Add a user", body, [
+      { label: "Cancel" },
+      { label: "Save", kind: "primary", action: function () {
+        var payload = { full_name: fullName.value.trim(), role: role.value };
+        if (password.value) { payload.password = password.value; }
+        if (user) {
+          payload.active = active.checked ? 1 : 0;
+          return api("/api/users/" + user.id + "/update", { body: payload })
+            .then(function () { UI.flash("Saved.", "good"); go("users"); });
+        }
+        payload.username = username.value.trim();
+        return api("/api/users/create", { body: payload })
+          .then(function () { UI.flash("User added.", "good"); go("users"); });
+      }}
+    ]);
+  }
+
+  /* Backup */
+
+  register("backup", function (page) {
+    var listBox = el("div");
+    var folderBox = el("div");
+
+    function loadFolders() {
+      return api("/api/backup/destinations").then(function (data) {
+        UI.clear(folderBox);
+
+        folderBox.appendChild(el("div.card", {}, [
+          el("div.card-head", {}, [el("h2", { text: "Where everything is kept" })]),
+          pathRow("The books themselves", data.data_folder,
+            "One file for each company. This is the folder to copy if you ever move to another computer."),
+          pathRow("Backups", data.backup_folder,
+            "Every backup is a single zip file holding all companies at that moment.")
+        ]));
+
+        var rows = data.folders.map(function (folder) {
+          return el("tr", {}, [
+            el("td", { text: folder, style: "font-family:var(--num);font-size:.78rem" }),
+            el("td.no-print", {}, [
+              el("button.link-button", { text: "Remove", onclick: function () {
+                var kept = data.folders.filter(function (f) { return f !== folder; });
+                saveFolders(kept);
+              }})
+            ])
+          ]);
+        });
+
+        var suggestions = el("div.row", { style: "margin-top:.6rem" });
+        data.suggestions.forEach(function (option) {
+          if (data.folders.indexOf(option.path) >= 0) { return; }
+          suggestions.appendChild(el("button.secondary", {
+            text: "Also copy to " + option.label,
+            title: option.path,
+            onclick: function () { saveFolders(data.folders.concat([option.path])); }
+          }));
+        });
+
+        var manual = el("input", { type: "text",
+          placeholder: "/Users/you/Google Drive/Chartered Book backups" });
+
+        folderBox.appendChild(el("div.card", {}, [
+          el("div.card-head", {}, [el("h2", { text: "Keep a second copy somewhere else" })]),
+          el("p.card-note", { text: "A backup sitting on the same disk protects you from a "
+            + "mistake, not from the disk failing. Name another folder and every backup is copied "
+            + "there as well, the moment it is taken." }),
+          el("p.card-note", { text: "Point it at a Google Drive, OneDrive or Dropbox folder on "
+            + "this computer and the copy uploads itself the next time the machine is online. "
+            + "There is no account to connect here, no key that expires, and nothing to pay for. "
+            + "The books stay on this machine and only the backup file travels." }),
+          rows.length
+            ? UI.table(["Folder", ""], rows)
+            : el("p.card-note", { text: "No extra folder set yet." }),
+          suggestions.childNodes.length
+            ? el("div", {}, [el("div.section-title", { text: "Found on this computer" }), suggestions])
+            : null,
+          el("div.row", { style: "margin-top:.7rem" }, [
+            el("div.field", { style: "flex:1 1 320px;margin:0" }, [
+              el("label", { text: "Or type the full path to any folder" }), manual
+            ]),
+            el("button.secondary", { text: "Add this folder", onclick: function () {
+              if (!manual.value.trim()) { return; }
+              saveFolders(data.folders.concat([manual.value.trim()]));
+            }})
+          ])
+        ]));
+      });
+    }
+
+    function saveFolders(folders) {
+      return api("/api/backup/destinations", { body: { folders: folders } })
+        .then(function (result) {
+          if (result.problems && result.problems.length) {
+            UI.flash(result.problems.join("  "), "bad");
+          } else {
+            UI.flash("Saved. Backups will be copied there from now on.", "good");
+          }
+          loadFolders();
+        })
+        .catch(function (error) { UI.flash(error.message, "bad"); });
+    }
+
+    function pathRow(label, path, note) {
+      return el("div", { style: "margin-bottom:.7rem" }, [
+        el("div.tile-label", { text: label }),
+        el("div", { text: path, style: "font-family:var(--num);font-size:.78rem;"
+          + "word-break:break-all;margin:.15rem 0 .1rem" }),
+        el("div.card-note", { text: note })
+      ]);
+    }
+
+    function loadList() {
+      return api("/api/backup/list").then(function (data) {
+        var rows = data.rows.map(function (item) {
+          return el("tr", {}, [
+            el("td", { text: item.taken_bs }),
+            el("td.muted", { text: item.taken_ad, style: "font-size:.78rem" }),
+            el("td", {}, [el("span.pill" + (item.kind === "manual" ? ".good" : ""),
+              { text: item.kind })]),
+            el("td.num", { text: item.size_text }),
+            el("td.muted", { text: item.filename, style: "font-size:.74rem" }),
+            el("td.no-print", {}, [
+              el("button.link-button", { text: "Restore", onclick: function () {
+                UI.confirmAction("Restore this backup",
+                  "Everything currently in the books will be replaced by the contents of "
+                  + item.filename + ", taken on " + item.taken_bs + ". A safety copy of the "
+                  + "present state is taken first, so this can itself be undone. Continue?",
+                  function () {
+                    return api("/api/backup/restore", { body: { filename: item.filename } })
+                      .then(function (result) {
+                        UI.flash(result.message, "warn");
+                        setTimeout(function () { location.reload(); }, 2500);
+                      });
+                  }, "Restore now");
+              }})
+            ])
+          ]);
+        });
+
+        UI.clear(listBox).appendChild(el("div.card", {}, [
+          el("div.card-head", {}, [
+            el("h2", { text: "Backups taken" }),
+            el("button.primary", { text: "Take a backup now", onclick: function () {
+              UI.promptText("Take a backup", "A note, so you can find this one later",
+                function (note) {
+                  return api("/api/backup/create", { body: { note: note } })
+                    .then(function (result) {
+                      var copies = (result.backup.copies || []).filter(function (c) { return c.ok; });
+                      UI.flash("Backed up" + (copies.length
+                        ? " and copied to " + copies.length + " other folder"
+                          + (copies.length === 1 ? "" : "s") : "") + ".", "good");
+                      loadList();
+                    });
+                }, { submitLabel: "Take the backup" });
+            }})
+          ]),
+          el("p.card-note", { text: "One is taken automatically each time the software starts "
+            + "and again when it closes. The last thirty automatic ones are kept, and every "
+            + "backup you take by hand is kept for good." }),
+          UI.table(["Taken (BS)", "Taken (AD)", "Kind", { label: "Size", num: true }, "File", ""],
+            rows, null, { tall: true, emptyText: "No backups yet. Take one now." })
+        ]));
+      });
+    }
+
+    page.appendChild(folderBox);
+    page.appendChild(listBox);
+    return Promise.all([loadFolders(), loadList()]);
+  });
+
+  /* Audit trail */
+
+  register("audit", function (page) {
+    return api("/api/audit", { query: { limit: 400 } }).then(function (data) {
+      var rows = data.rows.map(function (row) {
+        return el("tr", {}, [
+          el("td", { text: row.at }),
+          el("td", { text: row.username }),
+          el("td", {}, [el("span.pill", { text: row.action })]),
+          el("td", { text: row.reference }),
+          el("td", { text: row.summary })
+        ]);
+      });
+      page.appendChild(el("div.card", {}, [
+        el("div.card-head", {}, [el("h2", { text: "Audit trail" })]),
+        el("p.card-note", { text: "Every change to the books, with who made it and when. Nothing here can be edited." }),
+        UI.table(["When", "Who", "Action", "Reference", "What happened"], rows, null, { tall: true })
+      ]));
+    });
+  });
+
+  /* Date converter */
+
+  register("dates", function (page) {
+    var bsInput = el("input", { type: "text", value: NP.formatBs(NP.adToBs(NP.todayIso()), "numeric") });
+    var adInput = el("input", { type: "text", value: NP.todayIso() });
+    var result = el("div.card-note", { style: "margin-top:.5rem;font-size:.9rem" });
+
+    function fromBs() {
+      var bs = NP.parseBs(bsInput.value);
+      if (!bs) { result.textContent = "That is not a Bikram Sambat date this software knows."; return; }
+      var iso = NP.bsToAd(bs.year, bs.month, bs.day);
+      adInput.value = iso;
+      show(iso);
+    }
+    function fromAd() {
+      var iso = adInput.value.trim();
+      var bs = NP.adToBs(iso);
+      if (!bs) { result.textContent = "That is not a Gregorian date this software can convert."; return; }
+      bsInput.value = NP.formatBs(bs, "numeric");
+      show(iso);
+    }
+    function show(iso) {
+      var bs = NP.adToBs(iso);
+      var dow = NP.weekdayIndex(iso);
+      var fy = NP.fiscalYearOf(iso);
+      result.innerHTML = "";
+      [
+        NP.formatBs(bs, "long") + ", " + NP.DOW_EN[dow] + "bar",
+        "Gregorian: " + new Date(iso + "T00:00:00").toDateString(),
+        "Fiscal year " + fy.label + ", from " + fy.startAd + " to " + fy.endAd,
+        NP.MONTHS_EN[bs.month - 1] + " " + bs.year + " has " + NP.daysInMonth(bs.year, bs.month) + " days"
+      ].forEach(function (line) { result.appendChild(el("div", { text: line })); });
+    }
+
+    bsInput.addEventListener("change", fromBs);
+    adInput.addEventListener("change", fromAd);
+
+    page.appendChild(el("div.card", {}, [
+      el("div.card-head", {}, [el("h2", { text: "Convert a date" })]),
+      el("div.row", {}, [
+        UI.field("Bikram Sambat", bsInput, "For example 2083-05-17"),
+        UI.field("Gregorian", adInput, "For example 2026-09-02")
+      ]),
+      result
+    ]));
+    show(NP.todayIso());
+
+    var view = NP.adToBs(NP.todayIso());
+    var calendarCard = el("div.card");
+    page.appendChild(calendarCard);
+    drawMonth(calendarCard, view);
+  });
+
+  function drawMonth(card, view) {
+    UI.clear(card);
+    var head = el("div.card-head", {}, [
+      el("h2", { text: NP.MONTHS_EN[view.month - 1] + " " + view.year }),
+      el("div.row", {}, [
+        el("button.secondary", { text: "Previous", onclick: function () { step(-1); } }),
+        el("button.secondary", { text: "Next", onclick: function () { step(1); } })
+      ])
+    ]);
+    function step(direction) {
+      view.month += direction;
+      if (view.month > 12) { view.month = 1; view.year++; }
+      if (view.month < 1) { view.month = 12; view.year--; }
+      if (!NP.daysInMonth(view.year, view.month)) { view.month -= direction; return; }
+      drawMonth(card, view);
+    }
+    var grid = el("div.calendar-grid", { style: "gap:2px" });
+    NP.DOW_EN.forEach(function (name) { grid.appendChild(el("div.dow", { text: name })); });
+    var firstAd = NP.bsToAd(view.year, view.month, 1);
+    for (var i = 0; i < NP.weekdayIndex(firstAd); i++) { grid.appendChild(el("div")); }
+    var todayIso = NP.todayIso();
+    for (var d = 1; d <= NP.daysInMonth(view.year, view.month); d++) {
+      var dayIso = NP.bsToAd(view.year, view.month, d);
+      var classes = "div.day";
+      if (dayIso === todayIso) { classes += ".today"; }
+      if (NP.weekdayIndex(dayIso) === 6) { classes += ".holiday"; }
+      grid.appendChild(el(classes, {
+        style: "padding:.5rem 0;line-height:1.1",
+        html: "<strong>" + d + "</strong><br><span style='font-size:.62rem;color:var(--ink-faint)'>"
+          + dayIso.slice(5) + "</span>"
+      }));
+    }
+    card.appendChild(head);
+    card.appendChild(grid);
+    card.appendChild(el("p.card-note", { style: "margin-top:.6rem",
+      text: "Saturday is shown in red. Public holidays are not built in yet." }));
+  }
+
+  /* Use on your phone */
+
+  register("devices", function (page) {
+    return api("/api/network").then(function (net) {
+      var onPhone = net.urls.length && net.listening_on_network;
+
+      page.appendChild(el("div.card", {}, [
+        el("div.card-head", {}, [el("h2", { text: "Open the books on a phone or tablet" })]),
+        el("p.card-note", { text: "The books live on this computer. A phone or tablet reads "
+          + "them over the same wifi, so this computer has to be switched on and Chartered "
+          + "Book running. Nothing goes over the internet." }),
+        net.urls.length
+          ? el("div", {}, [
+              el("p.card-note", { text: "On the phone or tablet, open the browser and type "
+                + "this address. It only has to be typed once." }),
+              el("div.address", {}, [el("code", { text: net.urls[0].replace(/\/$/, "") })]),
+              net.urls.length > 1
+                ? el("p.card-note", { text: "If that one does not work, try: "
+                    + net.urls.slice(1).map(function (u) { return u.replace(/\/$/, ""); }).join("   ") })
+                : null
+            ])
+          : el("div.flash.warn", { text: "This computer is not on a network at the moment, so "
+              + "there is no address to give the phone. Connect it to the wifi and come back." })
+      ]));
+
+      if (!net.listening_on_network && net.urls.length) {
+        page.appendChild(el("div.card", {}, [
+          el("div.flash.warn", { style: "margin:0", text:
+            "Chartered Book is only answering this computer at the moment. Open it from the "
+            + "Chartered Book icon rather than from a terminal and it will answer the wifi too." })
+        ]));
+      }
+
+      var steps = [
+        ["iPhone or iPad", [
+          "Open the address above in Safari. Chrome on an iPad cannot do this part, it has to be Safari.",
+          "Tap the Share button, the square with an arrow coming out of it.",
+          "Scroll down and tap Add to Home Screen.",
+          "Tap Add. The icon appears with your other apps."
+        ]],
+        ["Android", [
+          "Open the address above in Chrome.",
+          "Tap the three dots at the top right.",
+          "Tap Install app, or Add to Home screen.",
+          "Tap Install. The icon appears with your other apps."
+        ]],
+        ["Windows", [
+          "Open Chartered Book in Edge or Chrome.",
+          "Open the menu at the top right.",
+          "Choose Install Chartered Book, or Apps then Install this site as an app.",
+          "It gets its own window and can be pinned to the taskbar."
+        ]],
+        ["Mac", [
+          "You already have the Chartered Book icon. Drag it to Applications, or keep it in the Dock.",
+          "Double click it any time. It opens the browser at the books by itself.",
+          "Opening it a second time does not start a second copy, it just brings the books back up."
+        ]]
+      ];
+
+      var grid = el("div.grid.two");
+      steps.forEach(function (pair) {
+        grid.appendChild(el("div.card", { style: "margin:0" }, [
+          el("div.card-head", {}, [el("h2", { text: pair[0] })]),
+          el("ol", { style: "margin:0;padding-left:1.2rem" }, pair[1].map(function (line) {
+            return el("li", { text: line, style: "margin-bottom:.35rem;font-size:.85rem" });
+          }))
+        ]));
+      });
+      page.appendChild(grid);
+
+      if (canInstall()) {
+        page.appendChild(el("div.card", {}, [
+          el("div.install-bar", { style: "margin:0" }, [
+            el("span", { text: "This browser can install Chartered Book right now." }),
+            el("button.primary", { text: "Install on this device", onclick: function () {
+              runInstall().then(function (yes) {
+                if (yes) { UI.flash("Installed. Look for the icon with your other apps.", "good"); }
+              });
+            }})
+          ])
+        ]));
+      }
+
+      page.appendChild(el("div.card", {}, [
+        el("div.card-head", {}, [el("h2", { text: "Who can reach it" })]),
+        el("p.card-note", { text: "Anyone on the same wifi can reach the sign in screen. They "
+          + "still need a username and password, and after eight wrong attempts the account is "
+          + "locked for fifteen minutes. Nobody outside the wifi can reach it at all, because "
+          + "the address only exists on your own network." }),
+        el("p.card-note", { text: "Give each person who uses the books their own login under "
+          + "Users, rather than sharing one. That way the audit trail says who did what." })
+      ]));
+    });
+  });
+
+  /* Notes and rules */
+
+  register("guide", function (page) {
+    var sections = [
+      ["How the books are kept", [
+        "Every amount is stored as a whole number of paisa, so the trial balance always ties exactly.",
+        "Every voucher must balance before it can be saved. Debit and credit are checked to the paisa.",
+        "A posted voucher is never deleted. It is cancelled, keeping the number and recording who cancelled it and why, so a gap in an invoice series can always be explained.",
+        "Stock is kept on the periodic basis. A sales invoice does not post cost of goods sold. The stock ledger records every movement, and the closing stock entry brings the value into the accounts at period end."
+      ]],
+      ["Value added tax", [
+        "The standard rate is 13 percent under the Value Added Tax Act, 2052.",
+        "Sales VAT collects into account 2241 VAT Output Payable. Purchase VAT collects into 1241 VAT Input Credit.",
+        "The monthly return sets input against output. The balance is either payable or carried forward as credit.",
+        "A return for a Nepali month is due by the 25th of the following month. The VAT screen shows the date for the month you are looking at.",
+        "Registration is compulsory once turnover crosses the threshold set by the Finance Act. Check the current threshold before relying on it."
+      ]],
+      ["Tax deducted at source", [
+        "Rent paid to a natural person, 10 percent under section 88.",
+        "Service fee, consultancy and professional fee, 15 percent under section 88.",
+        "Service fee paid to a person registered for VAT, 1.5 percent.",
+        "Contract or agreement payment above the threshold, 1.5 percent under section 89.",
+        "Commission, 15 percent. Dividend paid by a resident company, 5 percent.",
+        "Rates change with each Finance Act. Confirm the rate for the year before filing."
+      ]],
+      ["Dates and the fiscal year", [
+        "The fiscal year runs from 1 Shrawan to the last day of Ashadh.",
+        "Dates are typed in Bikram Sambat and stored in both calendars. Press plus or minus in a date box to move a day, Page Up or Page Down for a week, and F4 for the calendar.",
+        "The calendar covers Bikram Sambat 2000 to 2099."
+      ]],
+      ["Keeping the data safe", [
+        "The books live in the data folder beside this software. One file for each company.",
+        "Take a backup regularly and copy the zip somewhere else. A backup on the same disk protects you from a mistake, not from the disk failing.",
+        "Restoring takes a safety copy of the present state first, so a restore done by mistake can be undone."
+      ]],
+      ["Keyboard", [
+        "F1 dashboard, F5 sales, F6 purchase, F7 receipt, F8 payment, F9 journal.",
+        "F2 opens the calculator. Ctrl and P prints the screen.",
+        "Amount boxes accept arithmetic. Type 12*450 and it works the answer out when you leave the box."
+      ]]
+    ];
+    sections.forEach(function (section) {
+      page.appendChild(el("div.card", {}, [
+        el("div.card-head", {}, [el("h2", { text: section[0] })]),
+        el("ul", { style: "margin:0;padding-left:1.1rem" }, section[1].map(function (line) {
+          return el("li", { text: line, style: "margin-bottom:.3rem" });
+        }))
+      ]));
+    });
+  });
+
+  return {
+    start: start, go: go, register: register, state: state, refresh: refresh,
+    loadLookups: loadLookups, openCompanyForm: openCompanyForm,
+    openCompanyChooser: openCompanyChooser, canInstall: canInstall, runInstall: runInstall,
+    buildMenu: buildMenu
+  };
+}());
+
+document.addEventListener("DOMContentLoaded", App.start);

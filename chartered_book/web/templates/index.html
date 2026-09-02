@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chartered Book</title>
+<meta name="description" content="Bookkeeping and accounts for Nepal, kept on your own machine.">
+<meta name="theme-color" content="#1d3557">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Chartered Book">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/icons/icon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/static/icons/icon-180.png">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div id="boot" class="boot">
+  <div class="boot-card">
+    <div class="brand-mark">C</div>
+    <div class="brand-name">Chartered Book</div>
+    <div class="boot-note">Opening your books</div>
+  </div>
+</div>
+
+<div id="gate" class="gate hidden">
+  <div class="gate-panel">
+    <div class="gate-brand">
+      <div class="brand-mark large">C</div>
+      <h1>Chartered Book</h1>
+      <p class="gate-sub">Bookkeeping and accounts for Nepal</p>
+    </div>
+
+    <form id="login-form" class="gate-form">
+      <h2 id="gate-title">Sign in</h2>
+      <p id="gate-help" class="gate-help"></p>
+      <label>
+        <span data-i18n="full_name" class="hidden-when-login">Full name</span>
+        <input type="text" id="setup-fullname" autocomplete="name" class="hidden-when-login">
+      </label>
+      <label>
+        <span data-i18n="username">Username</span>
+        <input type="text" id="login-username" autocomplete="username" autocapitalize="none" required>
+      </label>
+      <label>
+        <span data-i18n="password">Password</span>
+        <input type="password" id="login-password" autocomplete="current-password" required>
+      </label>
+      <div id="gate-error" class="gate-error"></div>
+      <button type="submit" class="primary wide" id="gate-submit">Sign in</button>
+    </form>
+
+    <p class="gate-foot">Everything stays on this computer. Nothing is sent anywhere.</p>
+  </div>
+</div>
+
+<div id="shell" class="shell hidden">
+
+  <aside class="sidebar">
+    <div class="side-brand">
+      <div class="brand-mark">C</div>
+      <div>
+        <div class="side-title">Chartered Book</div>
+        <div class="side-sub" id="side-company">No company</div>
+      </div>
+    </div>
+
+    <div class="company-switch">
+      <select id="company-select" aria-label="Company"></select>
+    </div>
+
+    <nav id="nav" class="nav"></nav>
+
+    <div class="side-foot">
+      <button class="link-button" id="btn-backup-quick">Back up now</button>
+      <div class="side-version">Local and offline</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="icon-button" id="btn-menu" title="Menu">≡</button>
+        <h1 id="page-title">Dashboard</h1>
+      </div>
+      <div class="topbar-right">
+        <button class="today" id="today-chip" title="Open the Nepali calendar (F3)"></button>
+        <div class="fy-chip" id="fy-chip"></div>
+        <button class="icon-button" id="btn-calc" title="Calculator (F2)">=</button>
+        <div class="user-chip" id="user-chip"></div>
+      </div>
+    </header>
+
+    <div id="flash" class="flash hidden"></div>
+    <section id="page" class="page"></section>
+  </main>
+</div>
+
+<div id="calculator" class="calc hidden">
+  <div class="calc-head">
+    <span>Calculator</span>
+    <button class="icon-button" id="calc-close">×</button>
+  </div>
+  <input type="text" id="calc-display" class="calc-display" value="0" spellcheck="false">
+  <div class="calc-expression" id="calc-expression"></div>
+  <div class="calc-keys" id="calc-keys"></div>
+  <div class="calc-tape" id="calc-tape"></div>
+  <div class="calc-foot">
+    <button class="link-button" id="calc-words">In words</button>
+    <button class="link-button" id="calc-vat">Add 13% VAT</button>
+    <button class="link-button" id="calc-vat-out">Take out 13% VAT</button>
+  </div>
+</div>
+
+<div id="modal" class="modal hidden">
+  <div class="modal-card" id="modal-card">
+    <div class="modal-head">
+      <h2 id="modal-title"></h2>
+      <button class="icon-button" id="modal-close">×</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-foot" id="modal-foot"></div>
+  </div>
+</div>
+
+<div id="picker" class="picker hidden"></div>
+
+<script src="/static/nepali.js"></script>
+<script src="/static/ui.js"></script>
+<script src="/static/app.js"></script>
+<script src="/static/masters.js"></script>
+<script src="/static/vouchers.js"></script>
+<script src="/static/drill.js"></script>
+<script src="/static/reports.js"></script>
+<script src="/static/statements.js"></script>
+<script src="/static/banking.js"></script>
+<script src="/static/assets.js"></script>
+</body>
+</html>

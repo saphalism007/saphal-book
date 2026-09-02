@@ -1,0 +1,39 @@
+# Books. Never, under any circumstance, commit these.
+#
+# The books live in Library/Application Support/Chartered Book, outside this
+# folder, so ordinarily there is nothing here to leak. This folder may still
+# hold the copy left behind when the books moved, so it is shut out by name as
+# well as by pattern.
+data/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.zip
+chartered-book.log
+
+# Anything exported or backed up
+backups/
+*.csv
+*.xlsx
+
+# Built things. The Mac app is made from the source by
+# python3 tools/make_mac_app.py, so it does not belong in the repository.
+Chartered Book.app/
+dist/
+build/
+release/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Editors and the operating system
+.DS_Store
+.vscode/
+.idea/
+*.swp
