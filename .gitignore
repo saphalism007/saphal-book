@@ -15,6 +15,9 @@ data/
 # click, so they belong in the repository. They are built by
 # tools/make_release.py and checked for book files before they are written.
 !download/*.zip
+# The browser build carries the engine as a zip. Without it the app loads and
+# then fails on unpacking, so it has to be committed like any other source.
+!docs/app/*.zip
 chartered-book.log
 
 # Anything exported or backed up
