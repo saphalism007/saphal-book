@@ -77,11 +77,42 @@ def network(request):
     return {
         "addresses": addresses,
         "port": port,
+        "hostname": _local_hostname(),
+        "hostname_url": ("http://%s:%d/" % (_local_hostname(), port)) if _local_hostname() else "",
         "urls": ["http://%s:%d/" % (address, port) for address in addresses],
         "listening_on_network": on_network,
         "bound_to": BIND["host"],
         "this_url": "http://localhost:%d/" % port,
     }
+
+
+def _local_hostname():
+    """
+    The name this machine answers to on the local network.
+
+    Worth having because, unlike the numeric address, it does not change when
+    the machine moves to a different wifi. An iPad resolves it without being
+    told anything. A recent Android does too, an older one may not, which is
+    why the numbers are still offered alongside.
+    """
+    import socket
+    import subprocess
+    import sys as _sys
+    if _sys.platform == "darwin":
+        try:
+            result = subprocess.run(["scutil", "--get", "LocalHostName"],
+                                    capture_output=True, text=True, timeout=4)
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip() + ".local"
+        except Exception:
+            pass
+    try:
+        plain = socket.gethostname()
+    except OSError:
+        return ""
+    if not plain:
+        return ""
+    return plain if plain.endswith(".local") else plain + ".local"
 
 
 @route("GET", "/api/bootstrap")
