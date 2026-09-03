@@ -190,7 +190,9 @@ var App = (function () {
     gate.classList.remove("hidden");
     qs("#gate-title").textContent = needsSetup ? "Create your login" : "Sign in";
     qs("#gate-help").textContent = needsSetup
-      ? "This is the first time Chartered Book has been opened on this computer. Choose a username and a password you will remember. There is no way to recover it, so write it somewhere safe."
+      ? "Nobody has used Chartered Book on this computer yet, so make your login now. "
+        + "This is the sign up. Choose any username and password you like, and write the "
+        + "password down, because nothing can recover it."
       : "";
     qs("#gate-submit").textContent = needsSetup ? "Create and continue" : "Sign in";
     UI.qsa(".hidden-when-login").forEach(function (node) {
@@ -198,6 +200,92 @@ var App = (function () {
     });
     qs("#login-password").setAttribute("autocomplete", needsSetup ? "new-password" : "current-password");
     qs("#login-username").focus();
+
+    var stuck = qs("#gate-stuck");
+    var helpPanel = qs("#gate-help-panel");
+    stuck.textContent = needsSetup ? "What is this asking me for?" : "Cannot get in?";
+    helpPanel.classList.add("hidden");
+    stuck.onclick = function () {
+      if (!helpPanel.classList.contains("hidden")) {
+        helpPanel.classList.add("hidden");
+        return;
+      }
+      helpPanel.classList.remove("hidden");
+      helpPanel.textContent = "Looking…";
+      api("/api/gate-help").then(function (info) {
+        UI.clear(helpPanel);
+        if (info.needs_setup) {
+          helpPanel.appendChild(el("div", {}, [
+            el("strong", { text: "There is no account on this computer yet." }),
+            el("div", { text: "This screen is where you make one. There is no separate sign "
+              + "up. Fill in a name, choose any username and password you like, and press "
+              + "Create and continue. Write the password down, because nothing can recover "
+              + "it." })
+          ]));
+          return;
+        }
+        var lines = el("div");
+        lines.appendChild(el("div", {}, [
+          el("strong", { text: "An account already exists on this computer." }),
+          el("div", { text: info.accounts === 1
+            ? "There is one account, the username is " + info.usernames[0] + "."
+            : "There are " + info.accounts + " accounts: " + info.usernames.join(", ") + "." })
+        ]));
+        lines.appendChild(el("div", { style: "margin-top:.5rem" }, [
+          el("span", { text: "That account was made the first time this was opened. The "
+            + "screen that asked for a name and a password was the sign up. So there is "
+            + "nothing else to press, you just need that password." })
+        ]));
+        if (info.empty) {
+          var mac = navigator.platform.indexOf("Mac") >= 0;
+          lines.appendChild(el("div", { style: "margin-top:.6rem" }, [
+            el("strong", { text: "Nothing has been entered into the books yet." }),
+            el("div", { text: "So starting again costs nothing. Close Chartered Book first, "
+              + "then delete the file called system.db in the folder below and open "
+              + "Chartered Book again. It will ask you to make a login from scratch." }),
+            el("span.path", { text: info.data_folder }),
+            el("div", { style: "margin-top:.4rem" }, [
+              el("span", { text: mac
+                ? "That folder is hidden. To reach it, open Finder, press Command, Shift and "
+                  + "G together, paste the line above, and press Enter."
+                : "Paste that line into the address bar of a File Explorer window and press "
+                  + "Enter." })
+            ]),
+            el("button.secondary", {
+              text: "Copy the folder", style: "margin-top:.5rem",
+              onclick: function (event) {
+                var button = event.currentTarget;
+                var done = function () {
+                  button.textContent = "Copied";
+                  setTimeout(function () { button.textContent = "Copy the folder"; }, 2000);
+                };
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                  navigator.clipboard.writeText(info.data_folder).then(done, function () {});
+                } else {
+                  var box = document.createElement("textarea");
+                  box.value = info.data_folder;
+                  document.body.appendChild(box);
+                  box.select();
+                  try { document.execCommand("copy"); done(); } catch (e) { /* nothing */ }
+                  document.body.removeChild(box);
+                }
+              }
+            })
+          ]));
+        } else {
+          lines.appendChild(el("div", { style: "margin-top:.6rem" }, [
+            el("strong", { text: "There is work in these books." }),
+            el("div", { text: info.vouchers + " vouchers have been entered across "
+              + info.companies + " compan" + (info.companies === 1 ? "y" : "ies")
+              + ". Do not delete anything. Ask whoever set it up for the password." }),
+            el("span.path", { text: info.data_folder })
+          ]));
+        }
+        helpPanel.appendChild(lines);
+      }).catch(function (error) {
+        helpPanel.textContent = error.message;
+      });
+    };
 
     var form = qs("#login-form");
     form.onsubmit = function (event) {

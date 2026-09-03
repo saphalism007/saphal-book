@@ -126,6 +126,50 @@ def bootstrap(request):
     return payload
 
 
+@route("GET", "/api/gate-help")
+def gate_help(request):
+    """
+    What to tell somebody stuck on the sign in screen.
+
+    Answers the only question that matters at that moment: is there an account
+    on this computer already, and if so does it have anything in it worth
+    keeping. No password, no user name, nothing that helps anyone get in. This
+    is deliberately available before signing in, because that is the one moment
+    it is needed, and the server only ever listens on this machine.
+    """
+    system = request.system
+    accounts = system.execute("SELECT COUNT(*) AS n FROM users").fetchone()["n"]
+    names = [row["username"] for row in
+             system.execute("SELECT username FROM users ORDER BY id LIMIT 5")]
+    companies = system.execute("SELECT COUNT(*) AS n FROM companies").fetchone()["n"]
+
+    # Whether anything has actually been entered, which decides whether starting
+    # again is harmless or destroys work.
+    vouchers = 0
+    from ..modules import company as company_module
+    for row in company_module.list_companies(system, include_inactive=True):
+        try:
+            book = company_module.open_company(row["slug"])
+            vouchers += book.execute("SELECT COUNT(*) AS n FROM vouchers").fetchone()["n"]
+            book.close()
+        except Exception:
+            continue
+
+    last = system.execute(
+        "SELECT username, at, outcome FROM login_history ORDER BY id DESC LIMIT 1").fetchone()
+
+    return {
+        "accounts": accounts,
+        "usernames": names,
+        "companies": companies,
+        "vouchers": vouchers,
+        "empty": vouchers == 0,
+        "data_folder": db.DATA_DIR,
+        "last_attempt": dict(last) if last else None,
+        "needs_setup": accounts == 0,
+    }
+
+
 @route("POST", "/api/setup")
 def first_run_setup(request):
     """Create the first user. Only possible while no user exists."""
