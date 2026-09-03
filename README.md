@@ -1,11 +1,45 @@
 # Chartered Book
 
-Bookkeeping and accounts for Nepal. Runs on your own computer, works with no
-internet, and costs nothing to run.
+Bookkeeping, accounting and audit for Nepal. Runs on your own computer, keeps
+your books in Bikram Sambat, and costs nothing to run because there is nothing
+to run it on but the machine in front of you.
 
-Built for two hardware trading shops and one chartered accountancy practice.
-Handles goods, services, or both, in Bikram Sambat and Gregorian dates, with
-VAT, TDS, stock, bank reconciliation and the full Nepali chart of accounts.
+Written in the Python standard library alone. No packages to install, no
+account to open, no subscription, no internet needed after you have it.
+
+```
+Bikram Sambat throughout, checked against known historical dates
+Money held as whole paisa, so the trial balance ties to the last one
+The Nepali chart of accounts, presented the way NFRS and NAS ask for
+VAT, tax deducted at source, stock, bank reconciliation, fixed assets
+Financial statements with last year beside this year, notes behind every line
+Depreciation under Schedule 2 of the Income Tax Act, 2058, on the pool basis
+Deferred tax, financial instruments, cash flows under NAS 07
+Audit tools: analytical review, ratios, ageing, trial balance import
+Click any figure and it opens what is behind it, down to the voucher
+```
+
+## Installing it
+
+**On a Mac.** Put the folder where you want it, open Terminal in it and run
+`python3 tools/make_mac_app.py` once. That builds the Chartered Book icon.
+Double click it from then on. Python 3 already comes with macOS.
+
+**On Windows.** Install Python once from python.org, ticking *Add Python to
+PATH*. Then double click `Chartered Book.vbs`.
+
+**On a phone or tablet.** Start it with *run on wifi* on the computer that
+holds the books. It prints an address. Open that in the browser on the phone,
+choose Install or Add to Home Screen, and it gets its own icon.
+
+Your books are kept outside this folder, in the place your operating system
+sets aside for application data, so replacing the software never touches them.
+
+## A word on what this is
+
+It was written for two hardware shops and a chartered accountancy practice in
+Nepal, and it is used on them. It is not a product and there is nobody to ring.
+If it is useful to you, take it.
 
 ---
 
@@ -96,12 +130,13 @@ from a mistake, not from the disk failing. On the Backup and safety screen,
 name another folder and every backup is copied there as well, the moment it is
 taken.
 
-If you point that at your Google Drive folder on the machine, the copy uploads
-itself the next time the machine is online. On this Mac that folder is:
+If you point that at your Google Drive, OneDrive or Dropbox folder on the
+machine, the copy uploads itself the next time the machine is online. On a Mac
+the Drive folder sits under Library, CloudStorage, in a folder named after the
+account. On Windows it is usually under your user folder.
 
-    /Users/saphal/Library/CloudStorage/GoogleDrive-saphalai007@gmail.com
-
-The Backup and safety screen finds it for you and offers it as a button.
+The Backup and safety screen finds whichever of those you have and offers each
+one as a button, so there is no path to type.
 
 There is deliberately no Google account connected inside the software. That
 would mean keys that expire, a sign in that breaks when Google changes
