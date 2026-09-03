@@ -1,0 +1,22 @@
+{
+  "name": "Chartered Book",
+  "short_name": "Chartered",
+  "description": "Bookkeeping and accounts for Nepal, kept on your own machine.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f4f6f9",
+  "theme_color": "#1d3557",
+  "categories": ["business", "finance", "productivity"],
+  "icons": [
+    { "src": "/static/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/static/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/static/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Sales invoice", "url": "/?screen=sales", "icons": [{ "src": "/static/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Purchase bill", "url": "/?screen=purchase", "icons": [{ "src": "/static/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Day book", "url": "/?screen=daybook", "icons": [{ "src": "/static/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

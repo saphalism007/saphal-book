@@ -14,6 +14,7 @@ import base64
 import hashlib
 import hmac
 import os
+import struct
 import secrets
 import datetime
 
@@ -67,12 +68,51 @@ class AuthError(Exception):
     """Raised when a login or a permission check fails."""
 
 
-def hash_password(password, salt=None, iterations=ITERATIONS):
+# Python compiled for the browser does not always carry the fast key
+# stretching routine, so there is a plain one to fall back on. It is the same
+# algorithm, PBKDF2 with HMAC SHA256, just written out rather than called into
+# C. Because it is slower, fewer rounds are used there. The number of rounds is
+# stored with every password, so one made on a phone still checks out on a
+# computer and the other way round.
+HAS_FAST_KDF = hasattr(hashlib, "pbkdf2_hmac")
+SLOW_ITERATIONS = 20000
+
+
+def default_iterations():
+    return ITERATIONS if HAS_FAST_KDF else SLOW_ITERATIONS
+
+
+def _pbkdf2(password_bytes, salt, iterations, length=32):
+    """PBKDF2 with HMAC SHA256, written out for where the built in one is absent."""
+    output = b""
+    block = 1
+    while len(output) < length:
+        current = hmac.new(password_bytes, salt + struct.pack(">I", block),
+                           hashlib.sha256).digest()
+        accumulated = bytearray(current)
+        for _ in range(iterations - 1):
+            current = hmac.new(password_bytes, current, hashlib.sha256).digest()
+            for index in range(len(accumulated)):
+                accumulated[index] ^= current[index]
+        output += bytes(accumulated)
+        block += 1
+    return output[:length]
+
+
+def _derive(password_bytes, salt, iterations):
+    if HAS_FAST_KDF:
+        return hashlib.pbkdf2_hmac("sha256", password_bytes, salt, iterations)
+    return _pbkdf2(password_bytes, salt, iterations)
+
+
+def hash_password(password, salt=None, iterations=None):
+    if iterations is None:
+        iterations = default_iterations()
     if salt is None:
         salt = os.urandom(SALT_BYTES)
     if isinstance(salt, str):
         salt = base64.b64decode(salt)
-    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
+    digest = _derive(password.encode("utf-8"), salt, iterations)
     return (base64.b64encode(digest).decode("ascii"),
             base64.b64encode(salt).decode("ascii"),
             iterations)

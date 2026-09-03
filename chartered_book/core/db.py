@@ -83,6 +83,12 @@ def _carry_forward_old_books():
         return
     if os.path.exists(SYSTEM_DB):
         return
+    # Once the move has been done the old folder is left behind with a note in
+    # it. Without this check that leftover would be copied into every new set of
+    # books made afterwards, which is how somebody ends up looking at a sign in
+    # screen on what should have been an empty install.
+    if os.path.exists(os.path.join(LEGACY_DATA_DIR, "MOVED.txt")):
+        return
     old_system = os.path.join(LEGACY_DATA_DIR, "system.db")
     if not os.path.exists(old_system):
         return
@@ -123,14 +129,27 @@ def company_db_path(slug):
     return os.path.join(BOOKS_DIR, "%s.db" % slugify(slug))
 
 
+# True when the engine is running inside a browser through Pyodide rather than
+# on a computer of its own.
+IN_BROWSER = sys.platform == "emscripten" or "pyodide" in sys.modules
+
+
 def connect(path):
     """Open a connection with the settings this application relies on."""
     ensure_dirs()
     conn = sqlite3.connect(path, timeout=30, isolation_level=None)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    conn.execute("PRAGMA journal_mode = WAL")
-    conn.execute("PRAGMA synchronous = FULL")
+    if IN_BROWSER:
+        # A browser filesystem has no shared memory and no real file locking, so
+        # the write ahead log cannot work there. A plain rollback journal can,
+        # and since only one tab ever holds the books there is nothing to
+        # contend with anyway.
+        conn.execute("PRAGMA journal_mode = TRUNCATE")
+        conn.execute("PRAGMA synchronous = FULL")
+    else:
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("PRAGMA synchronous = FULL")
     conn.execute("PRAGMA busy_timeout = 30000")
     return conn
 
