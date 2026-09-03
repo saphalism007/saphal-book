@@ -21,7 +21,7 @@ Click any figure and it opens what is behind it, down to the voucher
 
 ## Download it
 
-**Mac.** [Chartered Book for Mac.zip](download/Chartered%20Book%20for%20Mac.zip)
+**Mac.** [**Download Chartered Book for Mac**](https://github.com/saphalism007/chartered-book/raw/main/download/Chartered%20Book%20for%20Mac.zip)
 Unzip it and double click Chartered Book. Nothing to install, macOS already has
 what it needs.
 
@@ -30,7 +30,7 @@ is normal for any app not sold through the App Store. **Right click the app,
 choose Open, then click Open again** on the box that appears. You only do that
 once.
 
-**Windows.** [Chartered Book for Windows.zip](download/Chartered%20Book%20for%20Windows.zip)
+**Windows.** [**Download Chartered Book for Windows**](https://github.com/saphalism007/chartered-book/raw/main/download/Chartered%20Book%20for%20Windows.zip)
 Install Python once from [python.org](https://www.python.org/downloads/),
 ticking **Add Python to PATH** on the first screen of the installer. Then unzip
 this and double click `Chartered Book.vbs`.
