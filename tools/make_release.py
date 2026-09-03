@@ -1,57 +1,85 @@
 #!/usr/bin/env python3
 """
-Package Chartered Book up so it can be given to somebody else.
+Build the downloads other people actually use.
 
     python3 tools/make_release.py
 
-Writes a single zip beside this project. Whoever receives it unzips it, and on
-a Mac double clicks Chartered Book, or on Windows double clicks
-Chartered Book.vbs. They get their own empty books. Nothing of yours travels
-with it, because the books are never inside this folder in the first place.
+Writes two files into the download folder:
+
+    Chartered Book for Mac.zip       the finished app, double click and go
+    Chartered Book for Windows.zip   the software plus the Windows launcher
+
+The Mac one holds the whole application, the software inside it, so there is
+nothing to build and nothing to set up. The Windows one needs Python installed
+once, which is free, because Windows does not ship with it.
+
+Neither one carries any books. The books are kept in the operating system's own
+application data folder, never inside the software, so there is nothing of
+yours to leak.
 """
 
-import datetime
 import os
+import shutil
+import subprocess
 import sys
 import zipfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+OUT = os.path.join(HERE, "download")
+APP = os.path.join(HERE, "Chartered Book.app")
 
-INCLUDE_DIRS = ["chartered_book", "tools", "tests", "docs"]
-INCLUDE_FILES = ["start.py", "README.md", "run.command", "run.bat",
-                 "run on wifi.command", "run on wifi.bat", "Chartered Book.vbs",
-                 ".gitignore"]
-
-# Nothing that could carry a figure of yours.
 FORBIDDEN = (".db", ".db-wal", ".db-shm", ".sqlite", ".sqlite3", ".log", ".csv", ".xlsx")
-SKIP_DIRS = {"__pycache__", "data", "backups", ".git", "Chartered Book.app"}
+SKIP_DIRS = {"__pycache__", "data", "backups", ".git", "download"}
+
+WINDOWS_FILES = ["start.py", "README.md", "run.bat", "run on wifi.bat",
+                 "Chartered Book.vbs"]
+WINDOWS_DIRS = ["chartered_book", "tools", "tests", "docs"]
 
 
 def safe(path):
     name = os.path.basename(path)
     if any(name.endswith(bad) for bad in FORBIDDEN):
         return False
-    parts = set(path.split(os.sep))
-    return not (parts & SKIP_DIRS)
+    return not (set(path.split(os.sep)) & SKIP_DIRS)
 
 
-def main():
-    from chartered_book.core import nepali_date as nd
-    stamp = datetime.date.today()
-    bs = nd.format_bs(nd.ad_to_bs(stamp), "numeric")
-    name = "Chartered Book %s.zip" % bs
-    target = os.path.join(HERE, name)
+def build_mac():
+    """
+    Zip the application with ditto, which is what macOS itself uses.
 
-    added, refused = [], []
+    A plain zip loses the permissions and the bundle stops being an
+    application, which is exactly the failure that looks like nothing happening
+    when somebody double clicks it.
+    """
+    if not os.path.isdir(APP):
+        print("  The Mac app is not built yet. Run tools/make_mac_app.py first.")
+        return None
+    target = os.path.join(OUT, "Chartered Book for Mac.zip")
+    if os.path.exists(target):
+        os.remove(target)
+    result = subprocess.run(
+        ["ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", APP, target],
+        capture_output=True, text=True)
+    if result.returncode != 0:
+        print("  ditto failed: %s" % result.stderr.strip())
+        return None
+    return target
+
+
+def build_windows():
+    target = os.path.join(OUT, "Chartered Book for Windows.zip")
+    if os.path.exists(target):
+        os.remove(target)
+    added = 0
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
-        for filename in INCLUDE_FILES:
+        for filename in WINDOWS_FILES:
             source = os.path.join(HERE, filename)
             if os.path.exists(source) and safe(source):
                 archive.write(source, os.path.join("Chartered Book", filename))
-                added.append(filename)
-        for folder in INCLUDE_DIRS:
+                added += 1
+        for folder in WINDOWS_DIRS:
             root_dir = os.path.join(HERE, folder)
             if not os.path.isdir(root_dir):
                 continue
@@ -61,51 +89,78 @@ def main():
                     full = os.path.join(root, filename)
                     relative = os.path.relpath(full, HERE)
                     if not safe(relative):
-                        refused.append(relative)
                         continue
                     archive.write(full, os.path.join("Chartered Book", relative))
-                    added.append(relative)
+                    added += 1
+        archive.writestr("Chartered Book/START HERE.txt", WINDOWS_NOTE)
+    return target, added
 
-        archive.writestr("Chartered Book/START HERE.txt",
-            "Chartered Book\n"
-            "Bookkeeping and accounts for Nepal\n"
-            "\n"
-            "On a Mac\n"
-            "  1. Move this Chartered Book folder wherever you want to keep it.\n"
-            "  2. Open a Terminal in the folder and run once:\n"
-            "         python3 tools/make_mac_app.py\n"
-            "     That builds the Chartered Book icon.\n"
-            "  3. Double click Chartered Book from then on.\n"
-            "\n"
-            "On Windows\n"
-            "  1. Install Python once from python.org, ticking Add Python to PATH.\n"
-            "  2. Double click Chartered Book.vbs.\n"
-            "\n"
-            "On a phone or tablet\n"
-            "  Start it with run on wifi, then open the address it prints in the\n"
-            "  browser on the phone, and add it to the home screen.\n"
-            "\n"
-            "Your books are kept outside this folder, in the place your computer\n"
-            "sets aside for application data, so updating the software never\n"
-            "touches them. The Backup screen shows exactly where.\n"
-            "\n"
-            "The full guide is in README.md.\n")
 
-    size = os.path.getsize(target)
+WINDOWS_NOTE = """Chartered Book
+Bookkeeping and accounts for Nepal
+
+TO OPEN IT ON WINDOWS
+
+  1. Windows does not come with Python, so install it once, free, from
+     python.org/downloads
+
+     IMPORTANT: on the first screen of the installer, tick the box that says
+     "Add Python to PATH" before clicking Install. It is easy to miss and
+     nothing works without it.
+
+  2. Come back to this folder and double click:
+
+         Chartered Book.vbs
+
+     Your browser opens at the books. No black window appears.
+
+  3. To use it from a phone or tablet on the same wifi, double click
+     "run on wifi.bat" instead. It prints an address. Type that address into
+     the browser on the phone.
+
+WHERE YOUR BOOKS ARE KEPT
+
+  Not in this folder. They go in your Windows application data folder, so you
+  can replace this software later without touching them. The Backup screen
+  inside the software shows you the exact place.
+
+FIRST TIME
+
+  It asks you to make a username and password, then to create your company.
+  There is no way to recover the password, so write it down somewhere safe.
+
+The full guide is in README.md.
+"""
+
+
+def main():
+    os.makedirs(OUT, exist_ok=True)
+
     print()
-    print("  Written: %s" % name)
-    print("  %d files, %.1f KB" % (len(added), size / 1024.0))
-    if refused:
-        print("  Left out as they could hold data: %d" % len(refused))
+    print("  Building the downloads")
     print()
-    print("  Check before sending: nothing below should look like your books.")
-    with zipfile.ZipFile(target) as archive:
-        suspicious = [n for n in archive.namelist()
-                      if any(n.endswith(bad) for bad in FORBIDDEN)]
-        print("  Files that could hold figures: %s" % (suspicious or "none"))
+
+    mac = build_mac()
+    if mac:
+        print("  Mac      %-34s %7.0f KB"
+              % (os.path.basename(mac), os.path.getsize(mac) / 1024.0))
+
+    windows, count = build_windows()
+    print("  Windows  %-34s %7.0f KB  (%d files)"
+          % (os.path.basename(windows), os.path.getsize(windows) / 1024.0, count))
+
     print()
-    print("  Send that zip however you like. Whoever opens it gets empty books")
-    print("  of their own.")
+    print("  Checking neither one carries books")
+    trouble = False
+    for path in [p for p in (mac, windows) if p]:
+        with zipfile.ZipFile(path) as archive:
+            bad = [n for n in archive.namelist()
+                   if any(n.endswith(x) for x in FORBIDDEN)]
+            if bad:
+                trouble = True
+                print("    %s: %s" % (os.path.basename(path), bad[:5]))
+    if not trouble:
+        print("    Clean. Nothing but the software in either.")
     print()
     return 0
 

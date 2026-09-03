@@ -19,20 +19,33 @@ Audit tools: analytical review, ratios, ageing, trial balance import
 Click any figure and it opens what is behind it, down to the voucher
 ```
 
-## Installing it
+## Download it
 
-**On a Mac.** Put the folder where you want it, open Terminal in it and run
-`python3 tools/make_mac_app.py` once. That builds the Chartered Book icon.
-Double click it from then on. Python 3 already comes with macOS.
+**Mac.** [Chartered Book for Mac.zip](download/Chartered%20Book%20for%20Mac.zip)
+Unzip it and double click Chartered Book. Nothing to install, macOS already has
+what it needs.
 
-**On Windows.** Install Python once from python.org, ticking *Add Python to
-PATH*. Then double click `Chartered Book.vbs`.
+The first time you open it, macOS will say it cannot check the developer. That
+is normal for any app not sold through the App Store. **Right click the app,
+choose Open, then click Open again** on the box that appears. You only do that
+once.
 
-**On a phone or tablet.** Start it with *run on wifi* on the computer that
-holds the books. It prints an address. Open that in the browser on the phone,
-choose Install or Add to Home Screen, and it gets its own icon.
+**Windows.** [Chartered Book for Windows.zip](download/Chartered%20Book%20for%20Windows.zip)
+Install Python once from [python.org](https://www.python.org/downloads/),
+ticking **Add Python to PATH** on the first screen of the installer. Then unzip
+this and double click `Chartered Book.vbs`.
 
-Your books are kept outside this folder, in the place your operating system
+**Phone or tablet.** It runs on the computer that holds the books, and the
+phone opens it over your wifi. Start it with *run on wifi*, and it prints the
+address to type into the phone's browser. Then choose Install, or Add to Home
+Screen, and it gets its own icon.
+
+## Building it yourself instead
+
+If you have taken the source rather than a download, build the Mac app once
+with `python3 tools/make_mac_app.py` and double click the result from then on.
+
+Your books are kept outside the software, in the place your operating system
 sets aside for application data, so replacing the software never touches them.
 
 ## A word on what this is

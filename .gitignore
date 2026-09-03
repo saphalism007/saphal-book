@@ -11,6 +11,10 @@ data/
 *.sqlite
 *.sqlite3
 *.zip
+# The finished downloads are the exception. They are what people actually
+# click, so they belong in the repository. They are built by
+# tools/make_release.py and checked for book files before they are written.
+!download/*.zip
 chartered-book.log
 
 # Anything exported or backed up

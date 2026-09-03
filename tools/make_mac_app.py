@@ -109,7 +109,7 @@ def main():
             'buttons {"OK"} default button 1 with icon caution\'\n'
             '  exit 1\n'
             'fi\n'
-            'exec "$PY" start.py --app --lan\n')
+            'exec "$PY" start.py --app --lan "$@"\n')
     os.chmod(launcher, 0o755)
 
     info = {
