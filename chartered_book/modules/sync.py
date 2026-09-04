@@ -192,10 +192,74 @@ def send_up(system, session, slug):
         _remember(system, slug, version=0)
 
     data = _snapshot(slug)
-    version = session.push(slug, data, expected, device=device_name())
+    row = system.execute("SELECT name FROM companies WHERE slug = ?", (slug,)).fetchone()
+    version = session.push(slug, data, expected, device=device_name(),
+                           name=row["name"] if row else slug)
     _remember(system, slug, version=version,
               last_sent_at=db.now_stamp(), last_device=device_name())
     return {"slug": slug, "version": version, "size": len(data)}
+
+
+def _install(system, slug, data, version, device):
+    """
+    Put a downloaded copy in place, once it has been found to be real books.
+
+    The copy being replaced is moved aside rather than deleted, so what was here
+    a moment ago still exists on the disk.
+    """
+    name, complaint = _looks_like_books(data)
+    if complaint:
+        raise SyncError(complaint + " Nothing on this device has been touched.")
+
+    path = db.company_db_path(slug)
+    stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    kept = ""
+    if os.path.exists(path):
+        kept = "%s.replaced-%s" % (path, stamp)
+        shutil.copy2(path, kept)
+    for leftover in (path + "-wal", path + "-shm"):
+        if os.path.exists(leftover):
+            os.remove(leftover)
+    with open(path, "wb") as writer:
+        writer.write(data)
+
+    system.execute("INSERT OR IGNORE INTO companies (slug, name, created_at) VALUES (?, ?, ?)",
+                   (slug, name or slug, db.now_stamp()))
+    if name:
+        system.execute("UPDATE companies SET name = ? WHERE slug = ?", (name, slug))
+    system.commit()
+    _remember(system, slug, version=version, last_brought_at=db.now_stamp(),
+              last_device=device or "")
+    return {"slug": slug, "name": name, "version": version, "size": len(data),
+            "previous_copy_kept_at": kept}
+
+
+def bring_new(system, session):
+    """
+    Fetch every set of books on the server that this device has never seen.
+
+    This is what a fresh tablet needs and what it did not have. Signing in told
+    it there was something waiting and then offered nothing to press, because the
+    list from the server carries fingerprints and a fingerprint cannot be turned
+    back into a name. The name is inside the locked file, so each one is fetched,
+    opened, and only then does the device learn what it has.
+    """
+    if not session or not session.signed_in():
+        raise SyncError("Sign in to your account first.")
+    from ..core import cloud
+
+    mine = {cloud.book_fingerprint(session.master_key, row["slug"])
+            for row in system.execute("SELECT slug FROM companies")}
+    brought = []
+    for row in session.list_books():
+        if row["book_id"] in mine:
+            continue
+        got = session.fetch_by_id(row["book_id"])
+        if got is None:
+            continue
+        brought.append(_install(system, got["slug"], got["data"], got["version"],
+                                got.get("device", "")))
+    return {"brought": brought, "count": len(brought)}
 
 
 def bring_down(system, session, slug, expect_name=""):
@@ -210,30 +274,4 @@ def bring_down(system, session, slug, expect_name=""):
     got = session.fetch(slug)
     if got is None:
         raise SyncError("The server has no books called that under your account.")
-
-    name, complaint = _looks_like_books(got["data"])
-    if complaint:
-        raise SyncError(complaint + " Nothing on this device has been touched.")
-
-    path = db.company_db_path(slug)
-    stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    kept = ""
-    if os.path.exists(path):
-        kept = "%s.replaced-%s" % (path, stamp)
-        shutil.copy2(path, kept)
-
-    for leftover in (path + "-wal", path + "-shm"):
-        if os.path.exists(leftover):
-            os.remove(leftover)
-    with open(path, "wb") as writer:
-        writer.write(got["data"])
-
-    system.execute("INSERT OR IGNORE INTO companies (slug, name, created_at) VALUES (?, ?, ?)",
-                   (slug, name or slug, db.now_stamp()))
-    if name:
-        system.execute("UPDATE companies SET name = ? WHERE slug = ?", (name, slug))
-    system.commit()
-    _remember(system, slug, version=got["version"], last_brought_at=db.now_stamp(),
-              last_device=got.get("device", ""))
-    return {"slug": slug, "name": name, "version": got["version"],
-            "size": len(got["data"]), "previous_copy_kept_at": kept}
+    return _install(system, slug, got["data"], got["version"], got.get("device", ""))

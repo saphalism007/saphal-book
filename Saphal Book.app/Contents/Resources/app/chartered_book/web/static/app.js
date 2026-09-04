@@ -1561,14 +1561,34 @@ var App = (function () {
         el("div.card-head", {}, [
           el("h2", { text: "Books on this device" }),
           state.waiting_elsewhere
-            ? el("span.pill.warn", { text: state.waiting_elsewhere
-                + " more on the server this device has never seen" })
+            ? el("button.primary", {
+                text: "Bring down the " + state.waiting_elsewhere + " waiting on the server",
+                onclick: function () { bringNew(state.waiting_elsewhere); } })
             : null
         ]),
         UI.table(["Books", "Standing", { label: "Here", num: true },
                   { label: "On the server", num: true }, ""], rows, null,
                  { emptyText: "No companies on this device yet." })
       ]);
+    }
+
+    function bringNew(howMany) {
+      UI.confirmAction("Bring down " + howMany + " set" + (howMany === 1 ? "" : "s")
+                       + " of books",
+        "These are on the server and this device has never seen them. What they are "
+        + "called is inside the locked file, so it will be known once they are open. "
+        + "Nothing already on this device is touched.",
+        function () {
+          return api("/api/cloud/bring-new", { body: {} })
+            .then(function (result) {
+              var names = result.brought.map(function (b) { return b.name || b.slug; });
+              UI.flash(result.count
+                ? "Brought down " + names.join(", ") + "."
+                : "There was nothing new to bring down.", "good");
+              return reload();
+            })
+            .catch(function (error) { lost(error); return false; });
+        }, "Bring them down");
     }
 
     function send(book) {

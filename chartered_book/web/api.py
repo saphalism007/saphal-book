@@ -1652,6 +1652,19 @@ def cloud_send(request):
         raise ApiError(str(exc))
 
 
+@route("POST", "/api/cloud/bring-new")
+def cloud_bring_new(request):
+    """Fetch every set of books on the server this device has never seen."""
+    from ..core import cloud
+    from ..modules import sync
+    request.require_user()
+    session = _cloud_session(request)
+    try:
+        return sync.bring_new(request.system, session)
+    except (cloud.CloudError, sync.SyncError) as exc:
+        raise ApiError(str(exc))
+
+
 @route("POST", "/api/cloud/bring")
 def cloud_bring(request):
     """Replace this device's copy with the one on the server."""

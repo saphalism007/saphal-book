@@ -26,6 +26,7 @@ that would let it open what it is storing.
 import hashlib
 import hmac
 import json
+import struct
 import sys
 import urllib.error
 import urllib.parse
@@ -181,6 +182,39 @@ def _browser_call(url, method, data, headers):
         return status, {"message": raw[:300]}
 
 
+# What actually goes inside the locked file
+#
+# Not the books on their own. A device that has never seen a set of books knows
+# only the fingerprint the server files it under, and a fingerprint cannot be
+# turned back into a name. Without something to say what these books are, a new
+# tablet can be told there is something waiting and have no way to ask for it,
+# which is exactly the corner the first version painted itself into.
+#
+# So a short note travels inside the lock, ahead of the books: what they are
+# called and what the file should be named. The server sees neither, because
+# both are inside the part it cannot read.
+
+ENVELOPE = b"SBBOOK\x01"
+
+
+def _wrap(slug, name, data):
+    note = json.dumps({"slug": slug, "name": name}, ensure_ascii=False).encode("utf-8")
+    return ENVELOPE + struct.pack(">I", len(note)) + note + data
+
+
+def _unwrap(blob):
+    """Give back what the books are called and the books themselves."""
+    if not blob.startswith(ENVELOPE):
+        # Sent by a version that did not carry the note. Still perfectly good
+        # books; they simply cannot say what they are called.
+        return {"slug": "", "name": "", "data": blob}
+    start = len(ENVELOPE)
+    size = struct.unpack(">I", blob[start:start + 4])[0]
+    note = json.loads(blob[start + 4:start + 4 + size].decode("utf-8"))
+    return {"slug": note.get("slug", ""), "name": note.get("name", ""),
+            "data": blob[start + 4 + size:]}
+
+
 class Cloud(object):
     """One connection to the server, for one signed in person."""
 
@@ -304,9 +338,43 @@ class Cloud(object):
             blob = base64.b64decode(row["payload"])
         except Exception:
             raise CloudError("The copy on the server is damaged and will not decode.")
-        return {"data": vault.unlock(blob, self._vault_password()),
+        inside = _unwrap(vault.unlock(blob, self._vault_password()))
+        return {"data": inside["data"], "slug": inside["slug"] or slug,
+                "name": inside["name"],
                 "version": row["version"], "device": row.get("device", ""),
                 "updated_at": row.get("updated_at", "")}
+
+    def fetch_by_id(self, book_id):
+        """
+        Bring down a set of books this device has never seen.
+
+        All it has is the fingerprint from the list. What the books are called
+        comes out of the locked file once it is open, which is the only place it
+        was ever written.
+        """
+        self._require()
+        import base64
+        status, rows = self._call(
+            "/rest/v1/books?book_id=eq.%s&select=payload,version,device,updated_at"
+            % urllib.parse.quote(book_id))
+        if status != 200:
+            raise CloudError(self._complain(rows, "Could not fetch those books."))
+        if not rows:
+            return None
+        row = rows[0]
+        try:
+            blob = base64.b64decode(row["payload"])
+        except Exception:
+            raise CloudError("The copy on the server is damaged and will not decode.")
+        inside = _unwrap(vault.unlock(blob, self._vault_password()))
+        if not inside["slug"]:
+            raise CloudError(
+                "Those books were sent by an older version that did not record what "
+                "they are called. Send them up again from the device that has them.")
+        return {"data": inside["data"], "slug": inside["slug"], "name": inside["name"],
+                "version": row["version"], "device": row.get("device", ""),
+                "updated_at": row.get("updated_at", "")}
+
 
     def remote_version(self, slug):
         """What version the server holds, or zero where it holds nothing."""
@@ -321,7 +389,7 @@ class Cloud(object):
             return {"version": 0, "device": "", "updated_at": ""}
         return rows[0]
 
-    def push(self, slug, data, expected_version, device=""):
+    def push(self, slug, data, expected_version, device="", name=""):
         """
         Send a set of books up, but only if nothing newer is already there.
 
@@ -340,7 +408,7 @@ class Cloud(object):
                 held["version"], held.get("device", ""), held.get("updated_at", ""))
 
         fingerprint = book_fingerprint(self.master_key, slug)
-        blob = vault.lock(data, self._vault_password())
+        blob = vault.lock(_wrap(slug, name or slug, data), self._vault_password())
         row = {"owner": self.user_id, "book_id": fingerprint,
                "version": expected_version + 1, "device": device[:80],
                "payload": base64.b64encode(blob).decode("ascii")}
