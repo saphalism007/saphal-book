@@ -1,0 +1,317 @@
+"""
+Talking to the server that carries books between devices.
+
+The server is Supabase. It holds an account for each person and, against that
+account, one row per set of books. What is in the row is a locked file it cannot
+read. See vault.py for the lock; this module only carries the result.
+
+Three ideas hold the whole thing together.
+
+The books on this machine are the real ones. The server is a way of getting a
+copy to another device, not the place the books live. Everything goes on working
+with the network unplugged, which is the point of a shop.
+
+A username is not an email address, but Supabase counts accounts by email, and
+counting them is exactly what makes a duplicate impossible. So a username is
+turned into an address in a domain that exists only for this purpose. The server
+enforces that two people cannot take the same one, which is the thing that could
+never be done while every device kept its own list.
+
+The password does two separate jobs and must not do them with the same secret.
+One half signs in. The other half unlocks the books and is never sent anywhere.
+Both come from the password, by different routes, so the server learns nothing
+that would let it open what it is storing.
+"""
+
+import hashlib
+import hmac
+import json
+import urllib.error
+import urllib.parse
+import urllib.request
+
+from . import vault
+
+# Usernames live here. Nobody sends mail to it and no such domain is registered
+# for mail; it exists so the server has something unique to count.
+USERNAME_DOMAIN = "users.saphalbook.np"
+
+SIGN_IN_LABEL = b"saphal book, the half of the password that signs in, version 1"
+BOOK_NAME_LABEL = b"saphal book, the fingerprint of a set of books, version 1"
+
+TIMEOUT = 30
+
+
+class CloudError(Exception):
+    """Raised when the server cannot do what was asked."""
+
+
+class NotConfigured(CloudError):
+    """Raised when no server has been set up for these books."""
+
+
+class Conflict(CloudError):
+    """
+    Raised when the copy on the server is newer than the one being sent.
+
+    Carries what is known about the other copy so a person can be told where it
+    came from rather than simply being blocked.
+    """
+
+    def __init__(self, message, remote_version=0, device="", updated_at=""):
+        CloudError.__init__(self, message)
+        self.remote_version = remote_version
+        self.device = device
+        self.updated_at = updated_at
+
+
+# Turning one password into two secrets that cannot be worked back from each other
+
+
+def _split_password(username, password):
+    """
+    Give back the pair the password leads to.
+
+    The first is sent to the server as the account password. The second never
+    leaves the machine and is what locks the books. Each is a separate child of
+    a key stretched from the password, so holding one tells you nothing about
+    the other, and the server holding the first cannot arrive at the second.
+
+    The username is folded into the salt so that two people who choose the same
+    password do not end up with the same keys.
+    """
+    if not username or not password:
+        raise CloudError("A username and a password are both needed.")
+    salt = hashlib.sha256(("saphal book|" + username.strip().lower()).encode("utf-8")).digest()[:16]
+    master = vault._pbkdf2(password.encode("utf-8"), salt, vault.ITERATIONS, 32)
+    sign_in = hmac.new(master, SIGN_IN_LABEL, hashlib.sha256).hexdigest()
+    return sign_in, master
+
+
+def address_for(username):
+    """The address a username is filed under on the server."""
+    cleaned = (username or "").strip().lower()
+    if not cleaned:
+        raise CloudError("Choose a username.")
+    allowed = set("abcdefghijklmnopqrstuvwxyz0123456789._-")
+    if set(cleaned) - allowed:
+        raise CloudError(
+            "A username can hold letters, numbers, a dot, a dash and an underscore, "
+            "and nothing else.")
+    if len(cleaned) < 3:
+        raise CloudError("A username needs at least three characters.")
+    return "%s@%s" % (cleaned, USERNAME_DOMAIN)
+
+
+def book_fingerprint(master_key, slug):
+    """
+    What a set of books is called on the server.
+
+    A fingerprint made with the owner's own key, so the server is told which row
+    to fetch without being told what the company is called.
+    """
+    return hmac.new(master_key, BOOK_NAME_LABEL + b"|" + slug.encode("utf-8"),
+                    hashlib.sha256).hexdigest()
+
+
+class Cloud(object):
+    """One connection to the server, for one signed in person."""
+
+    def __init__(self, url, anon_key):
+        if not url or not anon_key:
+            raise NotConfigured("No server has been set up for these books.")
+        self.url = url.rstrip("/")
+        self.anon_key = anon_key
+        self.token = None
+        self.refresh_token = None
+        self.user_id = None
+        self.username = None
+        self.master_key = None
+
+    # Speaking to it
+
+    def _call(self, path, method="GET", body=None, headers=None, token=None):
+        data = json.dumps(body).encode("utf-8") if body is not None else None
+        head = {"apikey": self.anon_key,
+                "Authorization": "Bearer " + (token or self.token or self.anon_key)}
+        if data is not None:
+            head["Content-Type"] = "application/json"
+        head.update(headers or {})
+        request = urllib.request.Request(self.url + path, data=data, headers=head,
+                                         method=method)
+        try:
+            answer = urllib.request.urlopen(request, timeout=TIMEOUT)
+            raw = answer.read().decode("utf-8")
+            return answer.status, (json.loads(raw) if raw.strip() else None)
+        except urllib.error.HTTPError as error:
+            raw = error.read().decode("utf-8", "replace")
+            try:
+                detail = json.loads(raw)
+            except ValueError:
+                detail = {"message": raw[:300]}
+            return error.code, detail
+        except urllib.error.URLError as error:
+            raise CloudError(
+                "Could not reach the server. Check the internet connection. (%s)" % error.reason)
+
+    @staticmethod
+    def _complain(detail, fallback):
+        for key in ("msg", "message", "error_description", "error", "hint"):
+            if isinstance(detail, dict) and detail.get(key):
+                return str(detail[key])
+        return fallback
+
+    # Accounts
+
+    def sign_up(self, username, password):
+        """
+        Open an account. The server refuses a username somebody already has,
+        which is the whole reason for putting accounts on a server at all.
+        """
+        sign_in_secret, master = _split_password(username, password)
+        status, detail = self._call("/auth/v1/signup", "POST", {
+            "email": address_for(username), "password": sign_in_secret})
+        if status in (200, 201):
+            self._remember(detail, username, master)
+            if not self.token:
+                raise CloudError(
+                    "The account was made but the server did not sign you in. Email "
+                    "confirmation is probably still switched on for this project.")
+            return {"username": username, "user_id": self.user_id}
+        if status in (400, 422) and "already" in json.dumps(detail).lower():
+            raise CloudError(
+                "The username %s is taken. Somebody has already opened an account with "
+                "it, so choose another one." % username)
+        raise CloudError(self._complain(detail, "The account could not be opened."))
+
+    def sign_in(self, username, password):
+        """Sign in, and work out the key that unlocks the books, without sending it."""
+        sign_in_secret, master = _split_password(username, password)
+        status, detail = self._call("/auth/v1/token?grant_type=password", "POST", {
+            "email": address_for(username), "password": sign_in_secret})
+        if status == 200:
+            self._remember(detail, username, master)
+            return {"username": username, "user_id": self.user_id}
+        if status in (400, 401):
+            raise CloudError("That username and password do not match an account.")
+        raise CloudError(self._complain(detail, "Could not sign in."))
+
+    def _remember(self, detail, username, master):
+        detail = detail or {}
+        self.token = detail.get("access_token")
+        self.refresh_token = detail.get("refresh_token")
+        self.user_id = (detail.get("user") or {}).get("id")
+        self.username = username
+        self.master_key = master
+
+    def signed_in(self):
+        return bool(self.token and self.master_key)
+
+    def sign_out(self):
+        self.token = self.refresh_token = self.user_id = None
+        self.username = self.master_key = None
+
+    # Books
+
+    def _require(self):
+        if not self.signed_in():
+            raise CloudError("Sign in to the server first.")
+
+    def list_books(self):
+        """Every set of books this account carries, without opening any of them."""
+        self._require()
+        status, rows = self._call(
+            "/rest/v1/books?select=book_id,version,device,updated_at&order=updated_at.desc")
+        if status != 200:
+            raise CloudError(self._complain(rows, "Could not read the list of books."))
+        return rows or []
+
+    def fetch(self, slug):
+        """
+        Bring a set of books down and unlock it.
+
+        Returns None where the server has never seen these books.
+        """
+        self._require()
+        fingerprint = book_fingerprint(self.master_key, slug)
+        status, rows = self._call(
+            "/rest/v1/books?book_id=eq.%s&select=payload,version,device,updated_at"
+            % urllib.parse.quote(fingerprint))
+        if status != 200:
+            raise CloudError(self._complain(rows, "Could not fetch those books."))
+        if not rows:
+            # Either the server has never seen these books, or the key in hand
+            # is not the one they were filed under. The two look the same from
+            # here, and deliberately so: the server cannot tell us which.
+            return None
+        row = rows[0]
+        import base64
+        try:
+            blob = base64.b64decode(row["payload"])
+        except Exception:
+            raise CloudError("The copy on the server is damaged and will not decode.")
+        return {"data": vault.unlock(blob, self._vault_password()),
+                "version": row["version"], "device": row.get("device", ""),
+                "updated_at": row.get("updated_at", "")}
+
+    def remote_version(self, slug):
+        """What version the server holds, or zero where it holds nothing."""
+        self._require()
+        fingerprint = book_fingerprint(self.master_key, slug)
+        status, rows = self._call(
+            "/rest/v1/books?book_id=eq.%s&select=version,device,updated_at"
+            % urllib.parse.quote(fingerprint))
+        if status != 200:
+            raise CloudError(self._complain(rows, "Could not ask the server."))
+        if not rows:
+            return {"version": 0, "device": "", "updated_at": ""}
+        return rows[0]
+
+    def push(self, slug, data, expected_version, device=""):
+        """
+        Send a set of books up, but only if nothing newer is already there.
+
+        expected_version is what this device last saw. Where the server has moved
+        on since, the send is refused rather than allowed to flatten somebody
+        else's day of work.
+        """
+        self._require()
+        import base64
+        held = self.remote_version(slug)
+        if held["version"] != expected_version:
+            raise Conflict(
+                "The copy on the server has changed since this device last looked. "
+                "It is at version %d and this device expected %d."
+                % (held["version"], expected_version),
+                held["version"], held.get("device", ""), held.get("updated_at", ""))
+
+        fingerprint = book_fingerprint(self.master_key, slug)
+        blob = vault.lock(data, self._vault_password())
+        row = {"owner": self.user_id, "book_id": fingerprint,
+               "version": expected_version + 1, "device": device[:80],
+               "payload": base64.b64encode(blob).decode("ascii")}
+        status, detail = self._call(
+            "/rest/v1/books?on_conflict=owner,book_id", "POST", row,
+            headers={"Prefer": "resolution=merge-duplicates,return=minimal"})
+        if status not in (200, 201, 204):
+            raise CloudError(self._complain(detail, "The server would not take the books."))
+        return expected_version + 1
+
+    def forget(self, slug):
+        """Remove a set of books from the server. The copy here is untouched."""
+        self._require()
+        fingerprint = book_fingerprint(self.master_key, slug)
+        status, detail = self._call(
+            "/rest/v1/books?book_id=eq.%s" % urllib.parse.quote(fingerprint), "DELETE")
+        if status not in (200, 204):
+            raise CloudError(self._complain(detail, "Could not remove those books."))
+        return True
+
+    def _vault_password(self):
+        """
+        The key the books are locked with, as bytes.
+
+        Not the password the person typed and not the secret the server holds.
+        The master key itself, which only ever exists in memory on this machine.
+        """
+        return self.master_key.hex()

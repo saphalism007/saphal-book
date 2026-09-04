@@ -95,6 +95,7 @@ var App = (function () {
         { key: "company", label: "Company" },
         { key: "users", label: "Users" },
         { key: "devices", label: "Use on your phone" },
+        { key: "cloud", label: "Your account and sync" },
         { key: "backup", label: "Backup and safety" },
         { key: "dates", label: "Date converter" },
         { key: "guide", label: "Notes and rules" }
@@ -1381,6 +1382,204 @@ var App = (function () {
     card.appendChild(el("p.card-note", { style: "margin-top:.6rem",
       text: "Saturday is shown in red. Public holidays are not built in yet." }));
   }
+
+  /* Your account, and carrying books between devices.
+
+     One username, held in one place, so the same name cannot be taken twice and
+     signing in on a tablet reaches the same books. The books themselves stay on
+     this machine; the server only carries a locked copy between devices. */
+
+  register("cloud", function (page) {
+    return api("/api/cloud/status").then(function (state) { draw(state); });
+
+    function draw(state) {
+      UI.clear(page);
+
+      if (!state.configured) {
+        page.appendChild(el("div.card", {}, [
+          el("div.empty", { text: "No server has been set up for these books." })
+        ]));
+        return;
+      }
+
+      page.appendChild(state.signed_in ? account(state) : gate(state));
+      if (state.signed_in) { page.appendChild(booksCard(state)); }
+      page.appendChild(explainer());
+    }
+
+    function reload() {
+      return api("/api/cloud/status").then(draw);
+    }
+
+    /* Signing in, or opening an account */
+
+    function gate(state) {
+      var username = el("input", { type: "text", value: state.remembered || "",
+                                   placeholder: "The name you sign in with" });
+      var password = el("input", { type: "password", placeholder: "Your password" });
+      var note = el("div.card-note");
+
+      function go(making) {
+        var name = username.value.trim();
+        var secret = password.value;
+        if (!name || !secret) { UI.flash("Both boxes are needed.", "bad"); return; }
+        if (making && secret.length < 8) {
+          UI.flash("Use at least eight characters. This password also unlocks the "
+                   + "books, so a short one is the weak link.", "bad");
+          return;
+        }
+        note.textContent = making ? "Opening the account…" : "Signing in…";
+        api(making ? "/api/cloud/sign-up" : "/api/cloud/sign-in",
+            { body: { username: name, password: secret } })
+          .then(function () {
+            password.value = "";
+            UI.flash(making ? "Account opened." : "Signed in.", "good");
+            return reload();
+          })
+          .catch(function (error) {
+            note.textContent = "";
+            UI.flash(error.message, "bad");
+          });
+      }
+
+      password.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") { go(false); }
+      });
+
+      return el("div.card", {}, [
+        el("div.card-head", {}, [el("h2", { text: "Your account" })]),
+        el("p.card-note", { text: "One account, one username. Sign in with the same name "
+          + "on a computer, a phone or a tablet and the same books are within reach. The "
+          + "name is held in one place, so nobody else can take it." }),
+        el("div.row", {}, [
+          el("div", { style: "flex:1 1 220px" }, [UI.field("Username", username)]),
+          el("div", { style: "flex:1 1 220px" }, [UI.field("Password", password)])
+        ]),
+        el("div.row", {}, [
+          el("button.primary", { text: "Sign in", onclick: function () { go(false); } }),
+          el("button.secondary", { text: "Open a new account",
+                                   onclick: function () { go(true); } }),
+          el("div.spacer"), note
+        ]),
+        el("p.card-note", { style: "margin-top:.6rem", text: "This password also unlocks "
+          + "the books. Nobody can reset it, not the makers of this software and not the "
+          + "company holding the copies, because none of them ever see it. Write it down "
+          + "somewhere safe." })
+      ]);
+    }
+
+    function account(state) {
+      return el("div.card", {}, [
+        el("div.card-head", {}, [
+          el("h2", { text: "Signed in as " + state.username }),
+          el("button.secondary", { text: "Sign out", onclick: function () {
+            api("/api/cloud/sign-out", { body: {} })
+              .then(function () { UI.flash("Signed out.", "warn"); return reload(); });
+          } })
+        ]),
+        el("p.card-note", { text: "This device is known as " + state.device
+          + ". That is the name other devices are shown when they are told who wrote last." })
+      ]);
+    }
+
+    /* Each set of books, and what to do about it */
+
+    function booksCard(state) {
+      var rows = state.books.map(function (book) {
+        var behind = book.standing === "newer on the server";
+        var ahead = book.standing === "newer here" || book.standing === "not sent yet"
+                    || book.standing === "removed from the server";
+
+        var pill = "pill";
+        if (book.standing === "up to date") { pill += ".good"; }
+        else if (behind) { pill += ".warn"; }
+
+        return el("tr", {}, [
+          el("td", {}, [
+            el("div", { text: book.name }),
+            book.server_device
+              ? el("div", { style: "font-size:.76rem;color:var(--ink-faint)",
+                            text: "last written by " + book.server_device })
+              : null
+          ]),
+          el("td", {}, [el("span." + pill, { text: book.standing })]),
+          el("td.num", { text: book.version ? "v" + book.version : "" }),
+          el("td.num", { text: book.server_version ? "v" + book.server_version : "" }),
+          el("td", {}, [
+            el("div.row", { style: "gap:.35rem" }, [
+              el("button." + (ahead ? "primary" : "secondary"), {
+                text: "Send up",
+                onclick: function () { send(book); }
+              }),
+              el("button." + (behind ? "primary" : "secondary"), {
+                text: "Bring down",
+                onclick: function () { bring(book); }
+              })
+            ])
+          ])
+        ]);
+      });
+
+      return el("div.card", {}, [
+        el("div.card-head", {}, [
+          el("h2", { text: "Books on this device" }),
+          state.waiting_elsewhere
+            ? el("span.pill.warn", { text: state.waiting_elsewhere
+                + " more on the server this device has never seen" })
+            : null
+        ]),
+        UI.table(["Books", "Standing", { label: "Here", num: true },
+                  { label: "On the server", num: true }, ""], rows, null,
+                 { emptyText: "No companies on this device yet." })
+      ]);
+    }
+
+    function send(book) {
+      UI.confirmAction("Send " + book.name + " up",
+        "This puts a locked copy of the books on this device onto the server, where "
+        + "your other devices can fetch it. The copy here is not changed.",
+        function () {
+          return api("/api/cloud/send", { body: { slug: book.slug } })
+            .then(function (result) {
+              UI.flash(book.name + " sent up as version " + result.version + ".", "good");
+              return reload();
+            });
+        }, "Send it up");
+    }
+
+    function bring(book) {
+      UI.confirmAction("Bring " + book.name + " down",
+        "This replaces the books on this device with the copy from the server"
+        + (book.server_device ? ", last written by " + book.server_device : "") + ".  "
+        + "Anything entered here and not yet sent up will be gone from the working "
+        + "copy. What is here now is set aside on the disk first, so it is not lost.",
+        function () {
+          return api("/api/cloud/bring", { body: { slug: book.slug } })
+            .then(function (result) {
+              UI.flash(result.name + " brought down as version " + result.version
+                       + ". The copy that was here was kept.", "good");
+              return reload();
+            });
+        }, "Bring it down");
+    }
+
+    function explainer() {
+      return el("div.card", {}, [
+        el("div.card-head", {}, [el("h2", { text: "What the server can and cannot see" })]),
+        el("p.card-note", { text: "The books on this machine are the real ones. Everything "
+          + "goes on working with the internet unplugged; the server is only a way of "
+          + "getting a copy to another device." }),
+        el("p.card-note", { text: "What is sent is locked with a key made from your "
+          + "password on this machine. The password itself never leaves, so the company "
+          + "holding the copies cannot read them. Even the name of the company is inside "
+          + "the locked file rather than beside it." }),
+        el("p.card-note", { text: "A device that has been out of range is refused rather "
+          + "than allowed to write over newer work, and is told which device wrote last. "
+          + "Where both have been used apart, bring one down, check it, and send it back "
+          + "up." })
+      ]);
+    }
+  });
 
   /* Use on your phone */
 

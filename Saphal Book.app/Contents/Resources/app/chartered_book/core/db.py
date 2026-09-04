@@ -321,6 +321,37 @@ SYSTEM_MIGRATIONS = [
 ]
 
 
+SYSTEM_MIGRATIONS.append((2, "carrying books between devices", """
+
+    -- What this device knows about each set of books on the server.
+    --
+    -- version is the number this device last agreed with the server. Sending
+    -- anything up while that number is behind is refused, which is what stops a
+    -- tablet that has been out of range all day from flattening a day of
+    -- counter sales entered on the shop machine.
+    --
+    -- The fingerprint the server files the books under is not kept here. It is
+    -- worked out from the owner's key each time, and that key only exists while
+    -- somebody is signed in.
+    CREATE TABLE cloud_books (
+        slug            TEXT PRIMARY KEY,
+        version         INTEGER NOT NULL DEFAULT 0,
+        last_sent_at    TEXT NOT NULL DEFAULT '',
+        last_brought_at TEXT NOT NULL DEFAULT '',
+        last_device     TEXT NOT NULL DEFAULT ''
+    );
+
+    -- The account this install is tied to, so the sign in screen can offer the
+    -- name back. No password and no key are ever written here.
+    CREATE TABLE cloud_account (
+        id              INTEGER PRIMARY KEY CHECK (id = 1),
+        username        TEXT NOT NULL DEFAULT '',
+        user_id         TEXT NOT NULL DEFAULT '',
+        last_signed_in  TEXT NOT NULL DEFAULT ''
+    );
+"""))
+
+
 def open_system():
     """Open, and if needed create, the system database."""
     ensure_dirs()

@@ -1423,6 +1423,124 @@ def export_xlsx(request):
             "bytes": len(data)}
 
 
+# Carrying books between devices
+#
+# The signed in connection is held in memory against the browser session and
+# nowhere else. It carries the key that opens the books, so writing it to disk
+# would undo the point of locking them in the first place. Closing the app
+# forgets it, which is why the password is asked for again.
+
+_CLOUD_SESSIONS = {}
+
+
+def _cloud_session(request, required=True):
+    from ..core import cloud
+    token = request.session["token"] if request.session else ""
+    held = _CLOUD_SESSIONS.get(token)
+    if held is None and required:
+        raise ApiError("Sign in to your account first.", 409)
+    return held
+
+
+@route("GET", "/api/cloud/status")
+def cloud_status(request):
+    """Where every set of books stands against the server."""
+    from ..core import cloud_config
+    from ..modules import sync
+    request.require_user()
+    session = _cloud_session(request, required=False)
+    found = sync.status(request.system, session)
+    found["configured"] = cloud_config.configured(request.system)
+    found["signed_in"] = bool(session and session.signed_in())
+    row = request.system.execute("SELECT * FROM cloud_account WHERE id = 1").fetchone()
+    found["remembered"] = row["username"] if row else ""
+    return found
+
+
+def _cloud_open(request, username, password, making_account):
+    from ..core import cloud, cloud_config
+    request.require_user()
+    settings = cloud_config.settings(request.system)
+    session = cloud.Cloud(settings["url"], settings["anon_key"])
+    try:
+        if making_account:
+            session.sign_up(username, password)
+        else:
+            session.sign_in(username, password)
+    except cloud.CloudError as exc:
+        raise ApiError(str(exc))
+    token = request.session["token"]
+    _CLOUD_SESSIONS[token] = session
+    request.system.execute(
+        """INSERT INTO cloud_account (id, username, user_id, last_signed_in)
+           VALUES (1, ?, ?, ?)
+           ON CONFLICT (id) DO UPDATE SET username = excluded.username,
+                                          user_id = excluded.user_id,
+                                          last_signed_in = excluded.last_signed_in""",
+        (session.username, session.user_id or "", db.now_stamp()))
+    request.system.commit()
+    return {"ok": True, "username": session.username}
+
+
+@route("POST", "/api/cloud/sign-up")
+def cloud_sign_up(request):
+    """Open an account. The server refuses a username somebody already holds."""
+    return _cloud_open(request, request.body.get("username", ""),
+                       request.body.get("password", ""), True)
+
+
+@route("POST", "/api/cloud/sign-in")
+def cloud_sign_in(request):
+    return _cloud_open(request, request.body.get("username", ""),
+                       request.body.get("password", ""), False)
+
+
+@route("POST", "/api/cloud/sign-out")
+def cloud_sign_out(request):
+    request.require_user()
+    token = request.session["token"] if request.session else ""
+    held = _CLOUD_SESSIONS.pop(token, None)
+    if held:
+        held.sign_out()
+    return {"ok": True}
+
+
+@route("POST", "/api/cloud/send")
+def cloud_send(request):
+    """Put this device's copy of one set of books on the server."""
+    from ..core import cloud
+    from ..modules import sync
+    request.require_user()
+    session = _cloud_session(request)
+    slug = (request.body.get("slug") or "").strip()
+    if not slug:
+        raise ApiError("Say which books to send.")
+    try:
+        return sync.send_up(request.system, session, slug)
+    except cloud.Conflict as exc:
+        raise ApiError(
+            "%s Bring it down first, or send anyway only if you are certain this "
+            "device holds the work that matters." % str(exc), 409)
+    except (cloud.CloudError, sync.SyncError) as exc:
+        raise ApiError(str(exc))
+
+
+@route("POST", "/api/cloud/bring")
+def cloud_bring(request):
+    """Replace this device's copy with the one on the server."""
+    from ..core import cloud
+    from ..modules import sync
+    request.require_user()
+    session = _cloud_session(request)
+    slug = (request.body.get("slug") or "").strip()
+    if not slug:
+        raise ApiError("Say which books to bring down.")
+    try:
+        return sync.bring_down(request.system, session, slug)
+    except (cloud.CloudError, sync.SyncError) as exc:
+        raise ApiError(str(exc))
+
+
 # Returns, notes and stock adjustments
 
 
