@@ -137,8 +137,8 @@ var Reports = (function () {
   App.register("ledger", function (page) {
     var accountInput = el("input", { type: "text", placeholder: "Type a ledger name" });
     var accountId = null;
-    var box = el("div", {}, [el("div.empty", { text: "Choose a ledger to see its statement." })]);
-    var bar = periodBar(function () { if (accountId) { load(); } });
+    var box = el("div", {});
+    var bar = periodBar(function () { if (accountId) { load(); } else { index(); } });
 
     UI.attachPicker(accountInput, function (term) {
       return api("/api/accounts", { query: { q: term } }).then(function (d) { return d.rows; });
@@ -147,6 +147,56 @@ var Reports = (function () {
       accountInput.value = account.name;
       load();
     }, function (account) { return { main: account.name, side: account.group_name }; });
+
+    /* Every ledger, with what it is carrying, shown straight away.
+
+       Having to know the name of a ledger before being allowed to see anything
+       is no use when the whole point is to look through the books. This is the
+       list, grouped the way the chart of accounts is grouped, and clicking any
+       line opens that ledger. */
+
+    function index() {
+      return api("/api/reports/trial-balance", { query: {
+        from_ad: bar.from.getIso(), to_ad: bar.to.getIso()
+      }}).then(function (data) {
+        var rows = [];
+        var group = null;
+        data.rows.forEach(function (row) {
+          if (row.group_code !== group) {
+            group = row.group_code;
+            rows.push(el("tr.group-row", {}, [
+              el("td", { colspan: "5", text: row.group_name })
+            ]));
+          }
+          var closing = row.closing_dr - row.closing_cr;
+          rows.push(el("tr.clickable", { onclick: function () {
+            accountId = row.account_id;
+            accountInput.value = row.name;
+            load();
+          } }, [
+            el("td", { text: row.code }),
+            el("td", { text: row.name }),
+            el("td.num", { text: UI.rs(row.period_dr, { blankZero: true }) }),
+            el("td.num", { text: UI.rs(row.period_cr, { blankZero: true }) }),
+            el("td.num", { text: closing
+              ? UI.rs(Math.abs(closing)) + (closing > 0 ? " Dr" : " Cr") : "" })
+          ]));
+        });
+        UI.clear(box);
+        box.appendChild(reportHead("Ledgers",
+          periodText(data.from_ad, data.to_ad)
+          + "   Click any ledger to open its statement"));
+        box.appendChild(UI.table(
+          ["Code", "Ledger", { label: "Debit", num: true }, { label: "Credit", num: true },
+           { label: "Closing", num: true }],
+          rows, [el("tr.total-row", {}, [
+            el("td", { colspan: "2", text: "Total" }),
+            el("td.num", { text: UI.rs(data.totals.period_dr) }),
+            el("td.num", { text: UI.rs(data.totals.period_cr) }),
+            el("td.num", { text: "" })
+          ])], { tall: true, emptyText: "No ledgers have moved in this period." }));
+      });
+    }
 
     function load() {
       return api("/api/reports/ledger", { query: {
@@ -176,6 +226,13 @@ var Reports = (function () {
           el("td.num", { text: UI.rs(Math.abs(data.closing)) + (data.closing >= 0 ? " Dr" : " Cr") })
         ])];
         UI.clear(box);
+        box.appendChild(el("div.row.no-print", { style: "margin-bottom:.4rem" }, [
+          el("button.ghost", { text: "Back to all ledgers", onclick: function () {
+            accountId = null;
+            accountInput.value = "";
+            index();
+          } })
+        ]));
         box.appendChild(reportHead("Ledger: " + data.account.name, periodText(data.from_ad, data.to_ad)));
         box.appendChild(UI.table([
           "Date (BS)", "Date (AD)", "Voucher", "Particulars", "Note",
@@ -196,11 +253,12 @@ var Reports = (function () {
     if (App.state.pendingLedger) {
       accountId = App.state.pendingLedger;
       App.state.pendingLedger = null;
-      api("/api/accounts/" + accountId).then(function (data) {
+      return api("/api/accounts/" + accountId).then(function (data) {
         accountInput.value = data.account.name;
-        load();
+        return load();
       });
     }
+    return index();
   });
 
   function openLedger(accountId) {

@@ -189,10 +189,25 @@ var App = (function () {
     var gate = qs("#gate");
     gate.classList.remove("hidden");
     qs("#gate-title").textContent = needsSetup ? "Create your login" : "Sign in";
+    // The books live wherever they were made. A login made in the browser on a
+    // tablet opens the books on that tablet, and the same username typed on two
+    // devices is two different sets of books, not one shared set. That is worth
+    // saying at the moment somebody is about to make the second login, because
+    // otherwise it only becomes clear once the first company is nowhere to be
+    // seen. Where this is the browser copy there is a way to reach the real
+    // books, and it is named here.
+    var onWeb = !!window.CHARTERED_BOOK_WEB;
+    var where = onWeb ? "in this browser" : "on this computer";
     qs("#gate-help").textContent = needsSetup
-      ? "Nobody has used Chartered Book on this computer yet, so make your login now. "
+      ? "Nobody has used Chartered Book " + where + " yet, so make your login now. "
         + "This is the sign up. Choose any username and password you like, and write the "
         + "password down, because nothing can recover it."
+        + (onWeb
+           ? "  These will be new books kept in this browser. They are not the books on "
+             + "your computer, and using the same username will not reach them. To work on "
+             + "those, put this device on the same wifi and open the address shown under "
+             + "Use on your phone on the computer."
+           : "")
       : "";
     qs("#gate-submit").textContent = needsSetup ? "Create and continue" : "Sign in";
     UI.qsa(".hidden-when-login").forEach(function (node) {
