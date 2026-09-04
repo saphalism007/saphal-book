@@ -190,32 +190,6 @@ var App = (function () {
     qs("#shell").classList.add("hidden");
     var gate = qs("#gate");
     gate.classList.remove("hidden");
-    qs("#gate-title").textContent = needsSetup ? "Create your login" : "Sign in";
-    // The books live wherever they were made. A login made in the browser on a
-    // tablet opens the books on that tablet, and the same username typed on two
-    // devices is two different sets of books, not one shared set. That is worth
-    // saying at the moment somebody is about to make the second login, because
-    // otherwise it only becomes clear once the first company is nowhere to be
-    // seen. Where this is the browser copy there is a way to reach the real
-    // books, and it is named here.
-    var onWeb = !!window.CHARTERED_BOOK_WEB;
-    var where = onWeb ? "in this browser" : "on this computer";
-    qs("#gate-help").textContent = needsSetup
-      ? "Nobody has used Saphal Book " + where + " yet, so make your login now. "
-        + "This is the sign up. Choose any username and password you like, and write the "
-        + "password down, because nothing can recover it."
-        + (onWeb
-           ? "  These will be new books kept in this browser. They are not the books on "
-             + "your computer, and using the same username will not reach them. To work on "
-             + "those, put this device on the same wifi and open the address shown under "
-             + "Use on your phone on the computer."
-           : "")
-      : "";
-    qs("#gate-submit").textContent = needsSetup ? "Create and continue" : "Sign in";
-    UI.qsa(".hidden-when-login").forEach(function (node) {
-      node.classList.toggle("hidden", !needsSetup);
-    });
-    qs("#login-password").setAttribute("autocomplete", needsSetup ? "new-password" : "current-password");
     qs("#login-username").focus();
 
     var stuck = qs("#gate-stuck");
@@ -304,6 +278,36 @@ var App = (function () {
       });
     };
 
+    /* Signing in, or opening an account. Both are always on offer, because a
+       second device has an account already but no login of its own, and a
+       screen that only offers one of the two leaves somebody stuck. */
+
+    var making = needsSetup;
+    var switcher = qs("#gate-switch");
+
+    function paintMode() {
+      qs("#gate-title").textContent = making ? "Open an account" : "Sign in";
+      qs("#gate-submit").textContent = making ? "Open it and continue" : "Sign in";
+      switcher.textContent = making
+        ? "I already have an account, sign me in"
+        : "Open a new account";
+      qs("#login-password").setAttribute(
+        "autocomplete", making ? "new-password" : "current-password");
+      UI.qsa(".hidden-when-login").forEach(function (node) {
+        node.classList.toggle("hidden", !making);
+      });
+      qs("#gate-help").textContent = making
+        ? "The username is held in one place, so nobody else can take it, and signing "
+          + "in with it on another device reaches the same books. Use at least eight "
+          + "characters: this password also unlocks the books, and nobody can reset it."
+        : "Sign in with the same name on any device. Where the internet is not "
+          + "available, the login kept on this machine is used instead.";
+      qs("#gate-error").textContent = "";
+    }
+
+    switcher.onclick = function () { making = !making; paintMode(); };
+    paintMode();
+
     var form = qs("#login-form");
     form.onsubmit = function (event) {
       event.preventDefault();
@@ -312,13 +316,24 @@ var App = (function () {
         username: qs("#login-username").value.trim(),
         password: qs("#login-password").value
       };
-      if (needsSetup) { body.full_name = qs("#setup-fullname").value.trim(); }
-      api(needsSetup ? "/api/setup" : "/api/login", { body: body })
-        .then(function () {
+      if (making) { body.full_name = qs("#setup-fullname").value.trim(); }
+      var submit = qs("#gate-submit");
+      submit.disabled = true;
+      submit.textContent = making ? "Opening…" : "Signing in…";
+      api(making ? "/api/register" : "/api/login", { body: body })
+        .then(function (result) {
           qs("#login-password").value = "";
+          if (result && result.account === false && result.account_note) {
+            UI.flash("Signed in on this machine. The account could not be reached, so "
+                     + "nothing will travel to your other devices until it can.", "warn");
+          }
           return refresh();
         })
-        .catch(function (error) { qs("#gate-error").textContent = error.message; });
+        .catch(function (error) {
+          submit.disabled = false;
+          paintMode();
+          qs("#gate-error").textContent = error.message;
+        });
     };
   }
 

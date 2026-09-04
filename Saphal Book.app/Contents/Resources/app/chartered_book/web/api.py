@@ -240,20 +240,132 @@ def first_run_setup(request):
     return {"ok": True, "username": username}
 
 
+def _try_account(request, username, password, making_account):
+    """
+    Do the account half of signing in, where there is a server to do it with.
+
+    Returns a note about what happened, or None where there is no server or it
+    could not be reached. Reaching it is never made a condition of getting into
+    the books: a shop with the internet down still has to be able to trade, and
+    the books are on this machine either way.
+    """
+    from ..core import cloud, cloud_config
+    if not cloud_config.configured(request.system):
+        return None
+    settings = cloud_config.settings(request.system)
+    session = cloud.Cloud(settings["url"], settings["anon_key"])
+    try:
+        if making_account:
+            session.sign_up(username, password)
+        else:
+            session.sign_in(username, password)
+    except cloud.CloudError as exc:
+        message = str(exc)
+        # A username somebody already holds, or a password that does not match
+        # one, is a real answer and has to stop the attempt. Anything else is
+        # the network being unavailable, which must not.
+        if "taken" in message.lower() or "do not match an account" in message.lower():
+            raise ApiError(message, 409 if "taken" in message.lower() else 401)
+        return {"reached": False, "why": message}
+    return {"reached": True, "session": session, "username": session.username,
+            "user_id": session.user_id or ""}
+
+
+def _finish_account(request, note, token):
+    """Hold on to the signed in connection and remember the name."""
+    if not note or not note.get("reached"):
+        return
+    _CLOUD_SESSIONS[token] = note["session"]
+    request.system.execute(
+        """INSERT INTO cloud_account (id, username, user_id, last_signed_in)
+           VALUES (1, ?, ?, ?)
+           ON CONFLICT (id) DO UPDATE SET username = excluded.username,
+                                          user_id = excluded.user_id,
+                                          last_signed_in = excluded.last_signed_in""",
+        (note["username"], note["user_id"], db.now_stamp()))
+    request.system.commit()
+
+
 @route("POST", "/api/login")
 def login(request):
+    """
+    Sign in, to the account and to these books, with one name and one password.
+
+    The account is checked first where there is a server and it answers, because
+    that is the only place a username is counted and so the only place that can
+    say whether this is really the same person. Where it cannot be reached, the
+    copy of the login kept on this machine is used instead, so the shop is never
+    stopped from trading by somebody else's outage.
+    """
     username = (request.arg("username") or "").strip()
     password = request.arg("password") or ""
+    note = _try_account(request, username, password, False)
+
     try:
         user = auth.authenticate(request.system, username, password)
     except auth.AuthError as exc:
-        raise ApiError(str(exc), 401)
+        if note and note.get("reached"):
+            # The account is genuine but this machine has never seen it, which
+            # is what happens on a second device. Give it a login of its own so
+            # it works here afterwards, with or without the internet.
+            if auth.find_user(request.system, username) is None:
+                role = "owner" if not auth.has_any_user(request.system) else "operator"
+                auth.create_user(request.system, username, password, role=role)
+            else:
+                auth.set_password(request.system,
+                                  auth.find_user(request.system, username)["id"], password)
+            request.system.commit()
+            user = auth.authenticate(request.system, username, password)
+        else:
+            raise ApiError(str(exc), 401)
+
     companies = company_module.list_companies(request.system)
     company_id = companies[0]["id"] if len(companies) == 1 else None
     token = auth.start_session(request.system, user["id"], company_id)
+    _finish_account(request, note, token)
     request.set_cookie = token
     return {"ok": True, "username": user["username"], "role": user["role"],
-            "must_change": user["must_change"]}
+            "must_change": user["must_change"],
+            "account": bool(note and note.get("reached")),
+            "account_note": "" if not note else note.get("why", "")}
+
+
+@route("POST", "/api/register")
+def register(request):
+    """
+    Open an account and a login on this machine, in that order.
+
+    The order is the point. The server is asked first, and it refuses a username
+    somebody already holds. Making the login here first would let two people on
+    two devices both believe they were saphalism, which is exactly what used to
+    happen.
+    """
+    username = (request.arg("username") or "").strip()
+    password = request.arg("password") or ""
+    if len(password) < 8:
+        raise ApiError("Use at least eight characters. This password also unlocks the "
+                       "books, so a short one is the weak link.")
+    if auth.find_user(request.system, username) is not None:
+        raise ApiError("There is already a login called %s on this device." % username, 409)
+
+    note = _try_account(request, username, password, True)
+    if note is not None and not note.get("reached"):
+        raise ApiError(
+            "The account could not be opened because the server could not be reached. "
+            "Opening one needs the internet, once. After that, signing in works without "
+            "it. (%s)" % note.get("why", ""))
+
+    role = "owner" if not auth.has_any_user(request.system) else "operator"
+    auth.create_user(request.system, username, password, role=role)
+    request.system.commit()
+    user = auth.authenticate(request.system, username, password)
+    companies = company_module.list_companies(request.system)
+    company_id = companies[0]["id"] if len(companies) == 1 else None
+    token = auth.start_session(request.system, user["id"], company_id)
+    _finish_account(request, note, token)
+    request.set_cookie = token
+    return {"ok": True, "username": user["username"], "role": user["role"],
+            "account": bool(note and note.get("reached"))}
 
 
 @route("POST", "/api/logout")

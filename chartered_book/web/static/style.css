@@ -148,28 +148,32 @@ a { color: var(--brand-ink); text-underline-offset: 2px; }
 
 /* Brand mark */
 
+/* The mark is the S of Saphal, matching the application icon.
+
+   It used to be a ledger page drawn with two pseudo elements, and when the
+   letter was put into the markup those two went on covering it, so the old mark
+   was still what everybody saw on the sign in card. They are gone. */
+
 .brand-mark {
   width: 32px; height: 32px; border-radius: 9px; flex: 0 0 auto;
   background: linear-gradient(160deg, var(--brand) 0%, var(--brand-deep) 100%);
   display: flex; align-items: center; justify-content: center;
   box-shadow: var(--shadow-sm); position: relative; overflow: hidden;
+  color: #fff; font-weight: 700; font-size: 19px; line-height: 1;
+  letter-spacing: -.02em; padding-bottom: 1px;
 }
-.brand-mark::before {
-  content: ""; position: absolute; inset: 22% 26% 22% 30%;
-  background: #fff; border-radius: 2px;
+.brand-mark.large {
+  width: 52px; height: 52px; border-radius: 15px; margin: 0 auto .7rem;
+  font-size: 31px; padding-bottom: 2px;
 }
-.brand-mark::after {
-  content: ""; position: absolute; top: 30%; bottom: 30%; right: 40%;
-  width: 1.5px; background: var(--gold);
-}
-.brand-mark.large { width: 52px; height: 52px; border-radius: 15px; margin: 0 auto .7rem; }
 .brand-name { font-weight: 600; }
 
 /* Boot and sign in */
 
 .boot { position: fixed; inset: 0; display: grid; place-items: center; background: var(--ground); z-index: 90; }
 .boot-card { text-align: center; }
-.boot-card .brand-mark { margin: 0 auto .7rem; width: 46px; height: 46px; border-radius: 13px; }
+.boot-card .brand-mark { margin: 0 auto .7rem; width: 46px; height: 46px;
+                         border-radius: 13px; font-size: 27px; }
 .boot-note { color: var(--ink-faint); font-size: .84rem; margin-top: .25rem; }
 .boot-note::after {
   content: ""; display: block; width: 42px; height: 2px; margin: .8rem auto 0;

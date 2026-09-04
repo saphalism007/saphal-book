@@ -272,5 +272,11 @@ def require(user, action):
         raise AuthError("Your role does not allow this action.")
 
 
+def find_user(conn, username):
+    """The login of that name on this machine, or None. Case is ignored."""
+    return conn.execute("SELECT * FROM users WHERE username = ? COLLATE NOCASE",
+                        ((username or "").strip(),)).fetchone()
+
+
 def has_any_user(conn):
     return conn.execute("SELECT COUNT(*) AS n FROM users").fetchone()["n"] > 0
