@@ -1557,7 +1557,7 @@ var App = (function () {
 // browser build the accounting engine has to finish loading first, so the boot
 // script says when.
 if (window.CHARTERED_BOOK_WEB) {
-  document.addEventListener("chartered-book-ready", App.start);
+  document.addEventListener("saphal-book-ready", App.start);
 } else {
   document.addEventListener("DOMContentLoaded", App.start);
 }

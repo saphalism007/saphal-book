@@ -285,7 +285,7 @@ window.CB = (function () {
       step("Ready", 1);
       var screen = document.getElementById("starting");
       if (screen) { screen.style.display = "none"; }
-      document.dispatchEvent(new Event("chartered-book-ready"));
+      document.dispatchEvent(new Event("saphal-book-ready"));
     } catch (error) {
       var detail = String((error && error.message) || error || "");
       var short = detail.split(String.fromCharCode(10))[0].slice(0, 160);
@@ -315,7 +315,7 @@ def worker_js():
     promise that everything works with no connection at all, only that it does
     not have to be fetched again every time.
     """
-    return """var VERSION = "chartered-book-web-1";
+    return """var VERSION = "saphal-book-web-1";
 var SHELL = ["./", "index.html", "boot.js", "manifest.webmanifest",
   "chartered_book.zip",
   "static/style.css", "static/nepali.js", "static/ui.js", "static/app.js",

@@ -181,10 +181,10 @@ def run_as_app(args):
     Started by double clicking the icon.
 
     There is no terminal window to read, so anything worth saying goes to
-    data/chartered-book.log instead, and the browser is opened automatically.
+    data/saphal-book.log instead, and the browser is opened automatically.
     """
     db.ensure_dirs()
-    log_path = os.path.join(db.DATA_DIR, "chartered-book.log")
+    log_path = os.path.join(db.DATA_DIR, "saphal-book.log")
     try:
         log = open(log_path, "a", buffering=1, encoding="utf-8")
         sys.stdout = log

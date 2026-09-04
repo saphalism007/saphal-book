@@ -1,4 +1,4 @@
-var VERSION = "chartered-book-web-1";
+var VERSION = "saphal-book-web-1";
 var SHELL = ["./", "index.html", "boot.js", "manifest.webmanifest",
   "chartered_book.zip",
   "static/style.css", "static/nepali.js", "static/ui.js", "static/app.js",

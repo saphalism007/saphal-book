@@ -21,7 +21,7 @@ Click any figure and it opens what is behind it, down to the voucher
 
 ## Download it
 
-**Mac.** [**Download Saphal Book for Mac**](https://github.com/saphalism007/chartered-book/raw/main/download/Chartered%20Book%20for%20Mac.zip)
+**Mac.** [**Download Saphal Book for Mac**](https://github.com/saphalism007/saphal-book/raw/main/download/Saphal%20Book%20for%20Mac.zip)
 Unzip it and double click Saphal Book. Nothing to install, macOS already has
 what it needs.
 
@@ -30,7 +30,7 @@ is normal for any app not sold through the App Store. **Right click the app,
 choose Open, then click Open again** on the box that appears. You only do that
 once.
 
-**Windows.** [**Download Saphal Book for Windows**](https://github.com/saphalism007/chartered-book/raw/main/download/Chartered%20Book%20for%20Windows.zip)
+**Windows.** [**Download Saphal Book for Windows**](https://github.com/saphalism007/saphal-book/raw/main/download/Saphal%20Book%20for%20Windows.zip)
 Install Python once from [python.org](https://www.python.org/downloads/),
 ticking **Add Python to PATH** on the first screen of the installer. Then unzip
 this and double click `Saphal Book.vbs`.
@@ -115,7 +115,7 @@ On this Mac:
     books/            one file for each company, this is your books
     backups/          every backup, one zip each
     system.db         the list of users and companies
-    chartered-book.log  what the software would have printed if it had a window
+    saphal-book.log  what the software would have printed if it had a window
 
 On Windows it is `C:\Users\<your name>\AppData\Local\Saphal Book`.
 
@@ -366,7 +366,7 @@ themselves in `data/books/` are untouched by this.
 Nepali date, and restore.
 
 **The icon does nothing when you double click it.** Look in
-`~/Library/Application Support/Saphal Book/chartered-book.log`. The last few
+`~/Library/Application Support/Saphal Book/saphal-book.log`. The last few
 lines say what happened. If it mentions Python, install Python from python.org
 and try again.
 

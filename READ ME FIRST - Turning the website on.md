@@ -15,7 +15,7 @@ a sign that anything is broken.
 
 1. Open this address:
 
-       https://github.com/saphalism007/chartered-book/settings/pages
+       https://github.com/saphalism007/saphal-book/settings/pages
 
    If it asks you to sign in, sign in.
 
@@ -44,11 +44,11 @@ Once the bar is green:
 
 **The page you send people**
 
-    https://saphalism007.github.io/chartered-book/
+    https://saphalism007.github.io/saphal-book/
 
 **The app itself, to open on an iPad or Android**
 
-    https://saphalism007.github.io/chartered-book/app/
+    https://saphalism007.github.io/saphal-book/app/
 
 Open that second one in **Safari** on an iPad, or **Chrome** on Android. Wait a
 few seconds the first time while the accounting engine loads. Then add it to

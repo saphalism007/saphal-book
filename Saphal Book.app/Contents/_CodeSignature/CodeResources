@@ -6,11 +6,11 @@
 	<dict>
 		<key>Resources/AppIcon.icns</key>
 		<data>
-		PIQdLL/wUu2e+NVIK0MbV2hofD8=
+		WfJCm0QhAbYUbRInqATcqbyWOUg=
 		</data>
 		<key>Resources/app/README.md</key>
 		<data>
-		suc0DnU6CByhCRmq+uexmdwmais=
+		TZPd82R8hax2yt80mTxb/egVuJs=
 		</data>
 		<key>Resources/app/chartered_book/.DS_Store</key>
 		<data>
@@ -18,7 +18,7 @@
 		</data>
 		<key>Resources/app/chartered_book/BUILD.txt</key>
 		<data>
-		1VFFhz3RRqlyGC6HKs1Rh4g10AE=
+		vHY+iilLVZSUm27szc8nQKtx6f4=
 		</data>
 		<key>Resources/app/chartered_book/__init__.py</key>
 		<data>
@@ -154,7 +154,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/static/app.js</key>
 		<data>
-		5Si0rJu8yEdUChhxJ5noDvmD9Fg=
+		yayLrRnyYM7lBojWmfvo8sbXxsI=
 		</data>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
 		<data>
@@ -174,27 +174,27 @@
 		</data>
 		<key>Resources/app/chartered_book/web/static/icons/icon-180.png</key>
 		<data>
-		EXNV07y/qNCpS5aF3rB+TGpHjjY=
+		Vcg0EmqOm4iF09XayBiUsBI3CJQ=
 		</data>
 		<key>Resources/app/chartered_book/web/static/icons/icon-192.png</key>
 		<data>
-		fpRgF6ScnKNYFQNdngSFRx6yoyc=
+		vdml/tgweO+ePTVBOW2OhQnv2S8=
 		</data>
 		<key>Resources/app/chartered_book/web/static/icons/icon-32.png</key>
 		<data>
-		XYrwHkpde4rv5DsSkRZgfma0i3M=
+		9WVCjivLX1h5hj+3sK4T8wTaZbw=
 		</data>
 		<key>Resources/app/chartered_book/web/static/icons/icon-512.png</key>
 		<data>
-		vMwpP+FOWtK7Mt1xJsFCwXghgz8=
+		zs3CkasqEZujbXkuzWOMx3iYTNg=
 		</data>
 		<key>Resources/app/chartered_book/web/static/icons/icon-64.png</key>
 		<data>
-		toUBRWTWDrr9UY9pf9Ij1n4Q8P8=
+		chyNw9zh3IiMJxiJoOEBvQxBUck=
 		</data>
 		<key>Resources/app/chartered_book/web/static/icons/icon-maskable-512.png</key>
 		<data>
-		AO97FkqSWOtn5OxHyfByOFKirRQ=
+		26sHD0+riQ/DungoZwxy1uJ6HN4=
 		</data>
 		<key>Resources/app/chartered_book/web/static/manifest.json</key>
 		<data>
@@ -238,11 +238,11 @@
 		</data>
 		<key>Resources/app/start.py</key>
 		<data>
-		/isM7+HqBOexr9FPKoPA8AvuxpA=
+		pgwNZXPardedlnA9V9ZMPX0ZfnI=
 		</data>
 		<key>Resources/app/tests/__init__.py</key>
 		<data>
-		g+UrnthFG5GDl9S4mQsYpt3MLCM=
+		U3gAOFrUu/tSYZjWXKsQEXe6twA=
 		</data>
 		<key>Resources/app/tests/test_accounting.py</key>
 		<data>
@@ -286,11 +286,11 @@
 		</data>
 		<key>Resources/app/tools/make_icons.py</key>
 		<data>
-		pgqgBajbZmpm8TmZcWmq1GgvXnU=
+		Cf3X5dN+LhGjZOBCdEIz6m1l9KA=
 		</data>
 		<key>Resources/app/tools/make_mac_app.py</key>
 		<data>
-		6w3j1TpVWrd9oinwmEotACMy17A=
+		sKck0oY4GyGTZ3GLzueuAB1vs0s=
 		</data>
 		<key>Resources/app/tools/make_release.py</key>
 		<data>
@@ -298,7 +298,7 @@
 		</data>
 		<key>Resources/app/tools/make_web_app.py</key>
 		<data>
-		thGTF6nm3gURtK0S2/cN6QxYs+s=
+		xP/dQ1jx3kLew8cFgHqxbpQOGd4=
 		</data>
 	</dict>
 	<key>files2</key>
@@ -307,21 +307,21 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			9kuCGaWJC3keBKxvDKgrSL0u9LyQt13uMz6DpJp5jX4=
+			zWj1LlF3L7RmFOpyfN2CUl3s6re2uql6oaoC9zA0eU0=
 			</data>
 		</dict>
 		<key>Resources/app/README.md</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			9t2uUh91eGjbv9MJHhkedV60KNbzoqOwMx5kciGMkiU=
+			ZQGe+9sO7UcMPc80YZvPM/O9JXNNqPCLuToSNxk4zRs=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/BUILD.txt</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			0faSZQMMTrpZiZ7+Av6H2JgX91FpcFqopRbm7uB/8zg=
+			fsy8KcjjAmyc/YKNkosWSFfmJ9DmjM/26d1wAj8TDug=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/__init__.py</key>
@@ -552,7 +552,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			neHEObSBSaWXJlGZkxxnEhbgfN8rUp2Xmi+kb2IpO1k=
+			BctVI943dBicE5RZ8KGftrjoH5Q9TWwyAwe0OBzbvjk=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
@@ -587,42 +587,42 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			qWjMgXj2JuW+IYjZYIdrgWrm/7hPTHDe4QuLxMDNhDQ=
+			KjnGF4NqXVakTJOZtTOp2nU3SRQ8k6qY8gxz8acvdtY=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/icons/icon-192.png</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			qlyFEfJG/oC/GjEWxDYhv/zXKo2eRtMQZ9dMnKWGvhA=
+			3fblsIPUWQbwjQecxYIAjkwUoYkF6/AOzcJ8TEypYps=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/icons/icon-32.png</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Nf0/d71RpEc2CkVFCmiARZK/cCjz0mR/861FokU4bSk=
+			38ek1+kQLjTeqZYNm3YOHCb/qRVhvRNyOJ9aqQ/cE9I=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/icons/icon-512.png</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			3NUIE/XFWPCBmEmB9rdphvRFD4EaJYCLBkNDGRgyNnw=
+			ediPslC6hriTMIsSlDN44LJDtF5HS80/DD8cN8hekqM=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/icons/icon-64.png</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			ItLcyfCRg9MskDC8lQ0rFfIkUbNG6Afbj5EKPTRCExk=
+			3XcEzwxllJjJOfJmTAz8kJYzUHXAelh5fZWcHUisjlY=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/icons/icon-maskable-512.png</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			C9gDrrT3xH+YZj5i5YZmwjVfCufM11U6pi84THmsn4Q=
+			gVH5AI11ETlK/0zcyZ/XQ4jGjEleZUCyXXm6mhqK804=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/manifest.json</key>
@@ -699,14 +699,14 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			jlt60Z83QZu35t6I88fI+iW/WgREFeB2SlbsIwL/WrQ=
+			+X/WfqlJvI/7+SQwF++8XiTCWO3wDDgUsCDbvtmQBG8=
 			</data>
 		</dict>
 		<key>Resources/app/tests/__init__.py</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			W0dRJe9Zuop5omdqqFOWdLJP+jsK3kdAr3u+MiDinTM=
+			xXPEexVWiU99BVnXa/dMFJfcZ3K0qsnLL7vnK7D2MGw=
 			</data>
 		</dict>
 		<key>Resources/app/tests/test_accounting.py</key>
@@ -783,14 +783,14 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			6Zx1m56/O6BjemeXBeGumQ2mz7KhKZ4+8ITEn/BlrDA=
+			4amAN/zUx+qDmtOenITUEbOw86LRAY+m6odpZQbVhuk=
 			</data>
 		</dict>
 		<key>Resources/app/tools/make_mac_app.py</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			y6SLrwMIJ3c7sTaEmm+ZjuxiBjbATR+raCL01JrMtgk=
+			MvnNg6kgoxyfgTE3Wp1eYZqbIu+BPh5LcNNB9/x0fek=
 			</data>
 		</dict>
 		<key>Resources/app/tools/make_release.py</key>
@@ -804,7 +804,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			34r2rL4gbIoSBYfeM7EcE6F+3AF2QY/4pjQA7pKifeM=
+			ad7+/ASJPC0OG9SHatQNGnIdaRtXlC4jJWmapt1Kvc4=
 			</data>
 		</dict>
 	</dict>

@@ -80,7 +80,82 @@ def rounded_rect(canvas, x0, y0, x1, y1, radius, colour, size):
                 canvas[y][x] = blend(canvas[y][x], faded)
 
 
+def disc(canvas, cx, cy, radius, colour, size):
+    """Stamp a filled circle with a soft edge. The unit a pen stroke is made of."""
+    top = max(0, int(cy - radius - 1))
+    bottom = min(size - 1, int(cy + radius + 1))
+    left = max(0, int(cx - radius - 1))
+    right = min(size - 1, int(cx + radius + 1))
+    for y in range(top, bottom + 1):
+        for x in range(left, right + 1):
+            distance = ((x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2) ** 0.5
+            if distance <= radius - 0.5:
+                canvas[y][x] = blend(canvas[y][x], colour)
+            elif distance < radius + 0.5:
+                edge = radius + 0.5 - distance
+                faded = colour[:3] + (int(colour[3] * max(0.0, min(1.0, edge))),)
+                canvas[y][x] = blend(canvas[y][x], faded)
+
+
+def stroke_arc(canvas, cx, cy, radius, start_deg, end_deg, width, colour, size):
+    """
+    Draw an arc as a pen stroke of a given width, by walking along it and
+    stamping a disc at every step. Round ends come free, which is what makes the
+    letter look drawn rather than cut out.
+    """
+    import math
+    steps = max(24, int(abs(end_deg - start_deg) * radius / 60.0) + 24)
+    for index in range(steps + 1):
+        portion = index / float(steps)
+        angle = math.radians(start_deg + (end_deg - start_deg) * portion)
+        disc(canvas, cx + radius * math.cos(angle), cy + radius * math.sin(angle),
+             width / 2.0, colour, size)
+
+
 def draw(size, padded=True):
+    """
+    The mark is the S of Saphal, drawn as a single stroke on a navy panel.
+
+    The letter is built from two arcs that meet in the middle, the top one
+    curving up and to the left and the bottom one down and to the right, which
+    is how an S is written rather than how it is typed. A gold underline sits
+    beneath it, the same gold as the column rule on an invoice.
+    """
+    canvas = [[CLEAR for _ in range(size)] for _ in range(size)]
+    unit = size / 512.0
+
+    if padded:
+        rounded_rect(canvas, 0, 0, size - 1, size - 1, 112 * unit, NAVY, size)
+    else:
+        for y in range(size):
+            for x in range(size):
+                canvas[y][x] = NAVY
+
+    centre = size / 2.0
+    # The letter stands 4 bowls plus a stroke tall, so the bowl has to stay
+    # small enough that the whole thing sits inside the panel with air around
+    # it. An icon that touches its own edges reads as a mistake at any size.
+    bowl = 72 * unit          # radius of each half of the letter
+    stroke = 46 * unit        # how thick the pen is
+    lift = 26 * unit          # the whole letter sits a little above centre
+
+    # Top half: starts at the upper right, over the top, down the left, to the
+    # middle. Bottom half: out of the middle, round the right, down to the
+    # lower left. Together they make the one continuous stroke of an S.
+    # The terminals run a little past the quarter, which opens the letter out
+    # and stops the two ends looking cut off.
+    stroke_arc(canvas, centre, centre - bowl - lift, bowl, -18, -270, stroke, PAPER, size)
+    stroke_arc(canvas, centre, centre + bowl - lift, bowl, -90, 162, stroke, PAPER, size)
+
+    # The gold rule, the same one that separates the amount column on a bill.
+    rule_width = 132 * unit
+    rule_y = centre + 2 * bowl - lift + stroke / 2 + 34 * unit
+    rounded_rect(canvas, centre - rule_width / 2, rule_y,
+                 centre + rule_width / 2, rule_y + 15 * unit, 8 * unit, ACCENT, size)
+    return canvas
+
+
+def _old_draw(size, padded=True):
     """
     The mark is a ledger page: a navy panel holding a white sheet with ruled
     lines and a gold column rule down the amount side.

@@ -6,7 +6,7 @@ Build the Mac application, so Saphal Book can be opened by clicking an icon.
 
 It writes "Saphal Book.app" beside this project. Drag that to the
 Applications folder, or keep it in the Dock, and double click it. No terminal
-window appears. Anything it wants to say goes to data/chartered-book.log.
+window appears. Anything it wants to say goes to data/saphal-book.log.
 
 The app carries its own copy of the software inside the bundle. It has to: an
 app opened from the Finder is refused entry to the Documents folder, silently,

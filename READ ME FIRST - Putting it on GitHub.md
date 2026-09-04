@@ -40,7 +40,7 @@ browser called **Create a new repository**.
 
 On that page:
 
-1. The **Repository name** box will already say `chartered-book`. Leave it.
+1. The **Repository name** box will already say `saphal-book`. Leave it.
 2. Below that, click the circle next to **Public**.
 3. **Do not tick anything else.** Leave the readme, the .gitignore and the
    licence boxes all unticked. This matters. If you tick them the repository
@@ -57,7 +57,7 @@ After you clicked Create, GitHub took you to a new page. Near the top of that
 page there is a box with an address in it that looks like this:
 
 ```
-https://github.com/yourname/chartered-book.git
+https://github.com/yourname/saphal-book.git
 ```
 
 There is a small copy button beside it. Click that button. That copies the
@@ -81,7 +81,7 @@ Press **Enter**.
 The window will say **DONE** and show you your link. It looks like:
 
 ```
-https://github.com/yourname/chartered-book
+https://github.com/yourname/saphal-book
 ```
 
 That page will also open in your browser by itself.

@@ -11,4 +11,4 @@ import tempfile
 
 if not os.environ.get("CHARTERED_BOOK_DATA"):
     os.environ["CHARTERED_BOOK_DATA"] = os.path.join(
-        tempfile.gettempdir(), "chartered-book-tests")
+        tempfile.gettempdir(), "saphal-book-tests")
