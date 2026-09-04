@@ -974,3 +974,11 @@ tr.is-cleared:hover td { background: var(--good-soft); }
 @media print {
   .doc-subtitle { color: #000; border-top: 1px solid #000; }
 }
+
+/* The build stamp in the corner. It turns red when the app is running an older
+   copy of the software than the one sitting on the machine, which is otherwise
+   invisible and makes a fix that arrived look like a fix that failed. */
+
+.side-version.stale {
+  color: var(--bad, #b42318); font-weight: 600; cursor: help;
+}

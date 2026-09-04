@@ -8,11 +8,18 @@ It writes "Chartered Book.app" beside this project. Drag that to the
 Applications folder, or keep it in the Dock, and double click it. No terminal
 window appears. Anything it wants to say goes to data/chartered-book.log.
 
-The app is a small launcher, not a copy. It runs the code in this folder, so
-every improvement made here reaches the app with nothing to rebuild. The only
-reason to run this script again is to change the icon or the name.
+The app carries its own copy of the software inside the bundle. It has to: an
+app opened from the Finder is refused entry to the Documents folder, silently,
+and closes again the moment it opens.
+
+That has one consequence worth being loud about. Improving the code in this
+folder does nothing at all to the app until this is run again. Run it after
+every change, or double click "Update Chartered Book.command", which does the
+same thing without a terminal. The app shows which copy it is running in the
+bottom corner and turns that red when it is behind.
 """
 
+import datetime
 import os
 import plistlib
 import shutil
@@ -83,6 +90,14 @@ def main():
         if os.path.isdir(source):
             shutil.copytree(source, os.path.join(inside, extra),
                             ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    # Record when this copy was made, so the screen can say which one is
+    # running and whether it has fallen behind the source.
+    from chartered_book.core import build as build_stamp
+    stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    with open(os.path.join(inside, "chartered_book", "BUILD.txt"), "w",
+              encoding="utf-8") as handle:
+        handle.write(stamp + "\n")
+
     for extra in ("README.md",):
         source = os.path.join(HERE, extra)
         if os.path.exists(source):

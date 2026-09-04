@@ -115,6 +115,26 @@ def _local_hostname():
     return plain if plain.endswith(".local") else plain + ".local"
 
 
+def _build_stamp():
+    """
+    Which copy of the software is answering, and whether it is behind the source.
+
+    The Mac application carries its own copy of the code, so an improvement made
+    to the source does not reach it until it is built again. Saying so on the
+    screen is the difference between a fix that looks broken and a fix that
+    simply has not arrived yet.
+    """
+    from ..core import build
+    stamp = build.read()
+    behind = False
+    try:
+        if not stamp.startswith("source of"):
+            behind = build.newest_source().strftime("%Y-%m-%d %H:%M") > stamp
+    except Exception:
+        behind = False
+    return {"stamp": stamp, "behind": behind}
+
+
 @route("GET", "/api/bootstrap")
 def bootstrap(request):
     """Everything the screen needs the moment it opens."""
@@ -146,6 +166,7 @@ def bootstrap(request):
                 payload["company"]["id"] = request.session["company_id"]
                 payload["settings"] = {r["key"]: r["value"]
                                        for r in conn.execute("SELECT * FROM settings")}
+                payload["build"] = _build_stamp()
                 payload["fiscal_year"] = one(fy)
                 payload["fiscal_years"] = rows(company_module.fiscal_years(conn))
                 payload["settings"] = {r["key"]: r["value"]
@@ -340,6 +361,7 @@ def select_company(request):
 def get_company(request):
     conn = request.company()
     return {"profile": one(company_module.profile(conn)),
+            "build": _build_stamp(),
             "fiscal_year": one(company_module.current_fiscal_year(conn)),
             "fiscal_years": rows(company_module.fiscal_years(conn)),
             "settings": {r["key"]: r["value"] for r in conn.execute("SELECT * FROM settings")}}

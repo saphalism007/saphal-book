@@ -44,3 +44,4 @@ venv/
 .vscode/
 .idea/
 *.swp
+chartered_book/BUILD.txt

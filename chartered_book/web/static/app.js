@@ -166,6 +166,7 @@ var App = (function () {
       state.company = data.company;
       state.fiscalYear = data.fiscal_year || null;
       state.fiscalYears = data.fiscal_years || [];
+      state.build = data.build || null;
       state.settings = data.settings || {};
       state.settings = data.settings || {};
       qs("#boot").classList.add("hidden");
@@ -399,6 +400,19 @@ var App = (function () {
         .then(function () { state.route = "dashboard"; return refresh(); })
         .catch(function (error) { UI.flash(error.message, "bad"); });
     };
+
+    var version = qs(".side-version");
+    if (version && state.build) {
+      version.textContent = state.build.behind
+        ? "Out of date, built " + state.build.stamp
+        : "Local and offline  ·  " + state.build.stamp;
+      version.classList.toggle("stale", !!state.build.behind);
+      version.title = state.build.behind
+        ? "This app is running an older copy of the software than the one on this "
+          + "computer. Double click \u201cUpdate Chartered Book\u201d in the project "
+          + "folder and open it again."
+        : "The copy of the software this app is running";
+    }
 
     var nav = UI.clear(qs("#nav"));
     buildMenu().forEach(function (group) {
