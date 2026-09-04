@@ -34,7 +34,7 @@ echo ""
 FAILED=""
 for suite in test_nepali_date test_accounting test_statements test_vouchers \
              test_schedules test_settlements test_discounts test_inventory \
-             test_tax; do
+             test_tax test_vault; do
   if "$PY" -m tests.$suite >/dev/null 2>&1; then
     printf "    passed   %s\n" "$suite"
   else
