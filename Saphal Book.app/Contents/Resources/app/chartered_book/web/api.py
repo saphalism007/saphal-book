@@ -261,11 +261,15 @@ def _try_account(request, username, password, making_account):
             session.sign_in(username, password)
     except cloud.CloudError as exc:
         message = str(exc)
-        # A username somebody already holds, or a password that does not match
-        # one, is a real answer and has to stop the attempt. Anything else is
-        # the network being unavailable, which must not.
-        if "taken" in message.lower() or "do not match an account" in message.lower():
-            raise ApiError(message, 409 if "taken" in message.lower() else 401)
+        # A username somebody already holds is a real answer and has to stop an
+        # attempt to open an account with it.
+        if making_account and "taken" in message.lower():
+            raise ApiError(message, 409)
+        # Anything else is not this module's business to refuse. The account may
+        # simply not exist yet, which is exactly the case for a login made on
+        # this machine before there was ever a server, and turning that into a
+        # refusal locked the owner out of their own books. The login kept on the
+        # machine decides, and it is checked next.
         return {"reached": False, "why": message}
     return {"reached": True, "session": session, "username": session.username,
             "user_id": session.user_id or ""}
@@ -345,8 +349,18 @@ def register(request):
     if len(password) < 8:
         raise ApiError("Use at least eight characters. This password also unlocks the "
                        "books, so a short one is the weak link.")
-    if auth.find_user(request.system, username) is not None:
-        raise ApiError("There is already a login called %s on this device." % username, 409)
+    existing = auth.find_user(request.system, username)
+    if existing is not None:
+        # Somebody who has been using these books since before there was a
+        # server. The name is theirs already; opening the account simply lifts
+        # it onto one. Proving the password is what stops anybody else doing it.
+        try:
+            auth.authenticate(request.system, username, password)
+        except auth.AuthError:
+            raise ApiError(
+                "There is already a login called %s on this device, and that is not its "
+                "password. Use the password you have been signing in with here, and the "
+                "account will be opened under it." % username, 409)
 
     note = _try_account(request, username, password, True)
     if note is not None and not note.get("reached"):
@@ -355,9 +369,10 @@ def register(request):
             "Opening one needs the internet, once. After that, signing in works without "
             "it. (%s)" % note.get("why", ""))
 
-    role = "owner" if not auth.has_any_user(request.system) else "operator"
-    auth.create_user(request.system, username, password, role=role)
-    request.system.commit()
+    if existing is None:
+        role = "owner" if not auth.has_any_user(request.system) else "operator"
+        auth.create_user(request.system, username, password, role=role)
+        request.system.commit()
     user = auth.authenticate(request.system, username, password)
     companies = company_module.list_companies(request.system)
     company_id = companies[0]["id"] if len(companies) == 1 else None
