@@ -14,8 +14,8 @@ import os
 import sys
 
 from chartered_book.core import db, money, nepali_date as nd
-from chartered_book.modules import (adjustments, company, invoices, ledger, masters,
-                                    period_end, reports)
+from chartered_book.modules import (adjustments, company, inventory, invoices, ledger,
+                                    masters, period_end, reports)
 
 FAILURES = []
 USER = "vouchertest"
@@ -53,6 +53,11 @@ def main():
                                     pan="301234599", vat_registered=1,
                                     books_begin_ad=fy["start_ad"])
     conn = result["conn"]
+
+    # This suite is about the periodic system: purchases go to Purchases and the
+    # closing stock entry brings the value in at the year end. The perpetual
+    # system, which is what new books use, is covered in test_inventory.
+    inventory.set_method(conn, "periodic", USER)
     start, end = fy["start_ad"], fy["end_ad"]
     code = lambda c: masters.account_by_code(conn, c)["id"]
 

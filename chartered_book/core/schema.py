@@ -500,3 +500,29 @@ COMPANY_MIGRATIONS.append((6, "discount on the whole bill", """
     -- value added tax is charged on and the figure goods come into stock at.
     ALTER TABLE voucher_items ADD COLUMN bill_discount_paisa INTEGER NOT NULL DEFAULT 0;
 """))
+
+COMPANY_MIGRATIONS.append((7, "keep stock on the perpetual system", """
+
+    -- Two ways of keeping stock, and until now only one of them was on offer.
+    --
+    -- Periodic. A purchase is charged straight to Purchases and nothing is
+    -- carried as an asset until somebody passes a closing stock entry at the
+    -- year end. It is the traditional Nepali trading house treatment and it is
+    -- perfectly sound, but it means the balance sheet shows no stock at all
+    -- for most of the year, and somebody has to remember to pass the entry.
+    --
+    -- Perpetual. A purchase goes straight into Stock in Trade as an asset. Each
+    -- sale charges the cost of what went out to Cost of Goods Sold at the
+    -- weighted average on the day. Stock and gross profit are then right on any
+    -- day of the year without anybody passing anything. This is how Tally with
+    -- integrated accounts behaves, and how QuickBooks behaves, and it is what a
+    -- shopkeeper actually expects when goods are bought.
+    --
+    -- New books are kept on the perpetual system. Books that already exist are
+    -- moved onto it as well, and the entries already posted in them are rebuilt
+    -- once, the first time the books are opened after this upgrade.
+    ALTER TABLE company ADD COLUMN inventory_method TEXT NOT NULL DEFAULT 'perpetual';
+
+    -- Cleared once the rebuild below has run, so it runs once and not again.
+    ALTER TABLE company ADD COLUMN stock_rebuild_pending INTEGER NOT NULL DEFAULT 1;
+"""))

@@ -94,8 +94,10 @@ def main():
         "items": [{"item_id": rod, "qty": "100", "rate": "1000", "discount_bp": 1000}]})
     after = balances()
 
-    check("purchase posted net of the line discount",
-          after[code("5101")] - before[code("5101")], money.to_paisa("90000"))
+    # New books keep stock on the perpetual system, so what a supplier bills
+    # for goods lands in Stock in Trade and never touches Purchases.
+    check("goods taken into stock net of the line discount",
+          after[code("1211")] - before[code("1211")], money.to_paisa("90000"))
     check("input tax on the discounted value",
           after[code("1241")] - before[code("1241")], money.to_paisa("11700"))
     check("supplier owed the discounted total",
@@ -120,8 +122,8 @@ def main():
                   {"item_id": wire, "qty": "100", "rate": "500"}]})
     after = balances()
 
-    check("purchase posted net of the bill discount",
-          after[code("5101")] - before[code("5101")], money.to_paisa("135000"))
+    check("goods taken into stock net of the bill discount",
+          after[code("1211")] - before[code("1211")], money.to_paisa("135000"))
     check("input tax on the value after the bill discount",
           after[code("1241")] - before[code("1241")], money.to_paisa("17550"))
 
@@ -258,9 +260,9 @@ def main():
           any(row["label"].startswith("Other entries") for row in note["sales"]), False)
 
     purchase_rows = {row["label"]: row["amount"] for row in note["purchases"]}
-    check("the purchase note ends at the purchases group total",
-          purchase_rows["Purchases, net, as charged to cost of sales"],
-          pl["sections"]["cost_of_sales"]["groups"]["5100"]["total"])
+    check("the purchase note ends at what the suppliers charged",
+          purchase_rows["Cost of what suppliers billed, net of every discount"],
+          money.to_paisa("226100"))
     check("the purchase note needs no plug",
           any(row["label"].startswith("Other entries") for row in note["purchases"]), False)
 

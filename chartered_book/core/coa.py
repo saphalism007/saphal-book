@@ -82,6 +82,11 @@ GROUPS = [
     ("5100", "Purchases", "खरिद", "5000", "expense", "PL", "cost_of_sales", 510),
     ("5200", "Direct Expenses", "प्रत्यक्ष खर्च", "5000", "expense", "PL", "cost_of_sales", 520),
     ("5300", "Stock Movement", "मौज्दात परिवर्तन", "5000", "expense", "PL", "cost_of_sales", 530),
+    # Where the books are kept on the perpetual system, the cost of what was
+    # sold is charged here as each sale is made, rather than being arrived at
+    # once a year by opening stock plus purchases less closing stock.
+    ("5400", "Cost of Goods Sold", "बेचिएको सामानको लागत", "5000", "expense", "PL",
+     "cost_of_sales", 540),
 
     # Operating expenses
     ("6000", "Operating Expenses", "सञ्चालन खर्च", None, "expense", "PL", "operating", 600),
@@ -343,6 +348,10 @@ LEDGERS = [
     ("5207", "Assignment Direct Cost", "कार्य प्रत्यक्ष लागत", "5200", "general", "service", {}),
     ("5208", "Sub Contractor and Outsourcing Cost", "उप ठेकेदार लागत", "5200", "general", "both", {}),
 
+    ("5401", "Cost of Goods Sold", "बेचिएको सामानको लागत", "5400", "general", "trading",
+     {"is_system": 1,
+      "notes": "Charged automatically as each sale is made, at the weighted average "
+               "cost of the goods on the day they went out."}),
     ("5301", "Opening Stock", "प्रारम्भिक मौज्दात", "5300", "general", "trading", {"is_system": 1}),
     ("5302", "Closing Stock", "अन्तिम मौज्दात", "5300", "contra_expense", "trading", {"is_system": 1}),
 

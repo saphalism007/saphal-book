@@ -13,7 +13,7 @@ Nepal expects to see and it stays correct when a backdated invoice is entered.
 """
 
 from ..core import money
-from . import ledger, masters
+from . import inventory, ledger, masters
 
 DEFAULT_ACCOUNTS = {
     "sales_taxable": "4111",
@@ -246,6 +246,9 @@ def build_sales(conn, payload):
             entries.append({"account_id": account, "dr": money.to_rupees(-round_off), "cr": 0,
                             "narration": "Rounding"})
 
+    entries.extend(_stock_entries(
+        conn, "sales", _stock_plan(conn, "sales", totals, payload.get("date_ad"))))
+
     return {
         "voucher_type": payload.get("voucher_type", "sales"),
         "date_ad": payload.get("date_ad"),
@@ -273,6 +276,31 @@ def build_sales(conn, payload):
     }
 
 
+def _stock_plan(conn, voucher_code, totals, date_ad):
+    """
+    Work out the stock movements once, and hang each line's figure on the line.
+
+    The posting engine reads these figures back out when it writes the stock
+    ledger, so the value charged to Stock in Trade and the value shown in the
+    stock report are the same number and not two calculations that happen to
+    agree most of the time.
+    """
+    if not inventory.is_perpetual(conn):
+        return []
+    rows = inventory.plan(conn, voucher_code, totals["lines"], date_ad)
+    for line, row in zip(totals["lines"], rows):
+        line["stock_value"] = None if row is None else row["value"]
+    return rows
+
+
+def _stock_entries(conn, voucher_code, rows, goods_value=0):
+    """The lines that move value between Stock in Trade and Cost of Goods Sold."""
+    return [{"account_id": account, "dr": money.to_rupees(dr), "cr": money.to_rupees(cr),
+             "narration": narration}
+            for account, dr, cr, narration in
+            inventory.entries_for(conn, voucher_code, rows, goods_value)]
+
+
 def build_purchase(conn, payload):
     """Assemble a purchase invoice ready for the posting engine."""
     totals = price_voucher(conn, payload)
@@ -296,11 +324,22 @@ def build_purchase(conn, payload):
 
     entries = []
     by_account = {}
+    # On the perpetual system goods bought are an asset from the moment they
+    # arrive, so they are debited to Stock in Trade rather than to Purchases.
+    # Anything that is not stock, a service or a consumable, still goes to the
+    # expense account it belongs to.
+    perpetual = inventory.is_perpetual(conn)
+    stock_account = inventory.account_id(conn, inventory.STOCK_IN_TRADE,
+                                         "stock in trade") if perpetual else None
     for line in totals["lines"]:
-        account_id = line["purchase_account_id"]
-        if not account_id:
-            code = DEFAULT_ACCOUNTS["purchase_taxable"] if line["vat_bp"] else DEFAULT_ACCOUNTS["purchase_exempt"]
-            account_id = _account_id(conn, code, "purchase")
+        if perpetual and inventory.holds_stock(conn, line["item_id"]):
+            account_id = stock_account
+        else:
+            account_id = line["purchase_account_id"]
+            if not account_id:
+                code = (DEFAULT_ACCOUNTS["purchase_taxable"] if line["vat_bp"]
+                        else DEFAULT_ACCOUNTS["purchase_exempt"])
+                account_id = _account_id(conn, code, "purchase")
         by_account[account_id] = by_account.get(account_id, 0) + line["taxable"]
     for account_id, amount in by_account.items():
         if amount:
@@ -323,6 +362,8 @@ def build_purchase(conn, payload):
         else:
             entries.append({"account_id": account, "dr": 0, "cr": money.to_rupees(-round_off),
                             "narration": "Rounding"})
+
+    _stock_plan(conn, "purchase", totals, payload.get("date_ad"))
 
     entries.append({"account_id": credit_account, "dr": 0, "cr": money.to_rupees(payable),
                     "narration": ""})
@@ -372,6 +413,10 @@ def _item_row(line):
         "discount_bp": line["discount_bp"],
         "discount": money.to_rupees(line["discount"]),
         "bill_discount": money.to_rupees(line["bill_discount"]),
+        # In rupees like every other amount on the row, because the posting
+        # engine converts back to paisa at the door.
+        "stock_value": (None if line.get("stock_value") is None
+                        else money.to_rupees(line["stock_value"])),
         "vat_bp": line["vat_bp"],
         "batch": line["batch"],
         "expiry_ad": line["expiry_ad"],
@@ -430,6 +475,9 @@ def build_sales_return(conn, payload):
                         "narration": "Output tax reversed on the return"})
     entries.append({"account_id": credit_account, "dr": 0, "cr": money.to_rupees(total),
                     "narration": ""})
+    entries.extend(_stock_entries(
+        conn, "sales_return",
+        _stock_plan(conn, "sales_return", totals, payload.get("date_ad"))))
 
     return _wrap(payload, "sales_return", totals, total, entries, is_cash)
 
@@ -458,10 +506,19 @@ def build_purchase_return(conn, payload):
 
     entries = [{"account_id": debit_account, "dr": money.to_rupees(total), "cr": 0,
                 "narration": ""}]
-    entries.append({"account_id": payload.get("return_account_id")
-                    or _account_id(conn, DEFAULT_ACCOUNTS["purchase_return"], "purchase return"),
-                    "dr": 0, "cr": money.to_rupees(totals["taxable"] + totals["exempt"]),
-                    "narration": "Goods returned to the supplier"})
+    # Goods going back to a supplier leave the asset they were sitting in. On
+    # the periodic system there is no asset yet, so they go to Purchase Return.
+    goods_value = totals["taxable"] + totals["exempt"]
+    rows = _stock_plan(conn, "purchase_return", totals, payload.get("date_ad"))
+    stock_lines = _stock_entries(conn, "purchase_return", rows, goods_value)
+    if stock_lines:
+        entries.extend(stock_lines)
+    else:
+        entries.append({
+            "account_id": payload.get("return_account_id")
+            or _account_id(conn, DEFAULT_ACCOUNTS["purchase_return"], "purchase return"),
+            "dr": 0, "cr": money.to_rupees(goods_value),
+            "narration": "Goods returned to the supplier"})
     if totals["vat"]:
         entries.append({"account_id": _account_id(conn, DEFAULT_ACCOUNTS["vat_input"],
                                                   "VAT input"),

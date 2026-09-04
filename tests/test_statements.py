@@ -14,8 +14,8 @@ import os
 import sys
 
 from chartered_book.core import db, money, nepali_date as nd
-from chartered_book.modules import (company, invoices, ledger, masters, period_end,
-                                    reports, statements)
+from chartered_book.modules import (company, inventory, invoices, ledger, masters,
+                                    period_end, reports, statements)
 
 FAILURES = []
 USER = "statementtest"
@@ -48,6 +48,10 @@ def build():
     result = company.create_company(
         system, "Statement Test Company", "trading", USER,
         pan="301111111", vat_registered=1, books_begin_ad=fy["start_ad"])
+    # This suite is about the periodic system: purchases go to Purchases and a
+    # closing stock entry brings the value in at the year end. The perpetual
+    # system, which is what new books use, is covered in test_inventory.
+    inventory.set_method(result["conn"], "periodic", USER)
     return result["conn"], fy
 
 

@@ -11,7 +11,7 @@ has been entered.
 """
 
 from ..core import money
-from . import ledger, masters, reports
+from . import inventory, ledger, masters, reports
 
 STOCK_IN_TRADE = "1211"
 CLOSING_STOCK = "5302"
@@ -54,6 +54,11 @@ def post_closing_stock(conn, username, date_ad, narration=""):
     valued stock and what is already booked is posted, so the entry can be run
     again without doubling up.
     """
+    if inventory.is_perpetual(conn):
+        raise PeriodEndError(
+            "These books keep stock on the perpetual system, so the cost of what was sold "
+            "is already charged as each sale is made and Stock in Trade already carries "
+            "what is on hand. A closing stock entry would count it twice.")
     position = closing_stock_position(conn, date_ad)
     adjustment = position["adjustment"]
     if adjustment == 0:

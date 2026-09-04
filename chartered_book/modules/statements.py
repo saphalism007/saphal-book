@@ -18,7 +18,7 @@ Nothing here writes to the books.
 """
 
 from ..core import money, nepali_date as nd
-from . import masters, reports
+from . import inventory, masters, reports
 
 
 # Which part of the cash flow statement a movement belongs to. Keyed by the
@@ -668,10 +668,17 @@ def discount_note(conn, from_ad, to_ad, compare=None):
 
         revenue = period["revenue"]
         traced = sales["net"] - returns_in - allowed
-        # Only the Purchases group, not the whole of cost of sales. Carriage,
-        # duty and the movement in stock belong to cost of sales too but have
-        # nothing to do with what was billed by a supplier.
-        cost = _group_total(period, "cost_of_sales", "5100")
+        # Where stock is kept on the perpetual system what a supplier bills goes
+        # into Stock in Trade, not into Purchases, so there is no purchases
+        # figure in the profit and loss to come down to. The working ends at
+        # what the suppliers charged, which is what the register itself says.
+        if inventory.is_perpetual(conn):
+            cost = purchase["net"] - returns_out - received
+        else:
+            # Only the Purchases group, not the whole of cost of sales.
+            # Carriage, duty and the movement in stock belong to cost of sales
+            # too but have nothing to do with what was billed by a supplier.
+            cost = _group_total(period, "cost_of_sales", "5100")
         purchase_traced = purchase["net"] - returns_out - received
 
         return {
@@ -692,7 +699,9 @@ def discount_note(conn, from_ad, to_ad, compare=None):
                 ("Cost billed, net of trade discount", purchase["net"]),
                 ("Less goods returned to suppliers", -returns_out),
                 ("Less settlement discount taken for paying early", -received),
-                ("Purchases, net, as charged to cost of sales", cost),
+                ("Purchases, net, as charged to cost of sales"
+                 if not inventory.is_perpetual(conn)
+                 else "Cost of what suppliers billed, net of every discount", cost),
             ],
             "purchase_plug": cost - purchase_traced,
         }

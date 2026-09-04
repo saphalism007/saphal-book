@@ -222,12 +222,38 @@ def post_voucher(conn, username, payload, allow_closed=False):
 
     _write_items(conn, voucher_id, payload.get("items"), date_ad, vt, status)
     _write_allocations(conn, voucher_id, payload.get("allocations"))
+    _restate_later_stock(conn, username, voucher_id, date_ad, vt, status)
 
     audit.log(conn, username, "voucher.post", "vouchers", voucher_id,
               "%s %s" % (voucher_type, number),
               "%s %s dated %s for %s" % (vt["name"], number, date_bs, money.format_money(total)),
               None, {"number": number, "date_ad": date_ad, "total": total, "status": status})
     return voucher_id
+
+
+def _restate_later_stock(conn, username, voucher_id, date_ad, vt, status):
+    """
+    Put the cost of sales right on everything that comes after a backdated entry.
+
+    Goods are valued at the weighted average on the day they went out, so a bill
+    entered today with last month's date changes what every sale since then
+    cost. Nothing else in the books behaves this way, and leaving it would mean
+    the stock report and the balance sheet quietly telling two different
+    stories. Only vouchers later than this one are looked at, so entering in
+    date order, which is what normally happens, costs nothing at all.
+    """
+    from . import inventory
+    if status != "posted" or not vt["affects_stock"]:
+        return
+    if not inventory.is_perpetual(conn):
+        return
+    later = conn.execute(
+        """SELECT 1 FROM stock_ledger s JOIN vouchers v ON v.id = s.voucher_id
+           WHERE v.status = 'posted' AND v.id != ?
+             AND (v.date_ad > ? OR (v.date_ad = ? AND v.id > ?)) LIMIT 1""",
+        (voucher_id, date_ad, date_ad, voucher_id)).fetchone()
+    if later:
+        inventory.rebuild(conn, username, from_ad=date_ad)
 
 
 def _write_items(conn, voucher_id, raw_items, date_ad, vt, status):
@@ -286,7 +312,15 @@ def _write_items(conn, voucher_id, raw_items, date_ad, vt, status):
             total_qty = qty + money.to_qty(row.get("free_qty") or 0)
             stock_rate = rate
             stock_value = None
-            if line_direction > 0 and vt["code"] == "purchase" and total_qty:
+            # Where the invoice builder has already worked the figure out, that
+            # is the figure used. It is the same one it charged to the accounts,
+            # so the stock report and the balance on Stock in Trade cannot drift
+            # apart. Only a voucher that reaches here without a plan, a stock
+            # adjustment for instance, falls through to the older reckoning.
+            if row.get("stock_value") is not None and total_qty:
+                stock_value = money.to_paisa(row.get("stock_value"))
+                stock_rate = money.round_half_up(stock_value * money.QTY_SCALE, total_qty)
+            elif line_direction > 0 and vt["code"] == "purchase" and total_qty:
                 # Cost of purchase under NAS 02 is what was actually paid for
                 # the goods. Trade discounts and rebates come off it, whether
                 # they were agreed line by line or on the bill as a whole, and
@@ -298,7 +332,7 @@ def _write_items(conn, voucher_id, raw_items, date_ad, vt, status):
                 # multiplied back out, so nothing is lost to rounding twice and
                 # the stock ledger ties to the purchase ledger to the paisa.
                 stock_value = taxable
-            if line_direction > 0 and vt["code"] == "sales_return":
+            elif line_direction > 0 and vt["code"] == "sales_return":
                 # Goods a customer sends back come into stock at what they cost
                 # us, not at what we sold them for. Bringing them back at the
                 # selling price would lift the weighted average on every return
@@ -313,6 +347,14 @@ def _write_items(conn, voucher_id, raw_items, date_ad, vt, status):
                      date_ad, line_direction, total_qty, stock_rate,
                      stock_value if stock_value is not None
                      else money.round_half_up(total_qty * stock_rate, money.QTY_SCALE)))
+
+
+def cost_rate(conn, item_id, date_ad):
+    """What one unit of an item is being carried at, looked up by its id."""
+    item = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
+    if item is None:
+        raise PostingError("That item no longer exists.")
+    return _cost_rate(conn, item, date_ad)
 
 
 def _cost_rate(conn, item, date_ad):

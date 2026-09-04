@@ -37,7 +37,27 @@ def open_company(slug):
     conn = db.connect(path)
     db.apply_migrations(conn, schema.COMPANY_MIGRATIONS, "company")
     sync_chart(conn)
+    _first_stock_rebuild(conn)
     return conn
+
+
+def _first_stock_rebuild(conn):
+    """
+    Books made before stock moved onto the perpetual system carry purchases in
+    Purchases and no asset at all. The first time they are opened afterwards the
+    entries are rebuilt once so the two systems are not mixed inside one year.
+    """
+    from . import inventory
+    row = conn.execute("SELECT stock_rebuild_pending FROM company WHERE id = 1").fetchone()
+    if row is None or not row["stock_rebuild_pending"]:
+        return
+    try:
+        inventory.convert_existing(conn, "system")
+        conn.commit()
+    except Exception:
+        # A book that cannot be rebuilt is still a book that must open. The
+        # owner can run it by hand from the stock screen and see the reason.
+        conn.rollback()
 
 
 def sync_chart(conn, username="system"):
