@@ -1426,6 +1426,25 @@ var App = (function () {
       return api("/api/cloud/status").then(draw);
     }
 
+    /* The connection to the account lives in memory and nowhere else, because
+       it carries the key that opens the books. Closing the app, or a new
+       version of it starting, therefore ends it. A page left open from before
+       goes on showing the old card, so anything that comes back saying the
+       connection has gone puts the sign in form up again rather than leaving
+       somebody looking at a screen that says they are signed in and a message
+       saying they are not. */
+
+    function lost(error) {
+      if (error && /sign in to your account/i.test(error.message || "")) {
+        UI.flash("The connection to your account ended, most likely because the app "
+                 + "was restarted. Your password is needed again to unlock the books.",
+                 "warn");
+        return reload();
+      }
+      UI.flash((error && error.message) || "That did not work.", "bad");
+      return null;
+    }
+
     /* Signing in, or opening an account */
 
     function gate(state) {
@@ -1493,7 +1512,10 @@ var App = (function () {
           } })
         ]),
         el("p.card-note", { text: "This device is known as " + state.device
-          + ". That is the name other devices are shown when they are told who wrote last." })
+          + ". That is the name other devices are shown when they are told who wrote last." }),
+        el("p.card-note", { text: "Closing Saphal Book ends this connection, because it "
+          + "holds the key that opens the books and that key is never written down. Your "
+          + "password is asked for again next time." })
       ]);
     }
 
@@ -1558,7 +1580,8 @@ var App = (function () {
             .then(function (result) {
               UI.flash(book.name + " sent up as version " + result.version + ".", "good");
               return reload();
-            });
+            })
+            .catch(function (error) { lost(error); return false; });
         }, "Send it up");
     }
 
@@ -1574,7 +1597,8 @@ var App = (function () {
               UI.flash(result.name + " brought down as version " + result.version
                        + ". The copy that was here was kept.", "good");
               return reload();
-            });
+            })
+            .catch(function (error) { lost(error); return false; });
         }, "Bring it down");
     }
 
