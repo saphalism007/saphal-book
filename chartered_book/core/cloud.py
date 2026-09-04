@@ -26,6 +26,7 @@ that would let it open what it is storing.
 import hashlib
 import hmac
 import json
+import sys
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -114,6 +115,72 @@ def book_fingerprint(master_key, slug):
                     hashlib.sha256).hexdigest()
 
 
+# Getting a request out of the machine, whichever kind of machine it is
+
+
+IN_BROWSER = sys.platform == "emscripten" or "pyodide" in sys.modules
+
+
+def _machine_call(url, method, data, headers):
+    """The ordinary way, on a computer with a network of its own."""
+    request = urllib.request.Request(url, data=data, headers=headers, method=method)
+    try:
+        answer = urllib.request.urlopen(request, timeout=TIMEOUT)
+        raw = answer.read().decode("utf-8")
+        return answer.status, (json.loads(raw) if raw.strip() else None)
+    except urllib.error.HTTPError as error:
+        raw = error.read().decode("utf-8", "replace")
+        try:
+            detail = json.loads(raw)
+        except ValueError:
+            detail = {"message": raw[:300]}
+        return error.code, detail
+    except urllib.error.URLError as error:
+        raise CloudError(
+            "Could not reach the server. Check the internet connection. (%s)" % error.reason)
+
+
+def _browser_call(url, method, data, headers):
+    """
+    The same request, from inside a browser.
+
+    Where this software runs in a browser it is Python compiled to
+    WebAssembly, and WebAssembly has no sockets. Everything urllib knows how to
+    do is therefore unavailable, and the request has to be handed to the browser
+    itself. Without this the whole of syncing was dead on a tablet, which is the
+    one device it was most wanted on.
+
+    The request is made the blocking way on purpose. Every caller here is
+    ordinary top to bottom Python that expects an answer before the next line,
+    and rewriting all of it to wait would gain nothing: sending a set of books is
+    a deliberate act with a message on the screen, not something happening in the
+    background while somebody types.
+    """
+    try:
+        from js import XMLHttpRequest
+    except ImportError:
+        raise CloudError("This browser will not let the books reach the server.")
+
+    xhr = XMLHttpRequest.new()
+    try:
+        xhr.open(method, url, False)
+        for name, value in headers.items():
+            xhr.setRequestHeader(name, value)
+        xhr.send(data.decode("utf-8") if data is not None else None)
+    except Exception as error:                                      # noqa: BLE001
+        raise CloudError(
+            "Could not reach the server. Check the internet connection. (%s)" % error)
+
+    status = int(xhr.status or 0)
+    raw = xhr.responseText or ""
+    if status == 0:
+        raise CloudError("Could not reach the server. Check the internet connection.")
+    try:
+        return status, (json.loads(raw) if raw.strip() else None)
+    except ValueError:
+        return status, {"message": raw[:300]}
+
+
 class Cloud(object):
     """One connection to the server, for one signed in person."""
 
@@ -137,22 +204,9 @@ class Cloud(object):
         if data is not None:
             head["Content-Type"] = "application/json"
         head.update(headers or {})
-        request = urllib.request.Request(self.url + path, data=data, headers=head,
-                                         method=method)
-        try:
-            answer = urllib.request.urlopen(request, timeout=TIMEOUT)
-            raw = answer.read().decode("utf-8")
-            return answer.status, (json.loads(raw) if raw.strip() else None)
-        except urllib.error.HTTPError as error:
-            raw = error.read().decode("utf-8", "replace")
-            try:
-                detail = json.loads(raw)
-            except ValueError:
-                detail = {"message": raw[:300]}
-            return error.code, detail
-        except urllib.error.URLError as error:
-            raise CloudError(
-                "Could not reach the server. Check the internet connection. (%s)" % error.reason)
+        if IN_BROWSER:
+            return _browser_call(self.url + path, method, data, head)
+        return _machine_call(self.url + path, method, data, head)
 
     @staticmethod
     def _complain(detail, fallback):
