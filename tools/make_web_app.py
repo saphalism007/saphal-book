@@ -58,7 +58,7 @@ def copy_static(target_dir):
     return copied
 
 
-def shell_html():
+def shell_html(stamp="1"):
     """
     The page the browser opens.
 
@@ -69,7 +69,8 @@ def shell_html():
     scripts = ["nepali.js", "ui.js", "app.js", "masters.js", "vouchers.js",
                "drill.js", "reports.js", "statements.js", "banking.js",
                "assets.js", "audit.js"]
-    tags = "\n".join('<script src="static/%s"></script>' % s for s in scripts)
+    tags = "\n".join('<script src="static/%s?v=%s"></script>' % (s, stamp)
+                     for s in scripts)
     source = open(os.path.join(PKG, "web", "templates", "index.html"), encoding="utf-8").read()
 
     body_start = source.index("<body>") + len("<body>")
@@ -92,7 +93,7 @@ def shell_html():
 <link rel="icon" type="image/png" sizes="192x192" href="static/icons/icon-192.png?v=2">
 <link rel="icon" sizes="any" href="static/icons/icon-192.png?v=2">
 <link rel="apple-touch-icon" href="static/icons/icon-180.png?v=2">
-<link rel="stylesheet" href="static/style.css">
+<link rel="stylesheet" href="static/style.css?v=__STAMP__">
 <style>
 #starting{position:fixed;inset:0;display:grid;place-items:center;background:var(--ground);z-index:200}
 #starting .inner{text-align:center;max-width:22rem;padding:1.5rem}
@@ -131,14 +132,15 @@ if ("serviceWorker" in navigator) {
   });
 }
 </script>
-<script src="boot.js"></script>
+<script src="boot.js?v=__STAMP__"></script>
 __SCRIPTS__
 </body>
 </html>
-""".replace("__BODY__", body).replace("__SCRIPTS__", tags)
+""".replace("__BODY__", body).replace("__SCRIPTS__", tags)\
+     .replace("__STAMP__", stamp)
 
 
-def boot_js():
+def boot_js(stamp="1"):
     return """/* Bringing the books up inside a browser.
 
    Loads Pyodide, which is Python compiled to run in a browser, unpacks the
@@ -266,7 +268,8 @@ window.CB = (function () {
       });
 
       step("Unpacking Saphal Book", 0.75);
-      var response = await fetch("chartered_book.zip", { cache: "no-cache" });
+      var response = await fetch("chartered_book.zip?v=__STAMP__",
+                                 { cache: "no-cache" });
       if (!response.ok) { throw new Error("the engine file is missing"); }
       var buffer = await response.arrayBuffer();
       await pyodide.unpackArchive(buffer, "zip");
@@ -304,7 +307,7 @@ window.CB = (function () {
            // rather than guessed at.
            runtime: function () { return pyodide; } };
 }());
-""".replace("__PYODIDE__", PYODIDE)
+""".replace("__PYODIDE__", PYODIDE).replace("__STAMP__", stamp)
 
 
 def build_stamp():
@@ -319,7 +322,9 @@ def build_stamp():
     digest = hashlib.sha256()
     for root, _dirs, files in sorted(os.walk(OUT)):
         for name in sorted(files):
-            if name == "sw.js":
+            # These three carry the stamp, so they cannot be part of what it
+            # is worked out from.
+            if name in ("sw.js", "index.html", "boot.js"):
                 continue
             with open(os.path.join(root, name), "rb") as handle:
                 digest.update(handle.read())
@@ -422,12 +427,16 @@ def main():
     assets = copy_static(os.path.join(OUT, "static"))
     print("  screens       %d files" % assets)
 
-    with open(os.path.join(OUT, "index.html"), "w", encoding="utf-8") as handle:
-        handle.write(shell_html())
-    with open(os.path.join(OUT, "boot.js"), "w", encoding="utf-8") as handle:
-        handle.write(boot_js())
     with open(os.path.join(OUT, "manifest.webmanifest"), "w", encoding="utf-8") as handle:
         handle.write(manifest())
+
+    # Worked out before the two files that carry it are written, so it depends
+    # on the software and not on itself.
+    stamp = build_stamp()
+    with open(os.path.join(OUT, "index.html"), "w", encoding="utf-8") as handle:
+        handle.write(shell_html(stamp))
+    with open(os.path.join(OUT, "boot.js"), "w", encoding="utf-8") as handle:
+        handle.write(boot_js(stamp))
 
     # The service worker built for the server version points at absolute
     # addresses that do not exist here, so it is replaced with one written for
@@ -435,9 +444,6 @@ def main():
     stale = os.path.join(OUT, "static", "sw.js")
     if os.path.exists(stale):
         os.remove(stale)
-    # Named after what is in the build, so a browser holding the previous one
-    # knows to let go of it. Worked out last, once every other file is written.
-    stamp = build_stamp()
     with open(os.path.join(OUT, "sw.js"), "w", encoding="utf-8") as handle:
         handle.write(worker_js(stamp))
     print("  build         %s" % stamp)
