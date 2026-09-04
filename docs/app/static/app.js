@@ -669,6 +669,21 @@ var App = (function () {
           + "the tax deduction rates, so you can start entering the same day." })
       ]));
     }
+
+    // Somebody arriving on a second device wants the books they already have,
+    // not a new empty set. Being signed in to the software looks like being
+    // signed in, so this was easy to miss when the only way to it was a line
+    // near the bottom of the menu.
+    wrap.appendChild(el("div.card", { style: "margin-top:1.2rem" }, [
+      el("div.card-head", {}, [
+        el("h2", { text: state.companies.length
+          ? "Books kept on another device" : "Already have books on another device?" }),
+        el("button.primary", { text: "Bring my books down",
+          onclick: function () { go("cloud"); } })
+      ]),
+      el("p.card-note", { text: "Sign in to your account and fetch whatever is waiting. "
+        + "The same username reaches the same books on a computer, a phone or a tablet." })
+    ]));
     page.appendChild(wrap);
   }
 
