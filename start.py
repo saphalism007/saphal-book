@@ -77,6 +77,66 @@ def find_running(start_port, span=20):
     return None
 
 
+def open_in_own_window(url):
+    """
+    Show the books in a window of their own, without an address bar.
+
+    A browser window announcing localhost:8790 across the top is a reminder that
+    this is a web page, which it is, but it is not what somebody opening their
+    accounts wants to look at. Chrome and its relatives will give a plain window
+    with no address bar and no tabs when asked, and the icon in the Dock then
+    belongs to Saphal Book rather than to the browser.
+
+    Where none of them is installed, or the trick fails, the ordinary browser is
+    opened instead. Being able to see the books always matters more than how the
+    window looks.
+    """
+    import subprocess
+    import shutil as _shutil
+
+    candidates = []
+    if sys.platform == "darwin":
+        candidates = [
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+            "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+            "/Applications/Chromium.app/Contents/MacOS/Chromium",
+        ]
+    elif os.name == "nt":
+        for base in (os.environ.get("PROGRAMFILES", ""),
+                     os.environ.get("PROGRAMFILES(X86)", ""),
+                     os.environ.get("LOCALAPPDATA", "")):
+            if not base:
+                continue
+            candidates.append(os.path.join(base, "Google", "Chrome", "Application",
+                                           "chrome.exe"))
+            candidates.append(os.path.join(base, "Microsoft", "Edge", "Application",
+                                           "msedge.exe"))
+    else:
+        for name in ("google-chrome", "chromium", "chromium-browser", "microsoft-edge"):
+            found = _shutil.which(name)
+            if found:
+                candidates.append(found)
+
+    profile = os.path.join(db.DATA_DIR, "window")
+    for path in candidates:
+        if not os.path.exists(path):
+            continue
+        try:
+            subprocess.Popen(
+                [path, "--app=%s" % url,
+                 # Its own small profile, so the window does not inherit tabs,
+                 # extensions or a signed in browser account from anywhere else.
+                 "--user-data-dir=%s" % profile,
+                 "--no-first-run", "--no-default-browser-check"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return True
+        except Exception:
+            continue
+    webbrowser.open(url)
+    return False
+
+
 def main():
     parser = argparse.ArgumentParser(description="Start Saphal Book.")
     parser.add_argument("--port", type=int, default=8790,
@@ -159,7 +219,7 @@ def main():
     print()
 
     if not args.no_browser:
-        threading.Timer(0.8, lambda: webbrowser.open("http://localhost:%d/" % port)).start()
+        threading.Timer(0.8, lambda: open_in_own_window("http://localhost:%d/" % port)).start()
 
     try:
         httpd.serve_forever()
@@ -198,7 +258,7 @@ def run_as_app(args):
     running = find_running(args.port)
     if running:
         print("[%s] Already running on port %d, opening the browser at it." % (stamp, running))
-        webbrowser.open("http://localhost:%d/" % running)
+        open_in_own_window("http://localhost:%d/" % running)
         return 0
 
     if not args.no_backup and os.path.exists(db.SYSTEM_DB):
@@ -244,7 +304,7 @@ def run_as_app(args):
             except (ValueError, OSError):
                 pass
 
-    threading.Timer(1.0, lambda: webbrowser.open("http://localhost:%d/" % port)).start()
+    threading.Timer(1.0, lambda: open_in_own_window("http://localhost:%d/" % port)).start()
 
     try:
         httpd.serve_forever()
