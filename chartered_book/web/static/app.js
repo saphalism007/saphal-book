@@ -919,19 +919,38 @@ var App = (function () {
         ]);
       });
 
-      var nextYear = data.fiscal_year
-        ? (+String(data.fiscal_year.label).split("/")[0] + 1) : NP.adToBs(NP.todayIso()).year;
+      // Years already open, so the buttons offer the ones on either side of
+      // what is there rather than blindly offering the next one.
+      var openYears = (data.fiscal_years || []).map(function (fy) {
+        return +String(fy.label).split("/")[0];
+      });
+      var thisYear = NP.adToBs(NP.todayIso()).year;
+      var nextYear = openYears.length ? Math.max.apply(null, openYears) + 1 : thisYear;
+      var earlierYear = openYears.length ? Math.min.apply(null, openYears) - 1 : thisYear - 1;
+
+      function label(year) { return year + "/" + NP.pad((year + 1) % 100, 2); }
+      function openYear(year, note) {
+        api("/api/fiscal-years/create", { body: { start_bs_year: year } })
+          .then(function () { UI.flash(note, "good"); go("company"); })
+          .catch(function (error) { UI.flash(error.message, "bad"); });
+      }
+
       var yearCard = el("div.card", {}, [
         el("div.card-head", {}, [
           el("h2", { text: "Fiscal years" }),
-          el("button.secondary", { text: "Open " + nextYear + "/" + NP.pad((nextYear + 1) % 100, 2),
+          el("button.secondary", { text: "Open " + label(earlierYear),
             onclick: function () {
-              api("/api/fiscal-years/create", { body: { start_bs_year: nextYear } })
-                .then(function () { UI.flash("Fiscal year opened.", "good"); go("company"); })
-                .catch(function (error) { UI.flash(error.message, "bad"); });
-            }})
+              openYear(earlierYear, "Fiscal year " + label(earlierYear)
+                + " opened. The books now begin at the start of it.");
+            }}),
+          el("button.secondary", { text: "Open " + label(nextYear),
+            onclick: function () { openYear(nextYear, "Fiscal year opened."); }})
         ]),
-        el("p.card-note", { text: "A Nepali fiscal year runs from 1 Shrawan to the last day of Ashadh. Open the next year before you start entering vouchers dated in it." }),
+        el("p.card-note", { text: "A Nepali fiscal year runs from 1 Shrawan to the last day "
+          + "of Ashadh. Each year keeps its own voucher numbering, so PI0001 in one year and "
+          + "PI0001 in the next are two different bills and never mix. Open the year before "
+          + "entering vouchers dated in it. Opening an earlier year, to bring last year's "
+          + "books in, moves the date the books begin back to the start of that year." }),
         UI.table(["Year", "Bikram Sambat", "Gregorian", "Status", ""], yearRows)
       ]);
 

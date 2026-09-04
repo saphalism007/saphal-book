@@ -369,6 +369,16 @@ def ensure_fiscal_year(conn, start_bs_year, username=""):
         conn.execute("""INSERT OR IGNORE INTO number_series
                         (voucher_type, fiscal_year_id, prefix, next_number, width)
                         VALUES (?, ?, ?, 1, 4)""", (vt["code"], row["id"], vt["prefix"]))
+    # Opening a year earlier than the books begin is how somebody brings last
+    # year in, and it has to move the date the books begin as well. Otherwise
+    # every voucher dated in that year would be refused for being before the
+    # start, and the year would sit there unusable.
+    begins = conn.execute("SELECT books_begin_ad FROM company WHERE id = 1").fetchone()
+    if begins and begins["books_begin_ad"] and fy["start_ad"] < begins["books_begin_ad"]:
+        conn.execute("UPDATE company SET books_begin_ad = ? WHERE id = 1", (fy["start_ad"],))
+        audit.log(conn, username, "company.books_begin", "company", 1, fy["start_ad"],
+                  "The books now begin on %s, moved back so fiscal year %s can be used."
+                  % (fy["start_ad"], fy["label"]))
     audit.log(conn, username, "fiscal_year.create", "fiscal_years", row["id"], fy["label"],
               "Fiscal year %s opened." % fy["label"])
     return row
