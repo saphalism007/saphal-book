@@ -103,7 +103,7 @@ def main():
         if os.path.exists(source):
             shutil.copy2(source, os.path.join(inside, extra))
 
-    launcher = os.path.join(macos, "CharteredBook")
+    launcher = os.path.join(macos, "SaphalBook")
     with open(launcher, "w", encoding="utf-8") as handle:
         handle.write(
             '#!/bin/bash\n'
@@ -133,7 +133,7 @@ def main():
         "CFBundleIdentifier": BUNDLE_ID,
         "CFBundleVersion": "1.0",
         "CFBundleShortVersionString": "1.0",
-        "CFBundleExecutable": "CharteredBook",
+        "CFBundleExecutable": "SaphalBook",
         "CFBundleIconFile": "AppIcon",
         "CFBundlePackageType": "APPL",
         "LSMinimumSystemVersion": "10.13",

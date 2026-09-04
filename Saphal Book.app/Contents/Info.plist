@@ -5,7 +5,7 @@
 	<key>CFBundleDisplayName</key>
 	<string>Saphal Book</string>
 	<key>CFBundleExecutable</key>
-	<string>CharteredBook</string>
+	<string>SaphalBook</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
