@@ -123,8 +123,10 @@ def main():
 
     check("cash down by what went out",
           before[code("1251")] - after[code("1251")], money.to_paisa("19400"))
-    check("discount received credited",
-          before[code("4203")] - after[code("4203")], money.to_paisa("600"))
+    # A discount a supplier allows for early payment reduces what the goods
+    # cost, which is where NAS 02 puts it. It is not other income.
+    check("supplier discount credited to discount on purchase",
+          before[code("5105")] - after[code("5105")], money.to_paisa("600"))
     check("supplier debited with the whole bill",
           after[supplier_account] - before[supplier_account], money.to_paisa("20000"))
     check("nothing left owing to the supplier",

@@ -13,7 +13,7 @@ receipt or the payment rather than on the invoice.
 
     Payment   debit the supplier with the whole bill now settled
               credit the bank with what went out
-              credit Discount Received with what was allowed back
+              credit Discount on Purchase with what was allowed back
 
 Which bill each amount is set against is recorded, so a statement of account
 shows what is still open rather than one running balance.
@@ -22,8 +22,14 @@ shows what is still open rather than one running balance.
 from ..core import money
 from . import ledger, masters, reports
 
+# Neither of these is an expense or an income in its own right. Discount
+# Allowed sits under Revenue as a deduction, which is where NFRS 15 puts a
+# reduction in the consideration a customer pays. Discount on Purchase sits
+# under Purchases as a deduction, because NAS 02 measures the cost of purchase
+# after trade discounts and rebates. Putting a supplier discount into other
+# income instead would lift both gross profit and closing stock above cost.
 DISCOUNT_ALLOWED = "4132"     # taken off what customers owe
-DISCOUNT_RECEIVED = "4203"    # allowed back by suppliers
+DISCOUNT_RECEIVED = "5105"    # allowed back by suppliers
 
 
 class SettlementError(Exception):

@@ -18,7 +18,7 @@ Nothing here writes to the books.
 """
 
 from ..core import money, nepali_date as nd
-from . import reports
+from . import masters, reports
 
 
 # Which part of the cash flow statement a movement belongs to. Keyed by the
@@ -583,6 +583,151 @@ def schedules(conn, from_ad, to_ad, compare=None):
     return {"notes": notes, "from_ad": from_ad, "to_ad": to_ad, "compare": compare}
 
 
+# Discounts
+
+# A trade discount, whether it was agreed line by line or on the bill as a
+# whole, never reaches a ledger of its own. Revenue is measured at the
+# consideration the customer actually promised, which NFRS 15 calls the
+# transaction price, and the cost of purchase is measured after trade discounts
+# and rebates, which is what NAS 02 paragraph 11 requires. So the sales ledger
+# and the purchase ledger both carry the net figure, and the sales ledger goes
+# on agreeing with the taxable value declared on the value added tax return,
+# which is the first thing anybody checks.
+#
+# A settlement discount is a different animal. It is not known when the invoice
+# is raised, it depends on when the money moves, and it is recorded when it is
+# taken. Given to a customer it goes to Discount Allowed, which sits inside
+# Revenue as a deduction. Taken from a supplier it goes to Discount on Purchase,
+# which sits inside Purchases as a deduction. Neither is an expense and neither
+# is other income.
+#
+# That leaves the trade discount invisible on the face of the accounts, which is
+# correct but is not much use to whoever is running the shop. This note puts it
+# back, as a working that starts at the gross value invoiced and comes down to
+# the revenue on the face of the statement. The last line is a plug, so the
+# working ties to the ledger even where somebody has passed a journal straight
+# to a sales account.
+
+
+def _invoiced(conn, voucher_types, from_ad, to_ad):
+    """Gross value, line discount and bill discount from the invoice register."""
+    marks = ", ".join("?" for _ in voucher_types)
+    row = conn.execute(
+        """SELECT COALESCE(SUM(subtotal_paisa), 0)      AS gross,
+                  COALESCE(SUM(discount_paisa), 0)      AS discount,
+                  COALESCE(SUM(bill_discount_paisa), 0) AS bill_discount,
+                  COALESCE(SUM(taxable_paisa + exempt_paisa), 0) AS net
+           FROM vouchers
+           WHERE status = 'posted' AND voucher_type IN (%s)
+             AND date_ad >= ? AND date_ad <= ?""" % marks,
+        tuple(voucher_types) + (from_ad, to_ad)).fetchone()
+    gross = row["gross"] or 0
+    discount = row["discount"] or 0
+    bill = row["bill_discount"] or 0
+    return {"gross": gross, "line_discount": discount - bill, "bill_discount": bill,
+            "net": row["net"] or 0}
+
+
+def _ledger_movement(conn, code, from_ad, to_ad, debit_side=True):
+    """
+    What one ledger moved by in a period, given back as a positive figure when
+    it moved the way that ledger normally moves. Discount Allowed is a debit,
+    Discount on Purchase is a credit, and both are discounts of a positive
+    amount as far as the note is concerned.
+    """
+    account = masters.account_by_code(conn, code)
+    if account is None:
+        return 0
+    dr, cr = reports.account_movements(conn, from_ad=from_ad, upto_ad=to_ad).get(
+        account["id"], (0, 0))
+    return (dr - cr) if debit_side else (cr - dr)
+
+
+def _group_total(period, section, group_code):
+    """The total of one group inside a section of the profit and loss."""
+    group = period["sections"].get(section, {}).get("groups", {}).get(group_code)
+    return group["total"] if group else 0
+
+
+def discount_note(conn, from_ad, to_ad, compare=None):
+    """
+    The working behind revenue and the cost of purchase, showing every discount.
+
+    Read it downwards. It begins with what was written on the invoices and ends
+    with the figure that appears on the face of the statement of profit or loss.
+    """
+
+    def build(start, finish):
+        sales = _invoiced(conn, ("sales",), start, finish)
+        purchase = _invoiced(conn, ("purchase",), start, finish)
+        period = reports.profit_and_loss(conn, start, finish)
+        returns_in = _invoiced(conn, ("sales_return",), start, finish)["net"]
+        returns_out = _invoiced(conn, ("purchase_return",), start, finish)["net"]
+        allowed = _ledger_movement(conn, "4132", start, finish, True)
+        received = _ledger_movement(conn, "5105", start, finish, False)
+
+        revenue = period["revenue"]
+        traced = sales["net"] - returns_in - allowed
+        # Only the Purchases group, not the whole of cost of sales. Carriage,
+        # duty and the movement in stock belong to cost of sales too but have
+        # nothing to do with what was billed by a supplier.
+        cost = _group_total(period, "cost_of_sales", "5100")
+        purchase_traced = purchase["net"] - returns_out - received
+
+        return {
+            "sales": [
+                ("Goods and services invoiced, before any discount", sales["gross"]),
+                ("Less discount given on the invoice lines", -sales["line_discount"]),
+                ("Less discount given on the bill as a whole", -sales["bill_discount"]),
+                ("Value invoiced, net of trade discount", sales["net"]),
+                ("Less goods returned by customers", -returns_in),
+                ("Less settlement discount allowed for early payment", -allowed),
+                ("Revenue from operations", revenue),
+            ],
+            "sales_plug": revenue - traced,
+            "purchases": [
+                ("Goods and services billed to us, before any discount", purchase["gross"]),
+                ("Less discount taken on the bill lines", -purchase["line_discount"]),
+                ("Less discount taken on the bill as a whole", -purchase["bill_discount"]),
+                ("Cost billed, net of trade discount", purchase["net"]),
+                ("Less goods returned to suppliers", -returns_out),
+                ("Less settlement discount taken for paying early", -received),
+                ("Purchases, net, as charged to cost of sales", cost),
+            ],
+            "purchase_plug": cost - purchase_traced,
+        }
+
+    current = build(from_ad, to_ad)
+    prior = build(compare["from_ad"], compare["to_ad"]) if compare else None
+
+    def rows(key, plug_key, plug_label):
+        out = []
+        for index, (label, amount) in enumerate(current[key]):
+            previous = prior[key][index][1] if prior else None
+            total = index in (3, len(current[key]) - 1)
+            if amount == 0 and (previous or 0) == 0 and not total:
+                continue
+            out.append({"label": label, "amount": amount, "previous": previous,
+                        "total": total})
+        plug = current[plug_key]
+        prior_plug = prior[plug_key] if prior else None
+        if plug or (prior_plug or 0):
+            # Anything that reached these ledgers other than through an invoice.
+            # An opening balance, a journal, a correction passed by hand.
+            out.insert(len(out) - 1,
+                       {"label": plug_label, "amount": plug, "previous": prior_plug,
+                        "total": False})
+        return out
+
+    return {
+        "from_ad": from_ad, "to_ad": to_ad, "compare": compare,
+        "sales": rows("sales", "sales_plug",
+                      "Other entries passed direct to the revenue accounts"),
+        "purchases": rows("purchases", "purchase_plug",
+                          "Other entries passed direct to the purchase accounts"),
+    }
+
+
 def full_set(conn, from_ad, to_ad, compare=True):
     """Everything an audit file needs, in one call."""
     earlier = previous_period(from_ad, to_ad) if compare else None
@@ -599,4 +744,5 @@ def full_set(conn, from_ad, to_ad, compare=True):
         "equity": changes_in_equity(conn, from_ad, to_ad, earlier),
         "cash_flows": cash_flows(conn, from_ad, to_ad, earlier),
         "schedules": schedules(conn, from_ad, to_ad, earlier),
+        "discounts": discount_note(conn, from_ad, to_ad, earlier),
     }

@@ -628,8 +628,7 @@ def preview_invoice(request):
     request.require_user()
     conn = request.company()
     try:
-        result = invoices.compute_lines(conn, request.body.get("items"),
-                                        bool(request.body.get("price_includes_vat")))
+        result = invoices.price_voucher(conn, request.body)
     except invoices.InvoiceError as exc:
         raise ApiError(str(exc))
     other = money.to_paisa(request.body.get("other_charges") or 0)
@@ -642,6 +641,7 @@ def preview_invoice(request):
     return {
         "lines": [{k: v for k, v in line.items()} for line in result["lines"]],
         "subtotal": result["subtotal"], "discount": result["discount"],
+        "line_discount": result["line_discount"], "bill_discount": result["bill_discount"],
         "taxable": result["taxable"], "exempt": result["exempt"], "vat": result["vat"],
         "other_charges": other, "round_off": rounded - total, "total": rounded,
         "in_words": money.amount_in_words(rounded),
@@ -1266,6 +1266,16 @@ def schedules(request):
     from_ad, to_ad = _dates(request, conn)
     compare = statements.previous_period(from_ad, to_ad) if request.arg("compare") != "0" else None
     return statements.schedules(conn, from_ad, to_ad, compare)
+
+
+@route("GET", "/api/reports/discounts")
+def discount_note(request):
+    """The working from what was invoiced down to revenue, showing discounts."""
+    from ..modules import statements
+    conn = request.company()
+    from_ad, to_ad = _dates(request, conn)
+    compare = statements.previous_period(from_ad, to_ad) if request.arg("compare") != "0" else None
+    return statements.discount_note(conn, from_ad, to_ad, compare)
 
 
 # Returns, notes and stock adjustments

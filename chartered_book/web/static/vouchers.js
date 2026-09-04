@@ -121,6 +121,10 @@ var Vouchers = (function () {
       var narration = el("input", { type: "text", placeholder: "What this invoice is for" });
       var priceIncludes = el("input", { type: "checkbox" });
       var otherCharges = UI.amountInput("", { onChange: recalc });
+      // A discount agreed on the bill as a whole rather than line by line.
+      // Either a rupee figure or a percentage written with a per cent sign.
+      var billDiscount = UI.amountInput("", { onChange: recalc });
+      billDiscount.placeholder = "Amount or 5%";
       var roundBox = el("input", { type: "checkbox" });
       roundBox.checked = true;
 
@@ -226,10 +230,22 @@ var Vouchers = (function () {
         recalc();
       }
 
-      var computed = { subtotal: 0, discount: 0, taxable: 0, exempt: 0, vat: 0, total: 0, roundOff: 0 };
+      var computed = blankTotals();
 
+      function blankTotals() {
+        return { subtotal: 0, lineDiscount: 0, billDiscount: 0, discount: 0,
+                 taxable: 0, exempt: 0, vat: 0, total: 0, roundOff: 0 };
+      }
+
+      // This has to work out the same figures the server does, in the same
+      // order, or the screen would show one total and the books would hold
+      // another. Lines are priced first, then the discount on the whole bill is
+      // shared back over them, and only then is tax worked out. Tax is charged
+      // on what the customer actually pays, so it cannot be settled until every
+      // line knows its share of that discount.
       function recalc() {
-        computed = { subtotal: 0, discount: 0, taxable: 0, exempt: 0, vat: 0, total: 0, roundOff: 0 };
+        computed = blankTotals();
+        var priced = [];
         lines.forEach(function (line) {
           if (!line.itemId) { if (line.amountCell) { line.amountCell.textContent = ""; } return; }
           var qty = NP.toQty(line.qty || 0);
@@ -246,14 +262,37 @@ var Vouchers = (function () {
           } else if (discountText) {
             discount = NP.toPaisa(discountText);
           }
-          var taxable = gross - discount;
-          var vat = NP.applyRate(taxable, vatBp);
-          computed.subtotal += gross;
-          computed.discount += discount;
-          if (vatBp) { computed.taxable += taxable; } else { computed.exempt += taxable; }
-          computed.vat += vat;
-          if (line.amountCell) { line.amountCell.textContent = UI.rs(taxable + vat); }
+          if (discount > gross) { discount = gross; }
+          priced.push({ line: line, gross: gross, discount: discount,
+                        taxable: gross - discount, vatBp: vatBp });
         });
+
+        var base = 0;
+        priced.forEach(function (row) { base += row.taxable; });
+        var billText = String(billDiscount.value || "").trim();
+        var offTheBill = 0;
+        if (billText.slice(-1) === "%") {
+          offTheBill = NP.applyRate(base, Math.round(parseFloat(billText) * 100) || 0);
+        } else if (billText) {
+          offTheBill = NP.toPaisa(billText);
+        }
+        if (offTheBill < 0) { offTheBill = 0; }
+        if (offTheBill > base) { offTheBill = base; }
+        if (offTheBill && priced.length) {
+          var shares = NP.allocate(offTheBill, priced.map(function (row) { return row.taxable; }));
+          priced.forEach(function (row, index) { row.taxable -= shares[index]; });
+        }
+
+        computed.billDiscount = offTheBill;
+        priced.forEach(function (row) {
+          var vat = NP.applyRate(row.taxable, row.vatBp);
+          computed.subtotal += row.gross;
+          computed.lineDiscount += row.discount;
+          if (row.vatBp) { computed.taxable += row.taxable; } else { computed.exempt += row.taxable; }
+          computed.vat += vat;
+          if (row.line.amountCell) { row.line.amountCell.textContent = UI.rs(row.taxable + vat); }
+        });
+        computed.discount = computed.lineDiscount + computed.billDiscount;
         var charges = NP.toPaisa(otherCharges.value || 0);
         var gross = computed.taxable + computed.exempt + computed.vat + charges;
         var rounded = gross;
@@ -275,7 +314,8 @@ var Vouchers = (function () {
           ]));
         }
         row("Subtotal", computed.subtotal);
-        if (computed.discount) { row("Less discount", -computed.discount); }
+        if (computed.lineDiscount) { row("Less discount on the lines", -computed.lineDiscount); }
+        if (computed.billDiscount) { row("Less discount on the bill", -computed.billDiscount); }
         if (computed.exempt) { row("Exempt", computed.exempt); }
         row("Taxable", computed.taxable);
         if (computed.vat) { row("VAT 13 percent", computed.vat); }
@@ -319,6 +359,12 @@ var Vouchers = (function () {
             return row;
           })
         };
+        var billText = String(billDiscount.value || "").trim();
+        if (billText.slice(-1) === "%") {
+          payload.bill_discount_bp = Math.round(parseFloat(billText) * 100) || 0;
+        } else if (billText) {
+          payload.bill_discount = billText;
+        }
         if (spec.theirDate) { payload.reference_date_ad = refDateField.getIso(); }
         return payload;
       }
@@ -392,10 +438,19 @@ var Vouchers = (function () {
           }
           lines.length = 0;
           data.items.forEach(function (row) {
+            // Goods sold at a discount have to come back at the same discount,
+            // or the credit given would be larger than the sale ever was. It is
+            // carried over as a percentage rather than an amount so it still
+            // holds when only part of the delivery is coming back. A discount
+            // that was given on the whole bill is part of this too, since by
+            // now it has been shared out over the lines it was given on.
+            var off = (row.discount_paisa || 0) + (row.bill_discount_paisa || 0);
+            var percent = row.gross_paisa
+              ? Math.round(off * 10000 / row.gross_paisa) / 100 : 0;
             lines.push({
               itemId: row.item_id, name: row.item_name, unit: row.unit_symbol || "",
               qty: NP.formatQty(row.qty), rate: String(row.rate_paisa / 100),
-              discount: "", vat: row.vat_bp / 100
+              discount: percent ? percent + "%" : "", vat: row.vat_bp / 100
             });
           });
           if (!lines.length) { addLine(); }
@@ -452,6 +507,8 @@ var Vouchers = (function () {
         el("div.row", { style: "margin-top:.5rem" }, [
           el("button.secondary", { text: "Add a line", onclick: function () { addLine(true); } }),
           el("div.spacer"),
+          el("div", { style: "flex:0 0 200px" }, [
+            UI.field("Discount on the whole bill", billDiscount)]),
           el("div", { style: "flex:0 0 200px" }, [UI.field("Other charges", otherCharges)])
         ]),
         el("div", { style: "display:flex;margin-top:.6rem" }, [totalsBox])
@@ -857,7 +914,8 @@ var Vouchers = (function () {
           ]),
           el("td.num", { text: NP.formatQty(item.qty) + " " + (item.unit_symbol || "") }),
           el("td.num", { text: UI.rs(item.rate_paisa) }),
-          el("td.num", { text: item.discount_paisa ? UI.rs(item.discount_paisa) : "" }),
+          el("td.num", { text: (item.discount_paisa + (item.bill_discount_paisa || 0))
+            ? UI.rs(item.discount_paisa + (item.bill_discount_paisa || 0)) : "" }),
           el("td.num", { text: UI.rs(item.taxable_paisa) }),
           el("td.num", { text: item.vat_paisa ? UI.rs(item.vat_paisa) : "" }),
           el("td.num", { text: UI.rs(item.amount_paisa) })
@@ -871,7 +929,13 @@ var Vouchers = (function () {
         ]));
       }
       totalRow("Subtotal", voucher.subtotal_paisa);
-      if (voucher.discount_paisa) { totalRow("Discount", -voucher.discount_paisa); }
+      if (voucher.discount_paisa - (voucher.bill_discount_paisa || 0)) {
+        totalRow("Discount on the lines",
+                 -(voucher.discount_paisa - (voucher.bill_discount_paisa || 0)));
+      }
+      if (voucher.bill_discount_paisa) {
+        totalRow("Discount on the bill", -voucher.bill_discount_paisa);
+      }
       if (voucher.exempt_paisa) { totalRow("Exempt", voucher.exempt_paisa); }
       totalRow("Taxable amount", voucher.taxable_paisa);
       if (voucher.vat_paisa) { totalRow("VAT 13 percent", voucher.vat_paisa); }
@@ -1379,9 +1443,10 @@ var Vouchers = (function () {
       title: "Payment", party: "supplier", side: "payable",
       partyLabel: "Supplier", moneyLabel: "Paid from",
       amountLabel: "Paid", discountLabel: "Discount received",
-      discountAccount: "4203", freeScreen: "payment_free",
+      discountAccount: "5105", freeScreen: "payment_free",
       note: "Money going out against a supplier's bills. Anything they allow off for "
-            + "paying early goes in the discount column and is posted to Discount Received."
+            + "paying early goes in the discount column and is taken off the cost of "
+            + "purchase, which is where NAS 02 puts it."
     }
   };
 

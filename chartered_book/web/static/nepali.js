@@ -333,6 +333,43 @@ var NP = (function () {
     return sign * Math.floor((n * 2 + d) / (2 * d));
   }
 
+  // The same split as money.allocate on the Python side, written the same way
+  // so the totals on screen never differ by a paisa from the totals that get
+  // saved. Used for spreading a discount given on the whole bill back over the
+  // lines it was given on.
+  function allocate(total, weights) {
+    var i;
+    var sum = 0;
+    for (i = 0; i < weights.length; i += 1) { sum += weights[i]; }
+    var shares = [];
+    if (!weights.length) { return shares; }
+    if (sum === 0) {
+      for (i = 0; i < weights.length; i += 1) { shares.push(0); }
+      shares[0] = total;
+      return shares;
+    }
+    var raw = [];
+    var placed = 0;
+    for (i = 0; i < weights.length; i += 1) {
+      raw.push(total * weights[i]);
+      shares.push(Math.floor(raw[i] / sum));
+      placed += shares[i];
+    }
+    var remainder = total - placed;
+    var order = [];
+    for (i = 0; i < weights.length; i += 1) { order.push(i); }
+    order.sort(function (a, b) {
+      var left = raw[a] % sum, right = raw[b] % sum;
+      return left === right ? a - b : right - left;
+    });
+    var step = remainder >= 0 ? 1 : -1;
+    var moves = Math.abs(remainder);
+    for (i = 0; i < moves; i += 1) {
+      shares[order[i % order.length]] += step;
+    }
+    return shares;
+  }
+
   return {
     START_YEAR: START_YEAR,
     MONTHS_EN: MONTHS_EN, MONTHS_NP: MONTHS_NP, DOW_EN: DOW_EN, DOW_NP: DOW_NP,
@@ -343,7 +380,7 @@ var NP = (function () {
     fiscalYear: fiscalYear, fiscalYearOf: fiscalYearOf,
     formatMoney: formatMoney, toPaisa: toPaisa,
     formatQty: formatQty, toQty: toQty,
-    applyRate: applyRate, roundHalfUp: roundHalfUp,
+    applyRate: applyRate, roundHalfUp: roundHalfUp, allocate: allocate,
     groupNepali: groupNepali
   };
 }());

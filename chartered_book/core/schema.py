@@ -480,3 +480,23 @@ COMPANY_MIGRATIONS.append((5, "fixed asset register", """
         note            TEXT NOT NULL DEFAULT ''
     );
 """))
+
+COMPANY_MIGRATIONS.append((6, "discount on the whole bill", """
+
+    -- A discount is sometimes agreed line by line and sometimes on the bill as
+    -- a whole. Both are trade discounts, so both reduce revenue on a sale and
+    -- reduce the cost of purchase on a bill, and neither goes to an income or
+    -- expense ledger of its own.
+    --
+    -- discount_paisa on the voucher stays what it always was, the whole
+    -- discount on the bill, so every report built on it keeps working. The new
+    -- column records how much of that was given on the bill as a whole, which
+    -- is what the printed invoice and the register need in order to show the
+    -- two separately.
+    ALTER TABLE vouchers ADD COLUMN bill_discount_paisa INTEGER NOT NULL DEFAULT 0;
+
+    -- The share of the bill discount that landed on this line. Taxable value on
+    -- the line is gross less the line discount less this, which is the figure
+    -- value added tax is charged on and the figure goods come into stock at.
+    ALTER TABLE voucher_items ADD COLUMN bill_discount_paisa INTEGER NOT NULL DEFAULT 0;
+"""))

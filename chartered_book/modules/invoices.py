@@ -43,16 +43,24 @@ def _account_id(conn, code, label):
     return row["id"]
 
 
-def compute_lines(conn, raw_items, price_includes_vat=False):
+def compute_lines(conn, raw_items, price_includes_vat=False, bill_discount=0,
+                  bill_discount_bp=0):
     """
     Work out every figure on an invoice line.
 
     Returns the priced lines plus the totals the header needs. Rounding happens
     once per line, so the sum of the lines always equals the invoice total and
     the customer copy agrees with the ledger to the paisa.
+
+    A discount given on the bill as a whole is spread back over the lines in
+    proportion to what each line is worth. It has to be, for three reasons that
+    all matter. Value added tax is charged on the discounted consideration, so
+    the tax cannot be worked out until each line knows its share. Goods come
+    into stock at what they cost after the discount, so the weighted average is
+    wrong unless the share reaches the line. And where a bill carries both
+    taxable and exempt goods, only the taxable share may reduce the tax.
     """
     lines = []
-    subtotal = discount_total = taxable_total = exempt_total = vat_total = 0
     for index, raw in enumerate(raw_items or [], start=1):
         item_id = raw.get("item_id")
         if not item_id:
@@ -76,15 +84,13 @@ def compute_lines(conn, raw_items, price_includes_vat=False):
         else:
             gross = money.round_half_up(qty * rate, money.QTY_SCALE)
 
-        discount_bp = int(raw.get("discount_bp") or 0)
+        line_discount_bp = int(raw.get("discount_bp") or 0)
         if raw.get("discount") not in (None, ""):
             discount = money.to_paisa(raw.get("discount"))
         else:
-            discount = money.apply_rate(gross, discount_bp)
+            discount = money.apply_rate(gross, line_discount_bp)
         if discount > gross:
             raise InvoiceError("Line %d has a discount larger than the line amount." % index)
-        taxable = gross - discount
-        vat = money.apply_rate(taxable, vat_bp)
 
         lines.append({
             "item_id": item_id,
@@ -99,36 +105,72 @@ def compute_lines(conn, raw_items, price_includes_vat=False):
             "free_qty": money.to_qty(raw.get("free_qty") or 0),
             "rate": rate,
             "gross": gross,
-            "discount_bp": discount_bp,
+            "discount_bp": line_discount_bp,
             "discount": discount,
-            "taxable": taxable,
+            "bill_discount": 0,
+            "taxable": gross - discount,
             "vat_bp": vat_bp,
-            "vat": vat,
-            "amount": taxable + vat,
+            "vat": 0,
+            "amount": 0,
             "batch": raw.get("batch") or "",
             "expiry_ad": raw.get("expiry_ad") or "",
             "sales_account_id": item["sales_account_id"],
             "purchase_account_id": item["purchase_account_id"],
         })
-        subtotal += gross
-        discount_total += discount
-        if vat_bp:
-            taxable_total += taxable
-        else:
-            exempt_total += taxable
-        vat_total += vat
 
     if not lines:
         raise InvoiceError("Add at least one line to the invoice.")
+
+    after_line_discount = sum(line["taxable"] for line in lines)
+    if bill_discount in (None, ""):
+        bill_discount = 0
+    bill_total = int(bill_discount) if bill_discount else money.apply_rate(
+        after_line_discount, int(bill_discount_bp or 0))
+    if bill_total < 0:
+        raise InvoiceError("A discount on the bill cannot be a negative figure.")
+    if bill_total > after_line_discount:
+        raise InvoiceError(
+            "The discount on the bill is %s, which is more than the %s the lines come to."
+            % (money.format_money(bill_total), money.format_money(after_line_discount)))
+
+    if bill_total:
+        shares = money.allocate(bill_total, [line["taxable"] for line in lines])
+        for line, share in zip(lines, shares):
+            line["bill_discount"] = share
+            line["taxable"] -= share
+
+    subtotal = discount_total = taxable_total = exempt_total = vat_total = 0
+    for line in lines:
+        line["vat"] = money.apply_rate(line["taxable"], line["vat_bp"])
+        line["amount"] = line["taxable"] + line["vat"]
+        subtotal += line["gross"]
+        discount_total += line["discount"] + line["bill_discount"]
+        if line["vat_bp"]:
+            taxable_total += line["taxable"]
+        else:
+            exempt_total += line["taxable"]
+        vat_total += line["vat"]
+
     return {
         "lines": lines,
         "subtotal": subtotal,
+        "line_discount": discount_total - bill_total,
+        "bill_discount": bill_total,
         "discount": discount_total,
         "taxable": taxable_total,
         "exempt": exempt_total,
         "vat": vat_total,
         "net": taxable_total + exempt_total + vat_total,
     }
+
+
+def price_voucher(conn, payload):
+    """Price the lines of a voucher, including any discount on the whole bill."""
+    return compute_lines(
+        conn, payload.get("items"), bool(payload.get("price_includes_vat")),
+        money.to_paisa(payload.get("bill_discount")) if payload.get("bill_discount")
+        not in (None, "") else 0,
+        int(payload.get("bill_discount_bp") or 0))
 
 
 def _round_off(amount, enabled):
@@ -144,8 +186,7 @@ def _round_off(amount, enabled):
 
 def build_sales(conn, payload):
     """Assemble a sales invoice ready for the posting engine."""
-    totals = compute_lines(conn, payload.get("items"),
-                           bool(payload.get("price_includes_vat")))
+    totals = price_voucher(conn, payload)
     other_charges = money.to_paisa(payload.get("other_charges") or 0)
     tds = money.to_paisa(payload.get("tds") or 0)
     gross_total = totals["net"] + other_charges
@@ -217,6 +258,7 @@ def build_sales(conn, payload):
         "status": payload.get("status", "posted"),
         "subtotal": money.to_rupees(totals["subtotal"]),
         "discount": money.to_rupees(totals["discount"]),
+        "bill_discount": money.to_rupees(totals["bill_discount"]),
         "taxable": money.to_rupees(totals["taxable"]),
         "exempt": money.to_rupees(totals["exempt"]),
         "vat": money.to_rupees(totals["vat"]),
@@ -233,8 +275,7 @@ def build_sales(conn, payload):
 
 def build_purchase(conn, payload):
     """Assemble a purchase invoice ready for the posting engine."""
-    totals = compute_lines(conn, payload.get("items"),
-                           bool(payload.get("price_includes_vat")))
+    totals = price_voucher(conn, payload)
     other_charges = money.to_paisa(payload.get("other_charges") or 0)
     tds = money.to_paisa(payload.get("tds") or 0)
     gross_total = totals["net"] + other_charges
@@ -304,6 +345,7 @@ def build_purchase(conn, payload):
         "status": payload.get("status", "posted"),
         "subtotal": money.to_rupees(totals["subtotal"]),
         "discount": money.to_rupees(totals["discount"]),
+        "bill_discount": money.to_rupees(totals["bill_discount"]),
         "taxable": money.to_rupees(totals["taxable"]),
         "exempt": money.to_rupees(totals["exempt"]),
         "vat": money.to_rupees(totals["vat"]),
@@ -329,6 +371,7 @@ def _item_row(line):
         "rate": money.to_rupees(line["rate"]),
         "discount_bp": line["discount_bp"],
         "discount": money.to_rupees(line["discount"]),
+        "bill_discount": money.to_rupees(line["bill_discount"]),
         "vat_bp": line["vat_bp"],
         "batch": line["batch"],
         "expiry_ad": line["expiry_ad"],
@@ -361,8 +404,7 @@ def build_sales_return(conn, payload):
     Debit Sales Return, debit the output tax back out of the VAT account, and
     credit the customer. The goods go back into stock.
     """
-    totals = compute_lines(conn, payload.get("items"),
-                           bool(payload.get("price_includes_vat")))
+    totals = price_voucher(conn, payload)
     total = totals["net"]
     party_id = payload.get("party_id")
     is_cash = str(payload.get("payment_mode") or "").lower() in ("cash", "counter")
@@ -399,8 +441,7 @@ def build_purchase_return(conn, payload):
     Debit the supplier, credit Purchase Return, and take the input tax back out.
     The goods leave stock.
     """
-    totals = compute_lines(conn, payload.get("items"),
-                           bool(payload.get("price_includes_vat")))
+    totals = price_voucher(conn, payload)
     total = totals["net"]
     party_id = payload.get("party_id")
     is_cash = str(payload.get("payment_mode") or "").lower() in ("cash", "counter")
@@ -443,6 +484,7 @@ def _wrap(payload, voucher_type, totals, total, entries, is_cash):
         "status": payload.get("status", "posted"),
         "subtotal": money.to_rupees(totals["subtotal"]),
         "discount": money.to_rupees(totals["discount"]),
+        "bill_discount": money.to_rupees(totals["bill_discount"]),
         "taxable": money.to_rupees(totals["taxable"]),
         "exempt": money.to_rupees(totals["exempt"]),
         "vat": money.to_rupees(totals["vat"]),

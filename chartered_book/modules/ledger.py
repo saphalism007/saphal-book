@@ -186,11 +186,12 @@ def post_voucher(conn, username, payload, allow_closed=False):
         """INSERT INTO vouchers (fiscal_year_id, voucher_type, number, date_ad, date_bs,
                                  party_id, party_account_id, reference_no, reference_date_ad,
                                  due_date_ad, payment_mode, narration,
-                                 subtotal_paisa, discount_paisa, taxable_paisa, exempt_paisa,
+                                 subtotal_paisa, discount_paisa, bill_discount_paisa,
+                                 taxable_paisa, exempt_paisa,
                                  vat_paisa, other_charges_paisa, tds_paisa, round_off_paisa,
                                  total_paisa, is_vat_invoice, status,
                                  created_by, created_at, updated_by, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (fy["id"], voucher_type, number, date_ad, date_bs, party_id, party_account_id,
          (payload.get("reference_no") or "").strip(),
          payload.get("reference_date_ad") or "",
@@ -199,6 +200,7 @@ def post_voucher(conn, username, payload, allow_closed=False):
          (payload.get("narration") or "").strip(),
          money.to_paisa(payload.get("subtotal") or 0),
          money.to_paisa(payload.get("discount") or 0),
+         money.to_paisa(payload.get("bill_discount") or 0),
          money.to_paisa(payload.get("taxable") or 0),
          money.to_paisa(payload.get("exempt") or 0),
          money.to_paisa(payload.get("vat") or 0),
@@ -254,7 +256,11 @@ def _write_items(conn, voucher_id, raw_items, date_ad, vt, status):
             discount = money.to_paisa(row.get("discount"))
         else:
             discount = money.apply_rate(gross, discount_bp)
-        taxable = gross - discount
+        # The share of a discount given on the bill as a whole. The pricing
+        # module works it out and hands it down, because only it can see the
+        # other lines it has to be shared with.
+        bill_discount = money.to_paisa(row.get("bill_discount") or 0)
+        taxable = gross - discount - bill_discount
         vat_bp = int(row.get("vat_bp") if row.get("vat_bp") is not None else item["vat_rate_bp"])
         if not item["vat_applicable"]:
             vat_bp = 0
@@ -263,13 +269,14 @@ def _write_items(conn, voucher_id, raw_items, date_ad, vt, status):
         cur = conn.execute(
             """INSERT INTO voucher_items (voucher_id, line_no, item_id, description, warehouse_id,
                                           qty, free_qty, unit_id, rate_paisa, gross_paisa,
-                                          discount_bp, discount_paisa, taxable_paisa, vat_bp,
+                                          discount_bp, discount_paisa, bill_discount_paisa,
+                                          taxable_paisa, vat_bp,
                                           vat_paisa, amount_paisa, cost_paisa, batch, expiry_ad)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (voucher_id, line_no, item_id, (row.get("description") or "").strip(),
              row.get("warehouse_id") or None, qty, money.to_qty(row.get("free_qty") or 0),
              row.get("unit_id") or item["unit_id"], rate, gross, discount_bp, discount,
-             taxable, vat_bp, vat, amount, money.to_paisa(row.get("cost") or 0),
+             bill_discount, taxable, vat_bp, vat, amount, money.to_paisa(row.get("cost") or 0),
              (row.get("batch") or "").strip(), row.get("expiry_ad") or ""))
         item_line_id = cur.lastrowid
 
@@ -278,6 +285,19 @@ def _write_items(conn, voucher_id, raw_items, date_ad, vt, status):
                 and status == "posted":
             total_qty = qty + money.to_qty(row.get("free_qty") or 0)
             stock_rate = rate
+            stock_value = None
+            if line_direction > 0 and vt["code"] == "purchase" and total_qty:
+                # Cost of purchase under NAS 02 is what was actually paid for
+                # the goods. Trade discounts and rebates come off it, whether
+                # they were agreed line by line or on the bill as a whole, and
+                # free goods are part of the quantity the money bought. Bringing
+                # stock in at the list rate instead would carry the closing
+                # stock above cost and take the discount straight to profit.
+                stock_rate = money.round_half_up(taxable * money.QTY_SCALE, total_qty)
+                # The value carried is the taxable amount itself, not the rate
+                # multiplied back out, so nothing is lost to rounding twice and
+                # the stock ledger ties to the purchase ledger to the paisa.
+                stock_value = taxable
             if line_direction > 0 and vt["code"] == "sales_return":
                 # Goods a customer sends back come into stock at what they cost
                 # us, not at what we sold them for. Bringing them back at the
@@ -291,7 +311,8 @@ def _write_items(conn, voucher_id, raw_items, date_ad, vt, status):
                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '')""",
                     (voucher_id, item_line_id, item_id, row.get("warehouse_id") or None,
                      date_ad, line_direction, total_qty, stock_rate,
-                     money.round_half_up(total_qty * stock_rate, money.QTY_SCALE)))
+                     stock_value if stock_value is not None
+                     else money.round_half_up(total_qty * stock_rate, money.QTY_SCALE)))
 
 
 def _cost_rate(conn, item, date_ad):
