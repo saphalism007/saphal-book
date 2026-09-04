@@ -8,7 +8,7 @@
    to the server or fails honestly, because a stale balance shown as if it were
    current would be worse than no balance at all. */
 
-var VERSION = "saphal-book-v8";
+var VERSION = "saphal-book-v9";
 var SHELL = [
   "/",
   "/static/style.css",
