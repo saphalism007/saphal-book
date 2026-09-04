@@ -1,18 +1,18 @@
 #!/bin/bash
 # Double click this after any change to the software.
 #
-# The Mac app carries its own copy of Chartered Book inside it, so a change made
+# The Mac app carries its own copy of Saphal Book inside it, so a change made
 # to the code does not reach the app until the app is built again. This does
 # that. It takes a few seconds and touches nothing else.
 #
 # Your books are NOT inside the app. They live in
-#   ~/Library/Application Support/Chartered Book
+#   ~/Library/Application Support/Saphal Book
 # and are never touched by this.
 
 cd "$(dirname "$0")" || exit 1
 
 echo ""
-echo "  Updating Chartered Book"
+echo "  Updating Saphal Book"
 echo "  ======================="
 echo ""
 
@@ -61,7 +61,7 @@ if ! "$PY" tools/make_mac_app.py; then
 fi
 
 echo ""
-echo "  Done. Close Chartered Book if it is open, then open it again."
+echo "  Done. Close Saphal Book if it is open, then open it again."
 echo "  Your books were not touched."
 echo ""
 read -n 1 -s -r -p "  Press any key to close this window."

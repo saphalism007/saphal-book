@@ -1,10 +1,10 @@
-# Putting Chartered Book on GitHub
+# Putting Saphal Book on GitHub
 
 A step by step guide. No terminal, no commands to type.
 
 ## What this does, and why
 
-GitHub is a free website that holds software. Putting Chartered Book there
+GitHub is a free website that holds software. Putting Saphal Book there
 gives you a web address, and anyone you send that address to can download their
 own copy.
 
@@ -88,7 +88,7 @@ That page will also open in your browser by itself.
 
 **That address is your link.** Send it to anyone. When they open it, they click
 the green **Code** button, then **Download ZIP**, and they have their own copy
-of Chartered Book.
+of Saphal Book.
 
 ---
 
@@ -122,7 +122,7 @@ changes.
 ## The other way to share, if you would rather not use GitHub
 
 There is a zip file in this folder called something like
-**Chartered Book 2083-05-18.zip**.
+**Saphal Book 2083-05-18.zip**.
 
 Put that in your Google Drive, right click it in Drive, choose **Share**, and
 send the link. It works exactly the same for whoever receives it. No GitHub

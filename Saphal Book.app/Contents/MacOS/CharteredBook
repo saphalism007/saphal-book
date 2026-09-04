@@ -1,0 +1,16 @@
+#!/bin/bash
+# Opens Saphal Book.
+# The software sits inside this app, in Contents/Resources/app.
+# The books are kept in Library/Application Support/Saphal Book.
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../Resources/app" && pwd)"
+cd "$HERE" || exit 1
+PY=""
+for candidate in /usr/bin/python3 /usr/local/bin/python3 /opt/homebrew/bin/python3; do
+  if [ -x "$candidate" ]; then PY="$candidate"; break; fi
+done
+if [ -z "$PY" ]; then PY="$(command -v python3)"; fi
+if [ -z "$PY" ]; then
+  osascript -e 'display dialog "Python 3 was not found on this Mac. Install it free from python.org and open Saphal Book again." with title "Saphal Book" buttons {"OK"} default button 1 with icon caution'
+  exit 1
+fi
+exec "$PY" start.py --app --lan "$@"

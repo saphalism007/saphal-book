@@ -64,8 +64,8 @@ one and saving again will sort it.
 
 ## What you should see
 
-The page has the Chartered Book icon at the top, a button saying **Open
-Chartered Book in this browser**, and below that two download buttons for Mac
+The page has the Saphal Book icon at the top, a button saying **Open
+Saphal Book in this browser**, and below that two download buttons for Mac
 and Windows.
 
 If you see that, it is working, and that address is the link to share.

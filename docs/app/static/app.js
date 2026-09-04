@@ -1,4 +1,4 @@
-/* Chartered Book, application core.
+/* Saphal Book, application core.
    Holds the signed in state, the menu, the router and the screens that do not
    belong to vouchers, masters or reports. */
 
@@ -166,6 +166,7 @@ var App = (function () {
       state.company = data.company;
       state.fiscalYear = data.fiscal_year || null;
       state.fiscalYears = data.fiscal_years || [];
+      state.build = data.build || null;
       state.settings = data.settings || {};
       state.settings = data.settings || {};
       qs("#boot").classList.add("hidden");
@@ -189,10 +190,25 @@ var App = (function () {
     var gate = qs("#gate");
     gate.classList.remove("hidden");
     qs("#gate-title").textContent = needsSetup ? "Create your login" : "Sign in";
+    // The books live wherever they were made. A login made in the browser on a
+    // tablet opens the books on that tablet, and the same username typed on two
+    // devices is two different sets of books, not one shared set. That is worth
+    // saying at the moment somebody is about to make the second login, because
+    // otherwise it only becomes clear once the first company is nowhere to be
+    // seen. Where this is the browser copy there is a way to reach the real
+    // books, and it is named here.
+    var onWeb = !!window.CHARTERED_BOOK_WEB;
+    var where = onWeb ? "in this browser" : "on this computer";
     qs("#gate-help").textContent = needsSetup
-      ? "Nobody has used Chartered Book on this computer yet, so make your login now. "
+      ? "Nobody has used Saphal Book " + where + " yet, so make your login now. "
         + "This is the sign up. Choose any username and password you like, and write the "
         + "password down, because nothing can recover it."
+        + (onWeb
+           ? "  These will be new books kept in this browser. They are not the books on "
+             + "your computer, and using the same username will not reach them. To work on "
+             + "those, put this device on the same wifi and open the address shown under "
+             + "Use on your phone on the computer."
+           : "")
       : "";
     qs("#gate-submit").textContent = needsSetup ? "Create and continue" : "Sign in";
     UI.qsa(".hidden-when-login").forEach(function (node) {
@@ -240,9 +256,9 @@ var App = (function () {
           var mac = navigator.platform.indexOf("Mac") >= 0;
           lines.appendChild(el("div", { style: "margin-top:.6rem" }, [
             el("strong", { text: "Nothing has been entered into the books yet." }),
-            el("div", { text: "So starting again costs nothing. Close Chartered Book first, "
+            el("div", { text: "So starting again costs nothing. Close Saphal Book first, "
               + "then delete the file called system.db in the folder below and open "
-              + "Chartered Book again. It will ask you to make a login from scratch." }),
+              + "Saphal Book again. It will ask you to make a login from scratch." }),
             el("span.path", { text: info.data_folder }),
             el("div", { style: "margin-top:.4rem" }, [
               el("span", { text: mac
@@ -385,6 +401,19 @@ var App = (function () {
         .catch(function (error) { UI.flash(error.message, "bad"); });
     };
 
+    var version = qs(".side-version");
+    if (version && state.build) {
+      version.textContent = state.build.behind
+        ? "Out of date, built " + state.build.stamp
+        : "Local and offline  ·  " + state.build.stamp;
+      version.classList.toggle("stale", !!state.build.behind);
+      version.title = state.build.behind
+        ? "This app is running an older copy of the software than the one on this "
+          + "computer. Double click \u201cUpdate Saphal Book\u201d in the project "
+          + "folder and open it again."
+        : "The copy of the software this app is running";
+    }
+
     var nav = UI.clear(qs("#nav"));
     buildMenu().forEach(function (group) {
       var block = el("div.nav-group", {}, [el("div.nav-group-title", { text: group.title })]);
@@ -494,7 +523,7 @@ var App = (function () {
         + ", signed in as " + (state.roles && state.roles[state.user.role] || state.user.role) + "." }),
       UI.field("Appearance", segmented),
       canInstall() ? el("div.install-bar", {}, [
-        el("span", { text: "Install Chartered Book on this device and it gets its own icon." }),
+        el("span", { text: "Install Saphal Book on this device and it gets its own icon." }),
         el("button.primary", { text: "Install", onclick: function () {
           runInstall().then(function (yes) {
             if (yes) { UI.flash("Installed. Look for the icon with your other apps.", "good"); }
@@ -544,7 +573,18 @@ var App = (function () {
 
   function go(key) {
     state.route = key;
+    // Repainting the menu rebuilds it, which threw away where it was scrolled
+    // to. Anybody working in Financial statements, which sits near the bottom,
+    // was sent back to the top of the list on every single click.
+    var nav = qs("#nav");
+    var navScroll = nav ? nav.scrollTop : 0;
+    var rail = UI.qs(".sidebar");
+    var railScroll = rail ? rail.scrollTop : 0;
     paintChrome();
+    nav = qs("#nav");
+    if (nav) { nav.scrollTop = navScroll; }
+    rail = UI.qs(".sidebar");
+    if (rail) { rail.scrollTop = railScroll; }
     UI.qs(".sidebar").classList.remove("open");
     var page = UI.clear(qs("#page"));
     var builder = SCREENS[key];
@@ -893,19 +933,38 @@ var App = (function () {
         ]);
       });
 
-      var nextYear = data.fiscal_year
-        ? (+String(data.fiscal_year.label).split("/")[0] + 1) : NP.adToBs(NP.todayIso()).year;
+      // Years already open, so the buttons offer the ones on either side of
+      // what is there rather than blindly offering the next one.
+      var openYears = (data.fiscal_years || []).map(function (fy) {
+        return +String(fy.label).split("/")[0];
+      });
+      var thisYear = NP.adToBs(NP.todayIso()).year;
+      var nextYear = openYears.length ? Math.max.apply(null, openYears) + 1 : thisYear;
+      var earlierYear = openYears.length ? Math.min.apply(null, openYears) - 1 : thisYear - 1;
+
+      function label(year) { return year + "/" + NP.pad((year + 1) % 100, 2); }
+      function openYear(year, note) {
+        api("/api/fiscal-years/create", { body: { start_bs_year: year } })
+          .then(function () { UI.flash(note, "good"); go("company"); })
+          .catch(function (error) { UI.flash(error.message, "bad"); });
+      }
+
       var yearCard = el("div.card", {}, [
         el("div.card-head", {}, [
           el("h2", { text: "Fiscal years" }),
-          el("button.secondary", { text: "Open " + nextYear + "/" + NP.pad((nextYear + 1) % 100, 2),
+          el("button.secondary", { text: "Open " + label(earlierYear),
             onclick: function () {
-              api("/api/fiscal-years/create", { body: { start_bs_year: nextYear } })
-                .then(function () { UI.flash("Fiscal year opened.", "good"); go("company"); })
-                .catch(function (error) { UI.flash(error.message, "bad"); });
-            }})
+              openYear(earlierYear, "Fiscal year " + label(earlierYear)
+                + " opened. The books now begin at the start of it.");
+            }}),
+          el("button.secondary", { text: "Open " + label(nextYear),
+            onclick: function () { openYear(nextYear, "Fiscal year opened."); }})
         ]),
-        el("p.card-note", { text: "A Nepali fiscal year runs from 1 Shrawan to the last day of Ashadh. Open the next year before you start entering vouchers dated in it." }),
+        el("p.card-note", { text: "A Nepali fiscal year runs from 1 Shrawan to the last day "
+          + "of Ashadh. Each year keeps its own voucher numbering, so PI0001 in one year and "
+          + "PI0001 in the next are two different bills and never mix. Open the year before "
+          + "entering vouchers dated in it. Opening an earlier year, to bring last year's "
+          + "books in, moves the date the books begin back to the start of that year." }),
         UI.table(["Year", "Bikram Sambat", "Gregorian", "Status", ""], yearRows)
       ]);
 
@@ -1000,6 +1059,48 @@ var App = (function () {
 
   /* Backup */
 
+  /* Carrying books from one device to another.
+
+     Two machines with no way of reaching one another still have to share a set
+     of books, and on a tablet there is no folder to reach into. So the file
+     travels through the screen: saved out of one device, carried across, and
+     brought into the other. */
+
+  function bringBooksIn(onDone) {
+    var picker = el("input", { type: "file", accept: ".zip" });
+    UI.modal("Bring books in from another device", el("div", {}, [
+      el("p", { text: "Choose the backup file the other device saved. It is a .zip whose "
+        + "name begins with saphal_book." }),
+      picker,
+      el("p.card-note", { text: "This only stores the file here. Nothing in these books "
+        + "changes until you press Restore on it in the list, and a safety copy is taken "
+        + "before that happens." })
+    ]), [
+      { label: "Cancel" },
+      { label: "Bring it in", kind: "primary", action: function () {
+        var file = picker.files && picker.files[0];
+        if (!file) { UI.flash("Choose the file first.", "bad"); return false; }
+        return new Promise(function (resolve, reject) {
+          var reader = new FileReader();
+          reader.onerror = function () { reject(new Error("That file could not be read.")); };
+          reader.onload = function () {
+            var text = String(reader.result || "");
+            var comma = text.indexOf(",");
+            api("/api/backup/upload", { body: {
+              filename: file.name, content: comma >= 0 ? text.slice(comma + 1) : text
+            }}).then(function (result) {
+              UI.flash("Brought in " + result.backup.filename + ". Press Restore on it when "
+                       + "you are ready.", "good");
+              if (onDone) { onDone(); }
+              resolve();
+            }).catch(reject);
+          };
+          reader.readAsDataURL(file);
+        });
+      }}
+    ]);
+  }
+
   register("backup", function (page) {
     var listBox = el("div");
     var folderBox = el("div");
@@ -1039,7 +1140,7 @@ var App = (function () {
         });
 
         var manual = el("input", { type: "text",
-          placeholder: "/Users/you/Google Drive/Chartered Book backups" });
+          placeholder: "/Users/you/Google Drive/Saphal Book backups" });
 
         folderBox.appendChild(el("div.card", {}, [
           el("div.card-head", {}, [el("h2", { text: "Keep a second copy somewhere else" })]),
@@ -1102,6 +1203,17 @@ var App = (function () {
             el("td.num", { text: item.size_text }),
             el("td.muted", { text: item.filename, style: "font-size:.74rem" }),
             el("td.no-print", {}, [
+              el("button.link-button", { text: "Save to a file", onclick: function () {
+                UI.flash("Preparing the file.", "good");
+                api("/api/backup/download", { query: { name: item.filename } })
+                  .then(function (result) {
+                    UI.downloadFile(result.filename, result.content, "application/zip");
+                    UI.flash("Saved " + result.filename + ". Move it to the other device and "
+                             + "bring it in there.", "good");
+                  })
+                  .catch(function (error) { UI.flash(error.message, "bad"); });
+              }}),
+              el("span", { text: "   " }),
               el("button.link-button", { text: "Restore", onclick: function () {
                 UI.confirmAction("Restore this backup",
                   "Everything currently in the books will be replaced by the contents of "
@@ -1139,6 +1251,14 @@ var App = (function () {
           el("p.card-note", { text: "One is taken automatically each time the software starts "
             + "and again when it closes. The last thirty automatic ones are kept, and every "
             + "backup you take by hand is kept for good." }),
+          el("div.row", { style: "margin-top:.2rem" }, [
+            el("button.secondary", { text: "Bring books in from another device",
+              onclick: function () { bringBooksIn(loadList); } })
+          ]),
+          el("p.card-note", { text: "Two devices that cannot reach each other still share "
+            + "books this way. Take a backup on the first, save it to a file, carry the file "
+            + "across, and bring it in here. Bringing it in only stores it. Nothing changes "
+            + "until you press Restore on it." }),
           UI.table(["Taken (BS)", "Taken (AD)", "Kind", { label: "Size", num: true }, "File", ""],
             rows, null, { tall: true, emptyText: "No backups yet. Take one now." })
         ]));
@@ -1277,7 +1397,12 @@ var App = (function () {
           ? el("div", {}, [
               el("p.card-note", { text: "On the phone or tablet, open the browser and type "
                 + "this address. It only has to be typed once." }),
-              el("div.address", {}, [el("code", { text: net.urls[0].replace(/\/$/, "") })]),
+              el("div.address", {}, [
+                el("code", { text: net.urls[0].replace(/\/$/, "") }),
+                el("button.secondary", { text: "Copy", onclick: function (event) {
+                  UI.copyText(net.urls[0].replace(/\/$/, ""), event.currentTarget);
+                } })
+              ]),
               net.urls.length > 1
                 ? el("p.card-note", { text: "If that one does not work, try: "
                     + net.urls.slice(1).map(function (u) { return u.replace(/\/$/, ""); }).join("   ") })
@@ -1290,10 +1415,22 @@ var App = (function () {
       if (!net.listening_on_network && net.urls.length) {
         page.appendChild(el("div.card", {}, [
           el("div.flash.warn", { style: "margin:0", text:
-            "Chartered Book is only answering this computer at the moment. Open it from the "
-            + "Chartered Book icon rather than from a terminal and it will answer the wifi too." })
+            "Saphal Book is only answering this computer at the moment. Open it from the "
+            + "Saphal Book icon rather than from a terminal and it will answer the wifi too." })
         ]));
       }
+
+      page.appendChild(el("div.card", {}, [
+        el("div.card-head", {}, [el("h2", { text: "When the two cannot be on the same wifi" })]),
+        el("p.card-note", { text: "There is no server anywhere and nothing of yours is kept "
+          + "on anybody else's machine, which is what keeps this free and private. The price "
+          + "of that is there is nothing in the middle for two devices to meet in. So when "
+          + "the tablet is somewhere else entirely, the books travel as a file: take a backup "
+          + "here, press Save to a file, send the file to the tablet however you like, and "
+          + "press Bring books in from another device there. Work done on the tablet comes "
+          + "back the same way. It is one set of books moving, not two sets being merged, so "
+          + "only work on one device at a time." })
+      ]));
 
       var steps = [
         ["iPhone or iPad", [
@@ -1309,13 +1446,13 @@ var App = (function () {
           "Tap Install. The icon appears with your other apps."
         ]],
         ["Windows", [
-          "Open Chartered Book in Edge or Chrome.",
+          "Open Saphal Book in Edge or Chrome.",
           "Open the menu at the top right.",
-          "Choose Install Chartered Book, or Apps then Install this site as an app.",
+          "Choose Install Saphal Book, or Apps then Install this site as an app.",
           "It gets its own window and can be pinned to the taskbar."
         ]],
         ["Mac", [
-          "You already have the Chartered Book icon. Drag it to Applications, or keep it in the Dock.",
+          "You already have the Saphal Book icon. Drag it to Applications, or keep it in the Dock.",
           "Double click it any time. It opens the browser at the books by itself.",
           "Opening it a second time does not start a second copy, it just brings the books back up."
         ]]
@@ -1335,7 +1472,7 @@ var App = (function () {
       if (canInstall()) {
         page.appendChild(el("div.card", {}, [
           el("div.install-bar", { style: "margin:0" }, [
-            el("span", { text: "This browser can install Chartered Book right now." }),
+            el("span", { text: "This browser can install Saphal Book right now." }),
             el("button.primary", { text: "Install on this device", onclick: function () {
               runInstall().then(function (yes) {
                 if (yes) { UI.flash("Installed. Look for the icon with your other apps.", "good"); }

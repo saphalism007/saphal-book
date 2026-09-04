@@ -1,4 +1,4 @@
-# Chartered Book, design decisions
+# Saphal Book, design decisions
 
 Reasons behind choices that are not obvious from the code. Read this before
 changing anything structural.
@@ -7,7 +7,7 @@ changing anything structural.
 
 The software must cost nothing, work with no internet, and still run in five
 years. Every package added is something that can break on a future machine or
-quietly disappear. Chartered Book uses only what ships with Python: sqlite3 for
+quietly disappear. Saphal Book uses only what ships with Python: sqlite3 for
 storage, http.server for the screen, hashlib for passwords, decimal for parsing
 money. Nothing to install, nothing to renew.
 

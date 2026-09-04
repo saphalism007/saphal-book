@@ -1,7 +1,7 @@
 /* Bringing the books up inside a browser.
 
    Loads Pyodide, which is Python compiled to run in a browser, unpacks the
-   Chartered Book engine into it, and points the books at a folder that the
+   Saphal Book engine into it, and points the books at a folder that the
    browser keeps between visits.
 
    From then on the screens talk to Python directly instead of over HTTP. The
@@ -41,7 +41,7 @@ window.CB = (function () {
         line.appendChild(small);
       }
     }
-    try { console.error("[Chartered Book]", message, detail); } catch (ignored) {}
+    try { console.error("[Saphal Book]", message, detail); } catch (ignored) {}
   }
 
   function save() {
@@ -124,7 +124,7 @@ window.CB = (function () {
         pyodide.FS.syncfs(true, function () { resolve(); });
       });
 
-      step("Unpacking Chartered Book", 0.75);
+      step("Unpacking Saphal Book", 0.75);
       var response = await fetch("chartered_book.zip", { cache: "no-cache" });
       if (!response.ok) { throw new Error("the engine file is missing"); }
       var buffer = await response.arrayBuffer();
@@ -149,7 +149,7 @@ window.CB = (function () {
     } catch (error) {
       var detail = String((error && error.message) || error || "");
       var short = detail.split(String.fromCharCode(10))[0].slice(0, 160);
-      fail("Chartered Book could not start.",
+      fail("Saphal Book could not start.",
            "The first load needs the internet. Check the connection and open it "
            + "again. If it keeps failing: " + short);
     }

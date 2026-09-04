@@ -1,5 +1,5 @@
 #!/bin/bash
-# Double click this file to put Chartered Book on GitHub.
+# Double click this file to put Saphal Book on GitHub.
 # It asks you one question and does the rest.
 
 cd "$(dirname "$0")" || exit 1
@@ -10,7 +10,7 @@ rule() { say ""; say "  --------------------------------------------------------
 
 say ""
 say "  ============================================================"
-say "     Putting Chartered Book on GitHub"
+say "     Putting Saphal Book on GitHub"
 say "  ============================================================"
 say ""
 say "  This sends the software to your GitHub account so you get a"

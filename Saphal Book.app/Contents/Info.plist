@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>Saphal Book</string>
+	<key>CFBundleExecutable</key>
+	<string>CharteredBook</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleIdentifier</key>
+	<string>np.charteredbook.app</string>
+	<key>CFBundleName</key>
+	<string>Saphal Book</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1.0</string>
+	<key>LSBackgroundOnly</key>
+	<false/>
+	<key>LSMinimumSystemVersion</key>
+	<string>10.13</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>Saphal Book keeps your books in this folder.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>Saphal Book keeps your books in this folder.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>Saphal Book keeps your books in this folder.</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSHumanReadableCopyright</key>
+	<string>Private software. Not for sale.</string>
+	<key>NSNetworkVolumesUsageDescription</key>
+	<string>So a backup can be written to a shared folder.</string>
+	<key>NSRemovableVolumesUsageDescription</key>
+	<string>So a backup can be written to a pen drive.</string>
+</dict>
+</plist>

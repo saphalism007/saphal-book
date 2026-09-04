@@ -23,6 +23,7 @@ var Statements = (function () {
     ["taxdep", "Tax depreciation"],
     ["deferred", "Deferred tax"],
     ["instruments", "Financial instruments"],
+    ["discounts", "Discounts"],
     ["trading", "Trading account"]
   ];
 
@@ -75,7 +76,8 @@ var Statements = (function () {
                      cash: drawCash, notes: drawNotes, trading: drawTrading,
                      ppe: drawPpe, intangible: drawIntangible, register: drawRegister,
                      taxdep: drawTaxDepreciation, deferred: drawDeferred,
-                     instruments: drawInstruments }[chosen];
+                     instruments: drawInstruments,
+                     discounts: drawDiscounts }[chosen];
       box.appendChild(Reports.reportHead(titleFor(chosen), subtitleFor(chosen)));
       render(box);
     }
@@ -93,7 +95,8 @@ var Statements = (function () {
         register: "Fixed Asset Register",
         taxdep: "Depreciation under Schedule 2 of the Income Tax Act, 2058",
         deferred: "Deferred Tax",
-        instruments: "Financial Instruments"
+        instruments: "Financial Instruments",
+        discounts: "Revenue and Cost of Purchase, showing every discount"
       }[key];
     }
 
@@ -427,6 +430,27 @@ var Statements = (function () {
 
     function drawNotes(target) {
       var wrap = el("div");
+
+      // Every set of statements under NFRS opens with these three, and a set
+      // without them is incomplete however well the figures add up. They are
+      // written from what the books are actually doing, so the inventory policy
+      // says perpetual or periodic depending on which one is in use.
+      (data.policies || []).forEach(function (note) {
+        var body = [];
+        (note.paragraphs || []).forEach(function (para) {
+          body.push(el("p.note-para", { text: para }));
+        });
+        (note.policies || []).forEach(function (policy) {
+          body.push(el("div.note-policy", {}, [
+            el("div.note-policy-head", { text: policy.heading }),
+            el("p.note-para", { text: policy.text })
+          ]));
+        });
+        wrap.appendChild(el("div.note-block", {}, [
+          el("h3", { text: note.number + ".  " + note.title })
+        ].concat(body)));
+      });
+
       data.schedules.notes.forEach(function (note) {
         var rows = note.lines.map(function (line) {
           return el("tr.openable", {
@@ -837,6 +861,47 @@ var Statements = (function () {
     }
 
     /* Traditional trading account */
+
+    /* Discounts
+
+       A trade discount never reaches a ledger of its own, because revenue is
+       measured at the price the customer actually agreed to and stock is
+       carried at what it actually cost. That is right, but it hides the
+       discount from anybody reading the accounts. This puts it back, as a
+       working that starts at the value written on the invoices and comes down
+       to the figure on the face of the statement. */
+
+    function drawDiscounts(target) {
+      var note = data.discounts;
+      if (!note) { return; }
+
+      function block(heading, lines, explain) {
+        target.appendChild(el("h3", { text: heading, style: "margin-top:.4rem" }));
+        target.appendChild(el("p.card-note", { text: explain }));
+        var rows = lines.map(function (row) {
+          return el("tr" + (row.total ? ".total-row" : ""), {}, [
+            el("td", { text: row.label })
+          ].concat(amountCells(row.amount, row.previous)));
+        });
+        target.appendChild(UI.table(
+          ["Particulars", { label: bsYear(data.to_ad), num: true }].concat(
+            data.compare ? [{ label: bsYear(data.compare.to_ad), num: true }] : []),
+          rows));
+      }
+
+      block("Revenue from operations", note.sales,
+            "A discount given on the invoice, whether it was agreed line by line or on the "
+            + "bill as a whole, is part of the price the customer agreed to pay. NFRS 15 "
+            + "measures revenue at that price, so the discount comes off revenue and does not "
+            + "go anywhere else. A discount given later for settling early is a different "
+            + "thing and is shown separately below it.");
+
+      block("Purchases and the cost of goods", note.purchases,
+            "A discount taken from a supplier reduces what the goods cost. NAS 02 measures "
+            + "the cost of purchase after trade discounts and rebates, so the goods come into "
+            + "stock at the discounted figure and the weighted average follows from that. A "
+            + "discount taken for paying early reduces the same cost.");
+    }
 
     function drawTrading(target) {
       var t = data.trading;
