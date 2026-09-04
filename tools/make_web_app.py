@@ -307,16 +307,41 @@ window.CB = (function () {
 """.replace("__PYODIDE__", PYODIDE)
 
 
-def worker_js():
+def build_stamp():
+    """
+    A short name for this build, worked out from what is in it.
+
+    Every file that goes to the device is read and summed. Change any of them
+    and the name changes, which is what tells a browser its stored copy is no
+    longer the current one.
+    """
+    import hashlib
+    digest = hashlib.sha256()
+    for root, _dirs, files in sorted(os.walk(OUT)):
+        for name in sorted(files):
+            if name == "sw.js":
+                continue
+            with open(os.path.join(root, name), "rb") as handle:
+                digest.update(handle.read())
+    return digest.hexdigest()[:12]
+
+
+def worker_js(stamp="1"):
     """
     Keeps this build on the device after the first visit.
+
+    The name of the store is worked out from the contents of the build, not
+    written by hand. It used to be a fixed string, which meant a browser that had
+    once loaded the software would go on serving that copy for ever: the fix was
+    published, the file on the server was right, and the tablet went on showing
+    the old one. Nothing short of clearing site data would have shifted it.
 
     Only the files served from here are stored. Pyodide comes from its own
     address and is left to the browser's ordinary cache, so this is not a
     promise that everything works with no connection at all, only that it does
     not have to be fetched again every time.
     """
-    return """var VERSION = "saphal-book-web-1";
+    return ("""var VERSION = "saphal-book-web-%s";""" % stamp) + """
 var SHELL = ["./", "index.html", "boot.js", "manifest.webmanifest",
   "chartered_book.zip",
   "static/style.css", "static/nepali.js", "static/ui.js", "static/app.js",
@@ -410,8 +435,12 @@ def main():
     stale = os.path.join(OUT, "static", "sw.js")
     if os.path.exists(stale):
         os.remove(stale)
+    # Named after what is in the build, so a browser holding the previous one
+    # knows to let go of it. Worked out last, once every other file is written.
+    stamp = build_stamp()
     with open(os.path.join(OUT, "sw.js"), "w", encoding="utf-8") as handle:
-        handle.write(worker_js())
+        handle.write(worker_js(stamp))
+    print("  build         %s" % stamp)
 
     total = 0
     for root, _dirs, files in os.walk(OUT):
