@@ -128,6 +128,14 @@ var Vouchers = (function () {
       var roundBox = el("input", { type: "checkbox" });
       roundBox.checked = true;
 
+      // Both of these change every figure on the invoice, and neither of them
+      // was telling anything to work the figures out again. Ticking Round to
+      // the rupee did nothing at all until a quantity was retyped, which made
+      // the rounding look broken when what was broken was the checkbox.
+      [priceIncludes, roundBox].forEach(function (box) {
+        box.addEventListener("change", recalc);
+      });
+
       partyPicker(partyInput, spec.party, function (party) {
         partyId = party.id;
         partyInput.value = party.name;
@@ -320,7 +328,13 @@ var Vouchers = (function () {
         row("Taxable", computed.taxable);
         if (computed.vat) { row("VAT 13 percent", computed.vat); }
         if (computed.charges) { row("Other charges", computed.charges); }
-        if (computed.roundOff) { row("Rounding", computed.roundOff); }
+        if (computed.roundOff) {
+          // Without this the line reads 22,601.11 and the total reads
+          // 22,601.00, and the invoice looks as though it does not add up.
+          row("Before rounding", computed.total - computed.roundOff);
+          row(computed.roundOff > 0 ? "Rounded up to the rupee"
+                                    : "Rounded down to the rupee", computed.roundOff);
+        }
         row("Total", computed.total, "grand");
         totalsBox.appendChild(el("div.in-words", { text: inWords(computed.total) }));
       }
@@ -986,7 +1000,12 @@ var Vouchers = (function () {
       if (voucher.vat_paisa) { totalRow("VAT 13 percent", voucher.vat_paisa); }
       if (voucher.other_charges_paisa) { totalRow("Other charges", voucher.other_charges_paisa); }
       if (voucher.tds_paisa) { totalRow("Tax deducted at source", -voucher.tds_paisa); }
-      if (voucher.round_off_paisa) { totalRow("Rounding", voucher.round_off_paisa); }
+      if (voucher.round_off_paisa) {
+        totalRow("Before rounding", voucher.total_paisa - voucher.round_off_paisa);
+        totalRow(voucher.round_off_paisa > 0 ? "Rounded up to the rupee"
+                                             : "Rounded down to the rupee",
+                 voucher.round_off_paisa);
+      }
       totalRow("Total", voucher.total_paisa, true);
 
       content = el("div", {}, [

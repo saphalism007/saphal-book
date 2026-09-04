@@ -191,6 +191,43 @@ def main():
           before[code("5401")] - after[code("5401")], money.to_paisa("1500"))
     stock_ties("after a purchase return above cost")
 
+    # --- Opening stock has to reach the balance sheet ------------------------
+    #
+    # Opening stock is typed against each item as a quantity and a value, while
+    # the Stock in Trade ledger carries its own opening balance. They are two
+    # records of the same fact, and nothing used to keep them in step. Under the
+    # periodic system the gap washed out at the year end. Under the perpetual
+    # system the stock report and the balance sheet disagree by it, every day.
+    opener = masters.create_item(conn, USER, "Stock Test Opener", unit_id=unit["id"],
+                                 purchase_rate="500", sale_rate="700", vat_rate_bp=1300,
+                                 opening_qty="20", opening_value="10000")
+    position = inventory.opening_stock_position(conn)
+    check("opening stock is read off the item list",
+          position["on_the_item_list"], money.to_paisa("10000"))
+    check("and it reached the ledger", position["difference"], 0)
+    stock_ties("after an item with opening stock was added")
+
+    # The other side sits in Suspense rather than being invented as capital.
+    check("the other side waits in suspense to be cleared",
+          balances()[code("1281")], -money.to_paisa("10000"))
+
+    # Changing it keeps both in step.
+    masters.update_item(conn, USER, opener, opening_qty="20", opening_value="12500")
+    check("changing the opening stock moves the ledger too",
+          inventory.opening_stock_position(conn)["difference"], 0)
+    stock_ties("after the opening stock was changed")
+
+    # --- Stock ageing has to add back to the same figure ---------------------
+    ageing = reports.stock_ageing(conn, end)
+    booked = balances()[code("1211")]
+    check("the ageing report totals to the balance sheet", ageing["grand_value"], booked)
+    for row in ageing["rows"]:
+        state = reports.item_stock(conn, row["item_id"], end)
+        check("ageing quantities add back for %s" % row["name"],
+              sum(row["bucket_qty"]), state["qty"])
+        check("ageing values add back for %s" % row["name"],
+              sum(row["bucket_value"]), state["value"])
+
     # --- Nothing is out of balance at any point ------------------------------
     tb = reports.trial_balance(conn, start, end)
     check("trial balance ties", tb["balanced"], True)

@@ -603,6 +603,35 @@ var Reports = (function () {
         ]));
         box.appendChild(register("Sales register", data.sales_rows, true));
         box.appendChild(register("Purchase register", data.purchase_rows, false));
+        box.appendChild(el("div.card.no-print", {}, [
+          el("div.card-head", {}, [
+            el("h2", { text: "Close this month off" }),
+            el("button.primary", { text: "Settle the tax for " + data.month_name,
+              onclick: function () {
+                UI.confirmAction("Settle " + data.month_name + " " + data.bs_year,
+                  "This moves the output tax and the input tax for the month out of their "
+                  + "own ledgers and leaves "
+                  + (data.payable
+                     ? UI.rs(data.payable) + " payable to the department."
+                     : UI.rs(data.credit_carried) + " as a credit to carry forward.")
+                  + "  It is dated the last day of the month and can be cancelled like any "
+                  + "other voucher.",
+                  function () {
+                    return api("/api/period-end/vat-settlement", { body: {
+                      bs_year: data.bs_year, bs_month: data.bs_month
+                    }}).then(function () {
+                      UI.flash("The tax for " + data.month_name + " has been settled.", "good");
+                      return load();
+                    });
+                  }, "Settle the month");
+              }})
+          ]),
+          el("p.card-note", { text: "Until a month is settled, the output tax and the input "
+            + "tax both go on building up in their own ledgers, so the balance sheet shows a "
+            + "tax asset and a tax liability side by side when only the difference is really "
+            + "owed. Settling moves the difference to VAT Payable, Net, or to VAT Credit "
+            + "Carried Forward where the input tax was the larger." })
+        ]));
         box.appendChild(el("p.card-note", { text:
           "The return for a Nepali month is due by the 25th of the following month. Check the figures against your invoice books before filing." }));
       });

@@ -343,7 +343,25 @@ def create_item(conn, username, name, **fields):
          fields.get("notes", ""), now, now))
     audit.log(conn, username, "item.create", "items", cur.lastrowid, code,
               "Item %s created." % name)
+    _restate_opening_stock(conn, username)
     return cur.lastrowid
+
+
+def _restate_opening_stock(conn, username):
+    """
+    Opening stock typed against an item is an asset the business owns, so the
+    balance sheet has to know about it. Left alone, the item list and the Stock
+    in Trade ledger tell two different stories and the stock report stops
+    agreeing with the accounts.
+    """
+    from . import inventory
+    try:
+        if inventory.is_perpetual(conn):
+            inventory.sync_opening_stock(conn, username)
+    except Exception:
+        # Never let this stop an item being saved. The books opening again puts
+        # it right, and the stock screen says when the two disagree.
+        pass
 
 
 def update_item(conn, username, item_id, **fields):
@@ -377,6 +395,8 @@ def update_item(conn, username, item_id, **fields):
     conn.execute("UPDATE items SET %s WHERE id = ?" % ", ".join(sets), args)
     audit.log(conn, username, "item.update", "items", item_id, before["code"],
               "Item %s updated." % before["name"], dict(before), fields)
+    if "opening_qty" in fields or "opening_value" in fields:
+        _restate_opening_stock(conn, username)
 
 
 def delete_item(conn, username, item_id):

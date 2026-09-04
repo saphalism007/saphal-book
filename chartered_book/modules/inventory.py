@@ -470,3 +470,72 @@ def _cancel_periodic_entries(conn, username):
             "carried as an asset from the day the goods arrive, so an opening or closing "
             "stock entry would count the same goods twice.")
     return len(rows)
+
+
+# Opening stock
+
+
+SUSPENSE = "1281"
+
+
+def opening_stock_position(conn):
+    """
+    What the item list says the opening stock was worth, against what the
+    Stock in Trade ledger says.
+
+    These are two separate records of the same fact and nothing was keeping them
+    in step. Opening stock is typed against each item, as a quantity and a value,
+    while the ledger carries its own opening balance typed by hand. Under the
+    periodic system the gap never showed, because the closing stock entry
+    restated the whole valuation at the year end and washed it out. Under the
+    perpetual system it shows immediately: the stock report and the balance
+    sheet disagree by the opening stock, every day of the year.
+    """
+    row = conn.execute(
+        """SELECT COALESCE(SUM(opening_value_paisa), 0) AS value,
+                  COUNT(*) AS items
+           FROM items
+           WHERE maintain_stock = 1 AND item_type = 'goods' AND opening_qty != 0""").fetchone()
+    account = masters.account_by_code(conn, STOCK_IN_TRADE)
+    booked = account["opening_paisa"] if account else 0
+    wanted = row["value"] or 0
+    return {"on_the_item_list": wanted, "in_the_ledger": booked,
+            "difference": wanted - booked, "items": row["items"] or 0,
+            "account_id": account["id"] if account else None}
+
+
+def sync_opening_stock(conn, username="system"):
+    """
+    Put the opening balance on Stock in Trade to what the items actually say.
+
+    The other side goes to the Suspense Account, because it has to go somewhere
+    for the books to balance and inventing capital the owner never put in would
+    be worse than admitting the entry is unfinished. Suspense is meant to be
+    looked at and cleared, usually against capital or against last year's
+    retained earnings, and the audit tools already flag anything left sitting in
+    it.
+    """
+    position = opening_stock_position(conn)
+    difference = position["difference"]
+    if not difference or not position["account_id"]:
+        return {"changed": 0, "difference": 0}
+
+    suspense = masters.account_by_code(conn, SUSPENSE)
+    if suspense is None:
+        raise InventoryError(
+            "The Suspense Account (code %s) is missing, so the opening stock cannot be "
+            "brought onto the balance sheet without putting the books out." % SUSPENSE)
+
+    conn.execute("UPDATE accounts SET opening_paisa = ? WHERE id = ?",
+                 (position["on_the_item_list"], position["account_id"]))
+    conn.execute("UPDATE accounts SET opening_paisa = opening_paisa - ? WHERE id = ?",
+                 (difference, suspense["id"]))
+    audit.log(conn, username, "inventory.opening_stock", "accounts", position["account_id"],
+              STOCK_IN_TRADE,
+              "Opening stock on the balance sheet set to %s to agree with the item list. "
+              "The difference of %s went to the Suspense Account and needs clearing."
+              % (money.format_money(position["on_the_item_list"]),
+                 money.format_money(difference)),
+              None, {"difference": difference})
+    return {"changed": 1, "difference": difference,
+            "now": position["on_the_item_list"]}

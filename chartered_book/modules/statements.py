@@ -508,6 +508,11 @@ def cash_flows(conn, from_ad, to_ad, compare=None):
 # Notes and schedules
 
 
+# The order the profit and loss reads in, so its notes come in the same order.
+PL_NOTE_ORDER = ("revenue", "other_income", "cost_of_sales", "employee", "administrative",
+                 "selling", "finance", "depreciation", "other_expense", "tax", "oci")
+
+
 def schedules(conn, from_ad, to_ad, compare=None):
     """
     A schedule behind every group on the face of the statements, with last year
@@ -552,7 +557,15 @@ def schedules(conn, from_ad, to_ad, compare=None):
             "previous_total": prior["groups"].get(code, {}).get("total", 0) if prior else None,
         })
 
-    for section_key, section in sorted(period["sections"].items()):
+    # Notes follow the order the lines appear on the face of the statements,
+    # which is what NAS 01 asks for and what anybody cross referencing from the
+    # profit and loss to a note expects. Sorting them by the name of the section
+    # put Administrative Expenses before Revenue, which reads as though nobody
+    # had looked at the finished document.
+    for section_key in PL_NOTE_ORDER:
+        section = period["sections"].get(section_key)
+        if not section:
+            continue
         for group_code in sorted(section["groups"]):
             group = section["groups"][group_code]
             number += 1

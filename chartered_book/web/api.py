@@ -832,6 +832,31 @@ def vat_report(request):
         raise ApiError(str(exc))
 
 
+@route("POST", "/api/period-end/vat-settlement")
+def settle_vat(request):
+    """
+    Close a month's value added tax off into what is actually owed.
+
+    Output tax and input tax go on accumulating in their own ledgers until the
+    month is closed off. Without this the balance sheet shows a large tax asset
+    and a large tax liability side by side when only the difference is really
+    owed, or only the difference is really recoverable.
+    """
+    from ..modules import period_end
+    request.require("voucher.create")
+    conn = request.company()
+    bs_year = request.body.get("bs_year")
+    bs_month = request.body.get("bs_month")
+    if not bs_year or not bs_month:
+        raise ApiError("Say which Nepali month is being settled.")
+    try:
+        voucher_id = _post(conn, request, lambda: period_end.post_vat_settlement(
+            conn, request.username(), int(bs_year), int(bs_month)))
+    except period_end.PeriodEndError as exc:
+        raise ApiError(str(exc))
+    return {"ok": True, "id": voucher_id}
+
+
 @route("GET", "/api/dashboard")
 def dashboard(request):
     conn = request.company()

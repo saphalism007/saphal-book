@@ -38,7 +38,23 @@ def open_company(slug):
     db.apply_migrations(conn, schema.COMPANY_MIGRATIONS, "company")
     sync_chart(conn)
     _first_stock_rebuild(conn)
+    _align_opening_stock(conn)
     return conn
+
+
+def _align_opening_stock(conn):
+    """
+    Opening stock typed against the items has to appear on the balance sheet.
+    Cheap to check and idempotent, so it runs every time the books are opened.
+    """
+    from . import inventory
+    try:
+        if inventory.is_perpetual(conn):
+            result = inventory.sync_opening_stock(conn, "system")
+            if result["changed"]:
+                conn.commit()
+    except Exception:
+        conn.rollback()
 
 
 def _first_stock_rebuild(conn):
