@@ -296,7 +296,8 @@ var Banking = (function () {
         onclick: function () { save(true); } });
       summaryBody.appendChild(el("div.row", { style: "margin-top:.7rem" }, [
         summaryNodes.saveButton, summaryNodes.doneButton,
-        el("button.secondary.no-print", { text: "Print", onclick: UI.printPage })
+        el("button.secondary.no-print", { text: "Print", onclick: UI.printPage }),
+      UI.exportButton()
       ]));
       summaryNodes.counts = el("p.card-note", { style: "margin-top:.5rem" });
       summaryBody.appendChild(summaryNodes.counts);

@@ -129,6 +129,44 @@ var UI = (function () {
 
   var modalStack = [];
 
+  /* Copying text to the clipboard.
+
+     The browser only hands over the modern clipboard on a secure page, and the
+     books are served over plain http on the wifi, so on the very screen where
+     an address most needs copying the modern way is switched off. The old way
+     still works everywhere, so it is tried when the new one is missing or
+     refused. */
+
+  function copyText(text, button) {
+    function done(ok) {
+      if (button) {
+        var was = button.textContent;
+        button.textContent = ok ? "Copied" : "Press and hold to copy";
+        setTimeout(function () { button.textContent = was; }, ok ? 1400 : 2600);
+      }
+      if (!ok) { flash("Could not copy on its own. Select the address and copy it.", "warn"); }
+    }
+    function oldWay() {
+      var box = document.createElement("textarea");
+      box.value = text;
+      box.setAttribute("readonly", "");
+      box.style.position = "fixed";
+      box.style.top = "-1000px";
+      document.body.appendChild(box);
+      box.select();
+      box.setSelectionRange(0, text.length);
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (error) { ok = false; }
+      document.body.removeChild(box);
+      done(ok);
+    }
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(function () { done(true); }, oldWay);
+      return;
+    }
+    oldWay();
+  }
+
   function modal(title, bodyNode, buttons, options) {
     modalStack.push({ title: title, body: bodyNode, buttons: buttons || [], options: options || {} });
     return renderModal();
@@ -138,6 +176,7 @@ var UI = (function () {
     var wrap = qs("#modal");
     if (!modalStack.length) {
       wrap.classList.add("hidden");
+      document.body.classList.remove("has-modal");
       clear(qs("#modal-body"));
       return wrap;
     }
@@ -177,6 +216,10 @@ var UI = (function () {
       }));
     });
     wrap.classList.remove("hidden");
+    // Printing a voucher printed the screen behind it as well, which is why a
+    // one page bill came out of the printer as two. The body carries a mark
+    // while a panel is open and the print stylesheet hides everything else.
+    document.body.classList.add("has-modal");
     var focusTarget = card.querySelector("input:not([readonly]), select, textarea");
     if (focusTarget) { setTimeout(function () { focusTarget.focus(); }, 40); }
     return wrap;
@@ -723,9 +766,131 @@ var UI = (function () {
     return wrap;
   }
 
+  /* Exporting what is on the screen to Excel.
+
+     The table that is being looked at is read straight out of the page, so
+     every screen gets an export without every screen having to be taught how.
+     Amounts go across as numbers rather than as the text "1,23,456.78", which
+     is what lets them add up once they are in Excel.
+
+     The workbook comes back as text and is turned into a file here, because
+     when the whole engine is running inside the browser there is no web server
+     to hand a download over. */
+
+  function tableToSheet(table, name, titleLines) {
+    var widths = [];
+    var columns = [];
+    var rows = [];
+
+    function cellsOf(tr) {
+      return Array.prototype.slice.call(tr.querySelectorAll("td, th"));
+    }
+    function readNumber(node) {
+      var raw = (node.getAttribute("data-value") || node.textContent || "").trim();
+      if (!raw) { return null; }
+      var cleaned = raw.replace(/,/g, "").replace(/\u2212/g, "-");
+      var bracketed = /^\((.*)\)$/.exec(cleaned);
+      if (bracketed) { cleaned = "-" + bracketed[1]; }
+      if (!/^-?\d*\.?\d+$/.test(cleaned)) { return null; }
+      return parseFloat(cleaned);
+    }
+
+    var headRow = table.querySelector("thead tr:last-child");
+    if (headRow) {
+      cellsOf(headRow).forEach(function (cell) {
+        columns.push(cell.textContent.trim());
+        widths.push(Math.max(10, Math.min(46, cell.textContent.trim().length + 4)));
+      });
+    }
+
+    ["tbody", "tfoot"].forEach(function (part) {
+      qsa(part + " tr", table).forEach(function (tr) {
+        if (tr.classList.contains("no-print")) { return; }
+        var total = tr.classList.contains("total-row") || tr.classList.contains("grand-row")
+                    || part === "tfoot";
+        var out = [];
+        cellsOf(tr).forEach(function (cell, index) {
+          var text = cell.textContent.trim().replace(/\s+/g, " ");
+          var number = cell.classList.contains("num") ? readNumber(cell) : null;
+          if (number !== null) {
+            out.push({ v: number, s: total ? "total" : "money" });
+          } else {
+            out.push({ v: text, s: total ? "head" : null });
+          }
+          var need = Math.max(10, Math.min(46, text.length + 4));
+          if (widths[index] === undefined || widths[index] < need) { widths[index] = need; }
+        });
+        rows.push(out);
+      });
+    });
+
+    return { name: name, columns: columns, rows: rows, widths: widths,
+             title: titleLines || [] };
+  }
+
+  function download(filename, base64) {
+    var binary = atob(base64);
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i += 1) { bytes[i] = binary.charCodeAt(i); }
+    var blob = new Blob([bytes], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+
+  function exportToExcel(scope, filename, titleLines) {
+    var tables = scope
+      ? (scope.tagName === "TABLE" ? [scope] : qsa("table", scope))
+      : qsa("#page table");
+    tables = tables.filter(function (t) { return t.querySelector("tbody tr"); });
+    if (!tables.length) {
+      flash("There is nothing on this screen to export yet.", "warn");
+      return;
+    }
+    var sheets = tables.map(function (table, index) {
+      var heading = table.getAttribute("data-sheet")
+        || (tables.length > 1 ? "Sheet " + (index + 1) : (filename || "Sheet"));
+      return tableToSheet(table, heading, index === 0 ? titleLines : []);
+    });
+    flash("Building the workbook.", "good");
+    return api("/api/export/xlsx", { body: { filename: filename || "Chartered Book",
+                                             sheets: sheets } })
+      .then(function (result) {
+        download(result.filename, result.content);
+        flash("Saved " + result.filename + " to your downloads.", "good");
+      })
+      .catch(function (error) { flash(error.message || "The export did not work.", "bad"); });
+  }
+
+  function exportButton(scope, filename, titleLines) {
+    return el("button.secondary.no-print", { text: "Export to Excel", onclick: function () {
+      // With nothing said, take the name and the heading off the screen
+      // itself, so a new screen gets a sensible file name for free.
+      var title = qs("#page-title");
+      var head = qs("#page .report-head");
+      var lines = titleLines;
+      if (!lines && head) {
+        lines = qsa(".company, .title, .period", head)
+          .map(function (node) { return node.textContent.trim(); })
+          .filter(Boolean);
+      }
+      exportToExcel(typeof scope === "function" ? scope() : scope,
+                    filename || (title ? title.textContent.trim() : "Chartered Book"),
+                    lines || []);
+    } });
+  }
+
   function printPage() { window.print(); }
 
   return {
+    copyText: copyText, exportToExcel: exportToExcel,
+    exportButton: exportButton,
     el: el, clear: clear, qs: qs, qsa: qsa, api: api, flash: flash,
     modal: modal, closeModal: closeModal, closeAllModals: closeAllModals,
     modalDepth: modalDepth, confirmAction: confirmAction, promptText: promptText,

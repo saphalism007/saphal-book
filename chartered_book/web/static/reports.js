@@ -41,7 +41,8 @@ var Reports = (function () {
       options.singleDate ? null : UI.field("To", toField),
       UI.field("Quick pick", quick),
       el("div.spacer"),
-      el("button.secondary.no-print", { text: "Print", onclick: UI.printPage })
+      el("button.secondary.no-print", { text: "Print", onclick: UI.printPage }),
+      UI.exportButton()
     ]);
     bar.from = fromField;
     bar.to = toField;
@@ -557,7 +558,8 @@ var Reports = (function () {
         UI.field("Bikram Sambat year", yearInput),
         UI.field("Month", monthSelect),
         el("div.spacer"),
-        el("button.secondary.no-print", { text: "Print", onclick: UI.printPage })
+        el("button.secondary.no-print", { text: "Print", onclick: UI.printPage }),
+      UI.exportButton()
       ])
     ]));
     page.appendChild(box);
@@ -985,7 +987,8 @@ App.register("statement", function (page) {
   page.appendChild(el("div.card", {}, [
     el("div.card-head", {}, [
       el("h2", { text: "Statement of account" }),
-      el("button.secondary.no-print", { text: "Print", onclick: UI.printPage })
+      el("button.secondary.no-print", { text: "Print", onclick: UI.printPage }),
+      UI.exportButton()
     ]),
     el("div.toolbar", {}, [
       el("div.field", { style: "flex:1 1 260px;margin:0" }, [

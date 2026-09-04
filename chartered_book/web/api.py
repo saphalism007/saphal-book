@@ -1278,6 +1278,60 @@ def discount_note(request):
     return statements.discount_note(conn, from_ad, to_ad, compare)
 
 
+@route("POST", "/api/export/xlsx")
+def export_xlsx(request):
+    """
+    Turn whatever is on the screen into an Excel workbook.
+
+    The screen sends the table it is showing, so whatever can be looked at can
+    be exported: a report, a register, a ledger, a list of entries. Amounts
+    arrive as numbers and stay numbers, so they add up in Excel instead of
+    sitting there as text with commas in them.
+
+    The file comes back as text rather than as a download, because the same
+    call has to work when the whole engine is running inside the browser with no
+    web server underneath it at all. The screen turns it back into a file.
+    """
+    import base64
+    from ..core import spreadsheet
+
+    request.require_user()
+    sheets = []
+    for raw in request.body.get("sheets") or []:
+        columns = [max(9, min(48, int(width or 14))) for width in (raw.get("widths") or [])]
+        sheet = spreadsheet.Sheet(raw.get("name") or "Sheet", columns)
+        for line in raw.get("title") or []:
+            if line:
+                sheet.add([(line, spreadsheet.STYLE_TITLE)])
+        if raw.get("title"):
+            sheet.blank()
+        headings = raw.get("columns") or []
+        if headings:
+            sheet.add([(head, spreadsheet.STYLE_HEADING) for head in headings])
+        for row in raw.get("rows") or []:
+            cells = []
+            for cell in row:
+                if isinstance(cell, dict):
+                    value = cell.get("v")
+                    style = {"money": spreadsheet.STYLE_MONEY,
+                             "qty": spreadsheet.STYLE_QUANTITY,
+                             "date": spreadsheet.STYLE_DATE,
+                             "total": spreadsheet.STYLE_TOTAL,
+                             "head": spreadsheet.STYLE_HEADING}.get(cell.get("s"))
+                    cells.append((value, style))
+                else:
+                    cells.append((cell, None))
+            sheet.add(cells)
+        sheets.append(sheet)
+
+    if not sheets:
+        raise ApiError("There is nothing on this screen to export.")
+    data = spreadsheet.build(sheets)
+    return {"filename": (request.body.get("filename") or "Chartered Book") + ".xlsx",
+            "content": base64.b64encode(data).decode("ascii"),
+            "bytes": len(data)}
+
+
 # Returns, notes and stock adjustments
 
 

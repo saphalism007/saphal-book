@@ -411,7 +411,7 @@ def get_voucher(conn, voucher_id):
            WHERE e.voucher_id = ? ORDER BY e.line_no""", (voucher_id,)).fetchall()
     items = conn.execute(
         """SELECT vi.*, i.code AS item_code, i.name AS item_name, i.name_np AS item_name_np,
-                  u.symbol AS unit_symbol
+                  i.hs_code AS hs_code, u.symbol AS unit_symbol
            FROM voucher_items vi JOIN items i ON i.id = vi.item_id
            LEFT JOIN units u ON u.id = vi.unit_id
            WHERE vi.voucher_id = ? ORDER BY vi.line_no""", (voucher_id,)).fetchall()

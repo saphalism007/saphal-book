@@ -544,7 +544,18 @@ var App = (function () {
 
   function go(key) {
     state.route = key;
+    // Repainting the menu rebuilds it, which threw away where it was scrolled
+    // to. Anybody working in Financial statements, which sits near the bottom,
+    // was sent back to the top of the list on every single click.
+    var nav = qs("#nav");
+    var navScroll = nav ? nav.scrollTop : 0;
+    var rail = UI.qs(".sidebar");
+    var railScroll = rail ? rail.scrollTop : 0;
     paintChrome();
+    nav = qs("#nav");
+    if (nav) { nav.scrollTop = navScroll; }
+    rail = UI.qs(".sidebar");
+    if (rail) { rail.scrollTop = railScroll; }
     UI.qs(".sidebar").classList.remove("open");
     var page = UI.clear(qs("#page"));
     var builder = SCREENS[key];
@@ -1277,7 +1288,12 @@ var App = (function () {
           ? el("div", {}, [
               el("p.card-note", { text: "On the phone or tablet, open the browser and type "
                 + "this address. It only has to be typed once." }),
-              el("div.address", {}, [el("code", { text: net.urls[0].replace(/\/$/, "") })]),
+              el("div.address", {}, [
+                el("code", { text: net.urls[0].replace(/\/$/, "") }),
+                el("button.secondary", { text: "Copy", onclick: function (event) {
+                  UI.copyText(net.urls[0].replace(/\/$/, ""), event.currentTarget);
+                } })
+              ]),
               net.urls.length > 1
                 ? el("p.card-note", { text: "If that one does not work, try: "
                     + net.urls.slice(1).map(function (u) { return u.replace(/\/$/, ""); }).join("   ") })

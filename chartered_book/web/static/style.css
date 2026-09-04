@@ -861,7 +861,11 @@ tr.is-cleared:hover td { background: var(--good-soft); }
   font-family: var(--num); font-size: 1.6rem; font-weight: 650; color: var(--brand-ink);
   letter-spacing: -.01em; word-break: break-all;
   font-variant-numeric: tabular-nums lining-nums;
+  /* Selectable by hand as well as by the button, because on a phone holding a
+     finger on it is often the quickest way. */
+  user-select: all; -webkit-user-select: all;
 }
+.address button { margin-top: .6rem; }
 @media (max-width: 600px) { .address code { font-size: 1.1rem; } }
 
 /* Install banner */
@@ -891,12 +895,22 @@ tr.is-cleared:hover td { background: var(--good-soft); }
   tbody tr:hover, tbody tr.clickable:hover { background: none; }
   tr.group-row td { background: #eee; color: #000; }
   tr.total-row td, tfoot td { background: #f4f4f4; }
+  /* One voucher on the printer means one voucher on the paper. With a panel
+     open, the screen behind it is not part of the document. */
+  body.has-modal .shell { display: none !important; }
+  body.has-modal #modal { display: block !important; }
   .modal { position: static; background: none; padding: 0; display: block; }
   .modal-card { max-width: none; max-height: none; box-shadow: none; animation: none; }
   .modal-head { border: 0; padding: 0 0 .4rem; }
   .modal-body { padding: 0; overflow: visible; }
   .tile { break-inside: avoid; }
-  @page { margin: 12mm; }
+  /* Use the whole sheet. A bill that sits in the top third of an A4 page and
+     leaves the rest white looks like a receipt from a cash machine. */
+  .doc-sheet { width: 100%; }
+  .doc-table { width: 100%; }
+  .doc-table tbody tr { break-inside: avoid; }
+  .doc-foot { break-inside: avoid; }
+  @page { margin: 12mm; size: A4; }
 }
 
 /* Narrow screens: phones and tablets, which matter now that the books can be
@@ -946,4 +960,17 @@ tr.is-cleared:hover td { background: var(--good-soft); }
   tbody td { padding: .5rem .55rem; }
   .icon-button { width: 34px; height: 34px; }
   .primary, .secondary, .ghost, .danger { padding: .55rem 1rem; }
+}
+
+/* The double entry printed under a voucher. Set a little away from the
+   document above it, and never split across two sheets if it can be helped. */
+
+.doc-entries { margin-top: 1rem; break-inside: avoid; }
+.doc-subtitle {
+  font-size: .72rem; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--ink-faint);
+  border-top: 1px solid var(--line); padding-top: .5rem; margin-bottom: .35rem;
+}
+@media print {
+  .doc-subtitle { color: #000; border-top: 1px solid #000; }
 }

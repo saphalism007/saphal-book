@@ -789,7 +789,8 @@ var Vouchers = (function () {
     page.appendChild(el("div.card", {}, [
       el("div.card-head", {}, [
         el("h2", { text: "Day book" }),
-        el("button.secondary.no-print", { text: "Print", onclick: UI.printPage })
+        el("button.secondary.no-print", { text: "Print", onclick: UI.printPage }),
+      UI.exportButton()
       ]),
       el("div.toolbar", {}, [
         UI.field("From", fromField), UI.field("To", toField),
@@ -829,6 +830,45 @@ var Vouchers = (function () {
       UI.modal(data.voucher.number, body, buttons, { wide: true });
       if (printNow) { setTimeout(UI.printPage, 400); }
     }).catch(function (error) { UI.flash(error.message, "bad"); });
+  }
+
+  /* The double entry behind a voucher, laid out the way a journal is read.
+
+     This goes on every printed voucher, whatever kind it is, so a purchase
+     bill, a receipt and a contra all come off the printer in the same shape. */
+
+  function entryTable(data, heading) {
+    var rows = data.entries.map(function (entry) {
+      return el("tr", {}, [
+        el("td", { text: entry.account_code }),
+        el("td", {}, [
+          el("div", { text: entry.account_name }),
+          entry.narration
+            ? el("div", { text: entry.narration,
+                          style: "font-size:.76rem;color:var(--ink-faint)" })
+            : null
+        ]),
+        el("td.num", { text: entry.dr_paisa ? UI.rs(entry.dr_paisa) : "" }),
+        el("td.num", { text: entry.cr_paisa ? UI.rs(entry.cr_paisa) : "" })
+      ]);
+    });
+    var totalDr = data.entries.reduce(function (sum, e) { return sum + e.dr_paisa; }, 0);
+    var totalCr = data.entries.reduce(function (sum, e) { return sum + e.cr_paisa; }, 0);
+    return el("div.doc-entries", {}, [
+      heading ? el("div.doc-subtitle", { text: heading }) : null,
+      el("div.table-wrap", {}, [el("table.doc-table", {}, [
+        el("thead", {}, [el("tr", {}, [
+          el("th", { text: "Code" }), el("th", { text: "Ledger" }),
+          el("th.num", { text: "Debit" }), el("th.num", { text: "Credit" })
+        ])]),
+        el("tbody", {}, rows),
+        el("tfoot", {}, [el("tr.total-row", {}, [
+          el("td", { colspan: "2", text: "Total" }),
+          el("td.num", { text: UI.rs(totalDr) }),
+          el("td.num", { text: UI.rs(totalCr) })
+        ])])
+      ])])
+    ]);
   }
 
   function renderVoucher(data) {
@@ -905,6 +945,9 @@ var Vouchers = (function () {
 
     var content;
     if (isInvoice) {
+      // The Harmonised System heading is only worth a column when the goods
+      // actually carry one. An empty column on every bill helps nobody.
+      var anyHsCode = data.items.some(function (item) { return item.hs_code; });
       var itemRows = data.items.map(function (item, index) {
         return el("tr", {}, [
           el("td.mid", { text: String(index + 1) }),
@@ -912,6 +955,7 @@ var Vouchers = (function () {
             el("div", { text: item.item_name }),
             item.description ? el("div", { text: item.description, style: "font-size:.76rem;color:var(--ink-faint)" }) : null
           ]),
+          anyHsCode ? el("td.mid", { text: item.hs_code || "" }) : null,
           el("td.num", { text: NP.formatQty(item.qty) + " " + (item.unit_symbol || "") }),
           el("td.num", { text: UI.rs(item.rate_paisa) }),
           el("td.num", { text: (item.discount_paisa + (item.bill_discount_paisa || 0))
@@ -924,7 +968,8 @@ var Vouchers = (function () {
       var footRows = [];
       function totalRow(label, value, strong) {
         footRows.push(el("tr" + (strong ? ".total-row" : ""), {}, [
-          el("td", { colspan: "7", text: label, style: "text-align:right" }),
+          el("td", { colspan: anyHsCode ? "8" : "7", text: label,
+                     style: "text-align:right" }),
           el("td.num", { text: UI.rs(value) })
         ]));
       }
@@ -948,6 +993,7 @@ var Vouchers = (function () {
         el("div.table-wrap", {}, [el("table.doc-table", {}, [
           el("thead", {}, [el("tr", {}, [
             el("th.mid", { text: "SN" }), el("th", { text: "Particulars" }),
+            anyHsCode ? el("th.mid", { text: "HS code" }) : null,
             el("th.num", { text: "Quantity" }), el("th.num", { text: "Rate" }),
             el("th.num", { text: "Discount" }), el("th.num", { text: "Taxable" }),
             el("th.num", { text: "VAT" }), el("th.num", { text: "Amount" })
@@ -958,32 +1004,13 @@ var Vouchers = (function () {
         showWords ? el("p.in-words", { text: "In words: " + data.in_words }) : null,
         showWords ? el("p.in-words", { text: data.in_words_np }) : null
       ]);
+      // Every voucher shows the entry it made, an invoice included. An
+      // accountant checking a bill wants to see which ledgers moved and by how
+      // much, not only what the customer was charged.
+      content.appendChild(entryTable(data, "How it was posted"));
     } else {
-      var entryRows = data.entries.map(function (entry) {
-        return el("tr", {}, [
-          el("td", { text: entry.account_code }),
-          el("td", {}, [
-            el("div", { text: entry.account_name }),
-            entry.narration ? el("div", { text: entry.narration, style: "font-size:.76rem;color:var(--ink-faint)" }) : null
-          ]),
-          el("td.num", { text: entry.dr_paisa ? UI.rs(entry.dr_paisa) : "" }),
-          el("td.num", { text: entry.cr_paisa ? UI.rs(entry.cr_paisa) : "" })
-        ]);
-      });
-      var totalDr = data.entries.reduce(function (sum, e) { return sum + e.dr_paisa; }, 0);
-      var totalCr = data.entries.reduce(function (sum, e) { return sum + e.cr_paisa; }, 0);
       content = el("div", {}, [
-        el("div.table-wrap", {}, [el("table.doc-table", {}, [
-          el("thead", {}, [el("tr", {}, [
-            el("th", { text: "Code" }), el("th", { text: "Ledger" }),
-            el("th.num", { text: "Debit" }), el("th.num", { text: "Credit" })
-          ])]),
-          el("tbody", {}, entryRows),
-          el("tfoot", {}, [el("tr.total-row", {}, [
-            el("td", { colspan: "2", text: "Total" }),
-            el("td.num", { text: UI.rs(totalDr) }), el("td.num", { text: UI.rs(totalCr) })
-          ])])
-        ])]),
+        entryTable(data, null),
         el("p.in-words", { text: "In words: " + data.in_words })
       ]);
     }
