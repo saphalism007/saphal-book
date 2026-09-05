@@ -67,14 +67,22 @@ var UI = (function () {
 
      In the browser version the accounting engine runs on the same thread as the
      screen, so while it is working the page really is stopped: a tap does
-     nothing, and nothing moves, including anything that spins. It looked like a
-     crash and people pressed the same button again.
+     nothing, and nothing moves, including anything that spins.
 
-     So a plain bar is painted first, and the browser is given one frame to
-     actually put it on the glass before the engine is set going. It does not
-     animate, on purpose, because an animation frozen mid stride looks worse
-     than a line of text that was never going to move. */
+     The first attempt at this waited two animation frames before every single
+     call so the bar was certain to be on the glass first. That was wrong twice
+     over. It put thirty milliseconds on the front of every call including the
+     ones that take half of one, which is what turned moving between screens
+     into a crawl. And requestAnimationFrame does not fire at all in a tab that
+     is not on screen, so a call made by a background tab waited for ever.
 
+     So: no animation frames, and no bar unless it is earned. How long each
+     address took last time is remembered, and only the ones that were actually
+     slow get a bar and a yield to paint it. A screen made of quick calls now
+     costs nothing at all. */
+
+  var SLOW_MS = 220;
+  var lastTook = {};
   var busyDepth = 0;
   var busyBar = null;
 
@@ -84,15 +92,14 @@ var UI = (function () {
       busyBar = el("div.busy", { text: "Working" });
       document.body.appendChild(busyBar);
     } else if (!busyDepth && busyBar) {
-      busyBar.parentNode.removeChild(busyBar);
+      if (busyBar.parentNode) { busyBar.parentNode.removeChild(busyBar); }
       busyBar = null;
     }
   }
 
-  function nextFrame() {
-    return new Promise(function (resolve) {
-      requestAnimationFrame(function () { requestAnimationFrame(resolve); });
-    });
+  // A yield the browser honours whether or not the tab is on screen.
+  function yieldOnce() {
+    return new Promise(function (resolve) { setTimeout(resolve, 0); });
   }
 
   function api(path, options) {
@@ -119,17 +126,33 @@ var UI = (function () {
         Object.keys(extra).forEach(function (k) { query[k] = extra[k]; });
         Object.keys(options.query).forEach(function (k) { query[k] = options.query[k]; });
       }
-      showBusy(true);
-      return nextFrame().then(function () {
+      var slow = (lastTook[address] || 0) > SLOW_MS;
+      var began = 0;
+
+      function go() {
+        began = (window.performance ? performance.now() : Date.now());
         return window.CB.call(method, address, query, options.body);
-      }).then(function (answer) {
-        showBusy(false);
+      }
+      function done() {
+        var took = (window.performance ? performance.now() : Date.now()) - began;
+        lastTook[address] = took;
+        if (slow) { showBusy(false); }
+      }
+
+      if (!slow) {
+        return go().then(function (answer) {
+          done();
+          wroteSomething(address, method);
+          return answer;
+        }, function (error) { done(); throw error; });
+      }
+
+      showBusy(true);
+      return yieldOnce().then(go).then(function (answer) {
+        done();
         wroteSomething(address, method);
         return answer;
-      }, function (error) {
-        showBusy(false);
-        throw error;
-      });
+      }, function (error) { done(); throw error; });
     }
 
     var config = {

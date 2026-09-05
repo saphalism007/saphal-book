@@ -1759,6 +1759,22 @@ def cloud_sign_in(request):
                        request.body.get("password", ""), False)
 
 
+@route("POST", "/api/device-name")
+def rename_device(request):
+    """
+    Name this device.
+
+    It matters more than it sounds. When the same books have been changed in
+    two places, the only thing distinguishing the two copies on screen is what
+    the devices are called, and a household with two iPads would otherwise be
+    asked to choose between two answers with identical names.
+    """
+    from ..modules import sync
+    request.require_user()
+    name = sync.set_device_name(request.system, request.arg("name") or "")
+    return {"ok": True, "device": name or sync.device_name(request.system)}
+
+
 @route("POST", "/api/cloud/sign-out")
 def cloud_sign_out(request):
     request.require_user()

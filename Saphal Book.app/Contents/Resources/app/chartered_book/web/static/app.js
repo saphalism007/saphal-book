@@ -1643,8 +1643,26 @@ var App = (function () {
               }, "Sign out");
           }})
         ]),
-        el("p.card-note", { text: "This device is called " + state.device
-          + ". Your other devices are shown that name when they are told who wrote last." })
+        el("p.card-note", {}, [
+          el("span", { text: "This device is called " }),
+          el("strong", { text: state.device }),
+          el("span", { text: ". Your other devices are shown that name when they are "
+            + "told who wrote last.  " }),
+          el("button.link-button", { text: "Rename", onclick: function () {
+            UI.promptText("What should this device be called?",
+              "Something you will recognise on another screen, like Shop counter "
+              + "or Saphal iPad.",
+              function (name) {
+                if (!(name || "").trim()) { return; }
+                return api("/api/device-name", { body: { name: name } })
+                  .then(function (result) {
+                    UI.flash("This device is now called " + result.device + ".", "good");
+                    return reload();
+                  })
+                  .catch(function (error) { UI.flash(error.message, "bad"); });
+              }, { value: state.device });
+          }})
+        ])
       ]);
     }
 

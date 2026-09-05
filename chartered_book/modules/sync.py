@@ -32,26 +32,68 @@ class SyncError(Exception):
     """Raised when books cannot be sent or brought back."""
 
 
-def device_name():
-    """Something a person will recognise when told which device wrote last."""
+DEVICE_NAME_KEY = "device_name"
+
+
+def set_device_name(system, name):
+    """Give this device a name a person chose."""
+    name = (name or "").strip()[:60]
+    system.execute(
+        "INSERT INTO app_settings (key, value) VALUES (?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        (DEVICE_NAME_KEY, name))
+    system.commit()
+    return name
+
+
+def device_name(system=None):
+    """
+    Something a person will recognise when told which device wrote last.
+
+    Three places to look, in this order.
+
+    A name somebody typed wins, because they know their own devices better than
+    any guess. Then whatever the browser was able to say about itself, which is
+    how a tablet comes to be called Safari on iPad. Only then the machine's own
+    name, which is right on a computer and useless in a browser: inside the
+    accounting engine every browser in the world calls itself emscripten, so
+    two devices both ended up named the same thing and a person being asked
+    which copy to keep was offered the same answer twice.
+    """
+    import os
     import platform
+
+    if system is not None:
+        try:
+            row = system.execute("SELECT value FROM app_settings WHERE key = ?",
+                                 (DEVICE_NAME_KEY,)).fetchone()
+            if row and (row["value"] or "").strip():
+                return row["value"].strip()
+        except Exception:                                           # noqa: BLE001
+            pass
+
+    told = (os.environ.get("SAPHAL_DEVICE") or "").strip()
+    if told:
+        return told[:60]
+
     name = ""
     try:
         node = platform.node().strip()
-        # A machine whose name is an address, which happens on a network that
-        # hands them out, tells nobody anything. Better to say nothing than to
-        # report that the books were last written by "192".
         head = node.split(".")[0]
-        if node and not node.replace(".", "").isdigit():
+        # A machine whose name is an address, which happens on a network that
+        # hands them out, tells nobody anything. And emscripten is the name the
+        # engine gives itself in every browser, so it identifies nothing.
+        if node and not node.replace(".", "").isdigit() and head.lower() != "emscripten":
             name = head
-    except Exception:
+    except Exception:                                               # noqa: BLE001
         name = ""
-    system = platform.system()
-    if system == "Darwin":
-        system = "Mac"
-    elif system == "Windows":
-        system = "Windows"
-    return ("%s, %s" % (name, system)).strip(", ").strip() or "this device"
+
+    kind = platform.system()
+    if kind == "Darwin":
+        kind = "Mac"
+    elif kind.lower() == "emscripten":
+        kind = ""
+    return ("%s, %s" % (name, kind)).strip(", ").strip() or "this device"
 
 
 def _snapshot(slug):
@@ -181,7 +223,7 @@ def status(system, session):
             held.pop(cloud.book_fingerprint(session.master_key, name), None)
     strangers = len(held)
     return {"books": out, "waiting_elsewhere": strangers,
-            "device": device_name(),
+            "device": device_name(system),
             "username": session.username if session and session.signed_in() else ""}
 
 
@@ -212,10 +254,10 @@ def send_up(system, session, slug, decided=False):
 
     data = _snapshot(slug)
     row = system.execute("SELECT name FROM companies WHERE slug = ?", (slug,)).fetchone()
-    version = session.push(slug, data, expected, device=device_name(),
+    version = session.push(slug, data, expected, device=device_name(system),
                            name=row["name"] if row else slug)
     _remember(system, slug, version=version, last_sent_at=db.now_stamp(),
-              last_device=device_name(), last_hash=fingerprint(slug))
+              last_device=device_name(system), last_hash=fingerprint(slug))
     return {"slug": slug, "version": version, "size": len(data)}
 
 

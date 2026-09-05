@@ -96,6 +96,40 @@ window.CB = (function () {
     });
   }
 
+  // What to call this device.
+  //
+  // Inside the engine every browser in the world calls itself emscripten, so
+  // two devices signed in to the same account were both named "emscripten,
+  // Emscripten" and a person being asked which copy to keep was offered the
+  // same answer twice. The browser knows better than the engine does, so it
+  // says. Whatever is chosen here is only a starting point: it can be renamed,
+  // and a name somebody typed always wins.
+  function deviceName() {
+    var ua = navigator.userAgent || "";
+    var where = "this browser";
+    if (/iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) {
+      where = "iPad";
+    } else if (/iPhone/.test(ua)) { where = "iPhone"; }
+    else if (/Android/.test(ua)) { where = /Mobile/.test(ua) ? "Android phone" : "Android tablet"; }
+    else if (/Macintosh|Mac OS X/.test(ua)) { where = "Mac"; }
+    else if (/Windows/.test(ua)) { where = "Windows"; }
+    else if (/CrOS/.test(ua)) { where = "Chromebook"; }
+    else if (/Linux/.test(ua)) { where = "Linux"; }
+
+    var browser = "";
+    if (/Edg\//.test(ua)) { browser = "Edge"; }
+    else if (/OPR\//.test(ua)) { browser = "Opera"; }
+    else if (/Firefox\//.test(ua)) { browser = "Firefox"; }
+    else if (/Chrome\//.test(ua)) { browser = "Chrome"; }
+    else if (/Safari\//.test(ua)) { browser = "Safari"; }
+
+    // A page kept with the other apps is not "Safari on iPad", it is the app.
+    var installed = window.matchMedia
+      && window.matchMedia("(display-mode: standalone)").matches;
+    if (installed || window.navigator.standalone) { return "Saphal Book on " + where; }
+    return browser ? browser + " on " + where : where;
+  }
+
   // Keep the engine on the device.
   //
   // The service worker will store whatever passes through it, but on the first
@@ -160,7 +194,7 @@ window.CB = (function () {
       });
 
       step("Unpacking Saphal Book", 0.75);
-      var response = await fetch("chartered_book.zip?v=53b98a89b8fa",
+      var response = await fetch("chartered_book.zip?v=8213fb475768",
                                  { cache: "no-cache" });
       if (!response.ok) { throw new Error("the engine file is missing"); }
       var buffer = await response.arrayBuffer();
@@ -170,6 +204,7 @@ window.CB = (function () {
       pyodide.runPython(
         "import os, sys\n" +
         "os.environ['CHARTERED_BOOK_DATA'] = '" + BOOKS + "'\n" +
+        "os.environ['SAPHAL_DEVICE'] = " + JSON.stringify(deviceName()) + "\n" +
         "sys.path.insert(0, '/')\n" +
         "from chartered_book.web import embedded\n"
       );
