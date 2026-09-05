@@ -238,10 +238,26 @@ def set_destinations(system_conn, folders):
         if not folder:
             continue
         if not os.path.isdir(folder):
-            problems.append("%s is not a folder on this computer." % folder)
-            continue
-        if not os.access(folder, os.W_OK):
-            problems.append("%s cannot be written to." % folder)
+            # A folder that is not there yet is not a mistake. Somebody naming
+            # where they want the copies kept expects it to be made for them.
+            parent = os.path.dirname(folder.rstrip(os.sep))
+            if not os.path.isdir(parent):
+                problems.append("%s is not a folder on this computer." % folder)
+                continue
+            try:
+                os.makedirs(folder)
+            except OSError as exc:
+                problems.append("%s could not be made. %s" % (folder, exc))
+                continue
+        # Actually put a file there and take it away again, rather than asking
+        # the operating system whether it thinks we could. A folder that lives
+        # on a cloud service is not a real disk and will happily say yes and
+        # then refuse, which is how somebody gets told their own Drive cannot be
+        # written to when the truth is that only its top level cannot.
+        if not _writable(folder):
+            problems.append(
+                "%s cannot be written to. If this is Google Drive, choose the folder "
+                "inside it rather than the account itself." % folder)
             continue
         cleaned.append(folder)
     system_conn.execute(
@@ -255,6 +271,11 @@ def copy_to_destinations(zip_path, folders):
     results = []
     for folder in folders or []:
         try:
+            # Make the folder if it is not there. A cloud folder chosen from the
+            # list has a name of ours on the end, so the backups sit together
+            # instead of loose among somebody's own files.
+            if not os.path.isdir(folder):
+                os.makedirs(folder)
             target = os.path.join(folder, os.path.basename(zip_path))
             shutil.copy2(zip_path, target)
             results.append({"folder": folder, "ok": True, "message": "Copied."})
@@ -263,8 +284,44 @@ def copy_to_destinations(zip_path, folders):
     return results
 
 
+def _writable(path):
+    """Whether a folder will actually accept a file, rather than merely existing."""
+    probe = os.path.join(path, ".saphal-book-write-test")
+    try:
+        with open(probe, "w") as handle:
+            handle.write("")
+        os.remove(probe)
+        return True
+    except OSError:
+        return False
+
+
+def _usable_inside(path):
+    """
+    The folder a cloud service really wants files put into.
+
+    Google Drive mounts its account folder read only and keeps the writable part
+    one level down, in My Drive. Offering the folder that exists rather than the
+    folder that works is how somebody ends up being told their own Drive cannot
+    be written to.
+    """
+    if _writable(path):
+        return path
+    for inside in ("My Drive", "MyDrive", "Documents"):
+        candidate = os.path.join(path, inside)
+        if os.path.isdir(candidate) and _writable(candidate):
+            return candidate
+    return None
+
+
 def likely_cloud_folders():
-    """Folders on this machine that a cloud service keeps in step with the internet."""
+    """
+    Folders on this machine that a cloud service keeps in step with the internet.
+
+    Only folders that can genuinely be written to are offered. A folder that
+    cannot take a file is not a place to keep a backup, however promising its
+    name, and offering it only wastes somebody's afternoon.
+    """
     home = os.path.expanduser("~")
     candidates = [
         ("Google Drive", os.path.join(home, "Google Drive")),
@@ -277,6 +334,16 @@ def likely_cloud_folders():
     ]
     found = []
     seen = set()
+
+    def offer(label, path):
+        usable = _usable_inside(path)
+        if usable and usable not in seen:
+            seen.add(usable)
+            # A folder of our own inside it, so a year of backups does not end
+            # up scattered through somebody's Drive.
+            found.append({"label": label,
+                          "path": os.path.join(usable, "Saphal Book backups")})
+
     for label, path in candidates:
         if not os.path.isdir(path) or path in seen:
             continue
@@ -286,11 +353,10 @@ def likely_cloud_folders():
             try:
                 for entry in sorted(os.listdir(path)):
                     full = os.path.join(path, entry)
-                    if os.path.isdir(full) and full not in seen:
-                        seen.add(full)
-                        found.append({"label": entry, "path": full})
+                    if os.path.isdir(full):
+                        offer(entry, full)
             except OSError:
                 pass
             continue
-        found.append({"label": label, "path": path})
+        offer(label, path)
     return found
