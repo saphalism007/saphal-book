@@ -170,6 +170,15 @@ def status(system, session):
 
     # Books the server carries that this device has never seen. Their names are
     # inside the locked file, so all that can be said is that they are there.
+    #
+    # What is left in hand at this point is everything the account carries that
+    # this device could not account for, and not all of it is books. The Google
+    # connection is filed the same way, so it was counted as a set of books
+    # waiting, and a device with three companies on the server offered to bring
+    # down four. Its fingerprint can be worked out here rather than fetched.
+    if session and session.signed_in():
+        for name in cloud.RESERVED_SLUGS:
+            held.pop(cloud.book_fingerprint(session.master_key, name), None)
     strangers = len(held)
     return {"books": out, "waiting_elsewhere": strangers,
             "device": device_name(),
@@ -247,6 +256,18 @@ def bring_new(system, session):
     list from the server carries fingerprints and a fingerprint cannot be turned
     back into a name. The name is inside the locked file, so each one is fetched,
     opened, and only then does the device learn what it has.
+
+    Two things it has to survive.
+
+    Not everything the account carries is a set of books. The Google connection
+    travels the same way and is filed in the same place, and a tablet that tried
+    to open it as books said it was not a set of books and stopped, which is how
+    a device with four companies waiting on the server ended up with none. Those
+    are recognised and passed over without being fetched at all.
+
+    And one bad row must not cost the rest. Anything that will not open is noted
+    and the loop carries on, so three good sets of books arrive even when a
+    fourth is unreadable, and the person is told which one it was.
     """
     if not session or not session.signed_in():
         raise SyncError("Sign in to your account first.")
@@ -254,16 +275,34 @@ def bring_new(system, session):
 
     mine = {cloud.book_fingerprint(session.master_key, row["slug"])
             for row in system.execute("SELECT slug FROM companies")}
-    brought = []
+    # Things kept under the account that are not books. Their fingerprints can
+    # be worked out here, so they never have to be fetched to be recognised.
+    reserved = {cloud.book_fingerprint(session.master_key, name)
+                for name in cloud.RESERVED_SLUGS}
+
+    brought, skipped = [], []
     for row in session.list_books():
-        if row["book_id"] in mine:
+        book_id = row["book_id"]
+        if book_id in mine or book_id in reserved:
             continue
-        got = session.fetch_by_id(row["book_id"])
+        try:
+            got = session.fetch_by_id(book_id)
+        except cloud.CloudError as exc:
+            skipped.append({"slug": "", "why": str(exc)})
+            continue
         if got is None:
             continue
-        brought.append(_install(system, got["slug"], got["data"], got["version"],
-                                got.get("device", "")))
-    return {"brought": brought, "count": len(brought)}
+        # An older device may have filed something that is not books without
+        # marking it, so the name it comes back with is checked too.
+        if cloud.is_reserved(got["slug"]):
+            continue
+        try:
+            brought.append(_install(system, got["slug"], got["data"], got["version"],
+                                    got.get("device", "")))
+        except SyncError as exc:
+            skipped.append({"slug": got["slug"], "why": str(exc)})
+    return {"brought": brought, "count": len(brought),
+            "skipped": skipped, "skipped_count": len(skipped)}
 
 
 def bring_down(system, session, slug, expect_name=""):

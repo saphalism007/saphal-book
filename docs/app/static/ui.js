@@ -63,6 +63,38 @@ var UI = (function () {
     if (window.App && App.Sync && App.Sync.touched) { App.Sync.touched(); }
   }
 
+  /* Saying that something is happening, in the one place it cannot say so itself.
+
+     In the browser version the accounting engine runs on the same thread as the
+     screen, so while it is working the page really is stopped: a tap does
+     nothing, and nothing moves, including anything that spins. It looked like a
+     crash and people pressed the same button again.
+
+     So a plain bar is painted first, and the browser is given one frame to
+     actually put it on the glass before the engine is set going. It does not
+     animate, on purpose, because an animation frozen mid stride looks worse
+     than a line of text that was never going to move. */
+
+  var busyDepth = 0;
+  var busyBar = null;
+
+  function showBusy(on) {
+    busyDepth = Math.max(0, busyDepth + (on ? 1 : -1));
+    if (busyDepth && !busyBar) {
+      busyBar = el("div.busy", { text: "Working" });
+      document.body.appendChild(busyBar);
+    } else if (!busyDepth && busyBar) {
+      busyBar.parentNode.removeChild(busyBar);
+      busyBar = null;
+    }
+  }
+
+  function nextFrame() {
+    return new Promise(function (resolve) {
+      requestAnimationFrame(function () { requestAnimationFrame(resolve); });
+    });
+  }
+
   function api(path, options) {
     options = options || {};
 
@@ -87,9 +119,16 @@ var UI = (function () {
         Object.keys(extra).forEach(function (k) { query[k] = extra[k]; });
         Object.keys(options.query).forEach(function (k) { query[k] = options.query[k]; });
       }
-      return window.CB.call(method, address, query, options.body).then(function (answer) {
+      showBusy(true);
+      return nextFrame().then(function () {
+        return window.CB.call(method, address, query, options.body);
+      }).then(function (answer) {
+        showBusy(false);
         wroteSomething(address, method);
         return answer;
+      }, function (error) {
+        showBusy(false);
+        throw error;
       });
     }
 
@@ -915,7 +954,7 @@ var UI = (function () {
     attachPicker: attachPicker, hidePicker: hidePicker, placePicker: place,
     dateField: dateField, amountInput: amountInput, evaluate: evaluate,
     setupCalculator: setupCalculator, toggleCalculator: toggleCalculator,
-    rs: rs, money: money, bs: bs, both: both, field: field, select: select, table: table,
+    showBusy: showBusy, rs: rs, money: money, bs: bs, both: both, field: field, select: select, table: table,
     setLang: setLang, getLang: getLang, printPage: printPage, trimNumber: trimNumber,
     getTheme: getTheme, setTheme: setTheme, applyTheme: applyTheme,
     watchSystemTheme: watchSystemTheme, installGuards: installGuards, errorLog: errorLog,

@@ -330,6 +330,14 @@ var App = (function () {
             UI.flash("Signed in on this machine. The account could not be reached, so "
                      + "nothing will travel to your other devices until it can.", "warn");
           }
+          // A device seeing these books for the first time gets them on the way
+          // in, so say what arrived rather than leaving it to be noticed.
+          var got = result && result.brought_down;
+          if (got && got.count) {
+            UI.flash(got.count === 1
+              ? "Brought down " + got.names[0] + "."
+              : "Brought down " + got.count + " sets of books.", "good");
+          }
           return refresh();
         })
         .catch(function (error) {
@@ -1521,9 +1529,8 @@ var App = (function () {
 
     function lost(error) {
       if (error && /sign in to your account/i.test(error.message || "")) {
-        UI.flash("The connection to your account ended, most likely because the app "
-                 + "was restarted. Your password is needed again to unlock the books.",
-                 "warn");
+        UI.flash("Your account needs signing in to again. This happens when the "
+                 + "connection has been left unused for a long time.", "warn");
         return reload();
       }
       UI.flash((error && error.message) || "That did not work.", "bad");
@@ -1569,9 +1576,9 @@ var App = (function () {
 
       return el("div.card", {}, [
         el("div.card-head", {}, [el("h2", { text: "Your account" })]),
-        el("p.card-note", { text: "One account, one username. Sign in with the same name "
-          + "on a computer, a phone or a tablet and the same books are within reach. The "
-          + "name is held in one place, so nobody else can take it." }),
+        el("p.card-note", { text: "The same name and password you use to open Saphal Book. "
+          + "Sign in with it on a computer, a phone or a tablet and the same books are "
+          + "there." }),
         el("div.row", {}, [
           el("div", { style: "flex:1 1 220px" }, [UI.field("Username", username)]),
           el("div", { style: "flex:1 1 220px" }, [UI.field("Password", password)])
@@ -1599,10 +1606,7 @@ var App = (function () {
           } })
         ]),
         el("p.card-note", { text: "This device is known as " + state.device
-          + ". That is the name other devices are shown when they are told who wrote last." }),
-        el("p.card-note", { text: "Closing Saphal Book ends this connection, because it "
-          + "holds the key that opens the books and that key is never written down. Your "
-          + "password is asked for again next time." })
+          + ". Other devices are shown that name when they are told who wrote last." })
       ]);
     }
 
@@ -1730,89 +1734,67 @@ var App = (function () {
   /* Use on your phone */
 
   register("devices", function (page) {
-    return api("/api/network").then(function (net) {
-      var onPhone = net.urls.length && net.listening_on_network;
-
+    // In the browser version there is no server on a wifi, so an address to
+    // type would be a fiction. Signing in with the same name is the answer
+    // there, and it is the better answer everywhere.
+    if (window.CHARTERED_BOOK_WEB) {
       page.appendChild(el("div.card", {}, [
-        el("div.card-head", {}, [el("h2", { text: "Open the books on a phone or tablet" })]),
-        el("p.card-note", { text: "The books live on this computer. A phone or tablet reads "
-          + "them over the same wifi, so this computer has to be switched on and Chartered "
-          + "Book running. Nothing goes over the internet." }),
-        net.urls.length
-          ? el("div", {}, [
-              el("p.card-note", { text: "On the phone or tablet, open the browser and type "
-                + "this address. It only has to be typed once." }),
-              el("div.address", {}, [
-                el("code", { text: net.urls[0].replace(/\/$/, "") }),
-                el("button.secondary", { text: "Copy", onclick: function (event) {
-                  UI.copyText(net.urls[0].replace(/\/$/, ""), event.currentTarget);
-                } })
-              ]),
-              net.urls.length > 1
-                ? el("p.card-note", { text: "If that one does not work, try: "
-                    + net.urls.slice(1).map(function (u) { return u.replace(/\/$/, ""); }).join("   ") })
-                : null
-            ])
-          : el("div.flash.warn", { text: "This computer is not on a network at the moment, so "
-              + "there is no address to give the phone. Connect it to the wifi and come back." })
+        el("div.card-head", {}, [el("h2", { text: "Use these books on another device" })]),
+        el("p.card-note", { text: "Open Saphal Book on the other device and sign in with "
+          + "the same name. The books come down by themselves." }),
+        el("p.card-note", { text: "Work on one device at a time. A device that has been "
+          + "away is told so rather than allowed to write over newer work." })
       ]));
+      return;
+    }
 
-      if (!net.listening_on_network && net.urls.length) {
-        page.appendChild(el("div.card", {}, [
-          el("div.flash.warn", { style: "margin:0", text:
-            "Saphal Book is only answering this computer at the moment. Open it from the "
-            + "Saphal Book icon rather than from a terminal and it will answer the wifi too." })
+    return api("/api/network").then(function (net) {
+      var address = net.urls.length ? net.urls[0].replace(/\/$/, "") : "";
+
+      var card = el("div.card", {}, [
+        el("div.card-head", {}, [el("h2", { text: "Use these books on a phone or tablet" })])
+      ]);
+
+      if (!address) {
+        card.appendChild(el("p.card-note", { text: "This computer is not on a network at "
+          + "the moment, so there is no address to give the phone. Connect it to the wifi "
+          + "and come back." }));
+      } else {
+        card.appendChild(el("p.card-note", { text: "On the phone, open Safari or Chrome and "
+          + "type this. Once only." }));
+        card.appendChild(el("div.address", {}, [
+          el("code", { text: address }),
+          el("button.secondary", { text: "Copy", onclick: function (event) {
+            UI.copyText(address, event.currentTarget);
+          }})
         ]));
+        if (net.urls.length > 1) {
+          card.appendChild(el("p.card-note", { text: "If it does not open, try "
+            + net.urls.slice(1).map(function (u) { return u.replace(/\/$/, ""); })
+                .join(" or ") + "." }));
+        }
+        card.appendChild(el("p.card-note", { text: "This computer has to be switched on "
+          + "with Saphal Book open. Nothing goes over the internet." }));
       }
 
-      page.appendChild(el("div.card", {}, [
-        el("div.card-head", {}, [el("h2", { text: "When the two cannot be on the same wifi" })]),
-        el("p.card-note", { text: "There is no server anywhere and nothing of yours is kept "
-          + "on anybody else's machine, which is what keeps this free and private. The price "
-          + "of that is there is nothing in the middle for two devices to meet in. So when "
-          + "the tablet is somewhere else entirely, the books travel as a file: take a backup "
-          + "here, press Save to a file, send the file to the tablet however you like, and "
-          + "press Bring books in from another device there. Work done on the tablet comes "
-          + "back the same way. It is one set of books moving, not two sets being merged, so "
-          + "only work on one device at a time." })
-      ]));
+      if (address && !net.listening_on_network) {
+        card.appendChild(el("div.flash.warn", { style: "margin:.6rem 0 0", text:
+          "Saphal Book is only answering this computer. Open it from the Saphal Book icon "
+          + "rather than from a terminal and it will answer the wifi too." }));
+      }
+      page.appendChild(card);
 
-      var steps = [
-        ["iPhone or iPad", [
-          "Open the address above in Safari. Chrome on an iPad cannot do this part, it has to be Safari.",
-          "Tap the Share button, the square with an arrow coming out of it.",
-          "Scroll down and tap Add to Home Screen.",
-          "Tap Add. The icon appears with your other apps."
-        ]],
-        ["Android", [
-          "Open the address above in Chrome.",
-          "Tap the three dots at the top right.",
-          "Tap Install app, or Add to Home screen.",
-          "Tap Install. The icon appears with your other apps."
-        ]],
-        ["Windows", [
-          "Open Saphal Book in Edge or Chrome.",
-          "Open the menu at the top right.",
-          "Choose Install Saphal Book, or Apps then Install this site as an app.",
-          "It gets its own window and can be pinned to the taskbar."
-        ]],
-        ["Mac", [
-          "You already have the Saphal Book icon. Drag it to Applications, or keep it in the Dock.",
-          "Double click it any time. It opens the browser at the books by itself.",
-          "Opening it a second time does not start a second copy, it just brings the books back up."
-        ]]
-      ];
-
-      var grid = el("div.grid.two");
-      steps.forEach(function (pair) {
-        grid.appendChild(el("div.card", { style: "margin:0" }, [
-          el("div.card-head", {}, [el("h2", { text: pair[0] })]),
-          el("ol", { style: "margin:0;padding-left:1.2rem" }, pair[1].map(function (line) {
-            return el("li", { text: line, style: "margin-bottom:.35rem;font-size:.85rem" });
-          }))
+      if (address) {
+        page.appendChild(el("div.card", {}, [
+          el("div.card-head", {}, [el("h2", { text: "Keep it with the other apps" })]),
+          el("p.card-note", { text: "iPhone or iPad: open the address in Safari, tap Share, "
+            + "then Add to Home Screen. Chrome on an iPad cannot do this part." }),
+          el("p.card-note", { text: "Android: open it in Chrome, tap the three dots, then "
+            + "Install app." }),
+          el("p.card-note", { text: "Windows: open it in Edge or Chrome and choose Install "
+            + "Saphal Book from the menu." })
         ]));
-      });
-      page.appendChild(grid);
+      }
 
       if (canInstall()) {
         page.appendChild(el("div.card", {}, [
@@ -1820,7 +1802,9 @@ var App = (function () {
             el("span", { text: "This browser can install Saphal Book right now." }),
             el("button.primary", { text: "Install on this device", onclick: function () {
               runInstall().then(function (yes) {
-                if (yes) { UI.flash("Installed. Look for the icon with your other apps.", "good"); }
+                if (yes) {
+                  UI.flash("Installed. Look for the icon with your other apps.", "good");
+                }
               });
             }})
           ])
@@ -1829,12 +1813,10 @@ var App = (function () {
 
       page.appendChild(el("div.card", {}, [
         el("div.card-head", {}, [el("h2", { text: "Who can reach it" })]),
-        el("p.card-note", { text: "Anyone on the same wifi can reach the sign in screen. They "
-          + "still need a username and password, and after eight wrong attempts the account is "
-          + "locked for fifteen minutes. Nobody outside the wifi can reach it at all, because "
-          + "the address only exists on your own network." }),
-        el("p.card-note", { text: "Give each person who uses the books their own login under "
-          + "Users, rather than sharing one. That way the audit trail says who did what." })
+        el("p.card-note", { text: "Anyone on the same wifi reaches the sign in screen and "
+          + "no further. Eight wrong attempts locks the account for fifteen minutes." }),
+        el("p.card-note", { text: "Give each person their own login under Users. That is "
+          + "what makes the audit trail say who did what." })
       ]));
     });
   });

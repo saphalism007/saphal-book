@@ -284,6 +284,24 @@ class Cloud(object):
             raise CloudError("That username and password do not match an account.")
         raise CloudError(self._complain(detail, "Could not sign in."))
 
+    def resume(self, username, master_key, refresh_token):
+        """
+        Pick a connection back up without asking for the password again.
+
+        The key that unlocks the books was worked out at sign in and kept on
+        this device, so all that is needed here is a fresh ticket from the
+        server. Where the ticket has expired or been withdrawn this fails and
+        the password is asked for, which is the old behaviour and the right one.
+        """
+        if not (username and master_key and refresh_token):
+            raise CloudError("Nothing to sign back in with.")
+        status, detail = self._call("/auth/v1/token?grant_type=refresh_token", "POST",
+                                    {"refresh_token": refresh_token})
+        if status != 200:
+            raise CloudError(self._complain(detail, "Could not pick the account back up."))
+        self._remember(detail, username, master_key)
+        return {"username": username, "user_id": self.user_id}
+
     def _remember(self, detail, username, master):
         detail = detail or {}
         self.token = detail.get("access_token")
@@ -447,8 +465,22 @@ class Cloud(object):
 LINKED_ACCOUNT = "\x00saphal-book/linked-google-account"
 
 
+# Everything kept under the account that is not a set of books. A tablet
+# fetching what is waiting for it has to know to leave these alone: one of them
+# opened as books says it is not a set of books, and that used to stop the whole
+# fetch, which is how a device with four companies waiting ended up with none.
+RESERVED_SLUGS = (LINKED_ACCOUNT,)
+
+RESERVED_PREFIX = "\x00saphal-book/"
+
+
+def is_reserved(slug):
+    """Whether a name belongs to the software rather than to a company."""
+    return bool(slug) and slug.startswith(RESERVED_PREFIX)
+
+
 def _secret_slug(name):
-    return "\x00saphal-book/" + name
+    return RESERVED_PREFIX + name
 
 
 def save_linked_account(session, details):

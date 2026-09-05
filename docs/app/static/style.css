@@ -864,6 +864,10 @@ tr.is-cleared:hover td { background: var(--good-soft); }
   border-radius: var(--radius);
 }
 .address code {
+  /* A block, so the button always sits under the address and centred with it.
+     Inline it fitted on the same line on a wide screen and ended up jammed
+     against the end of the address. */
+  display: block;
   font-family: var(--num); font-size: 1.6rem; font-weight: 650; color: var(--brand-ink);
   letter-spacing: -.01em; word-break: break-all;
   font-variant-numeric: tabular-nums lining-nums;
@@ -871,7 +875,7 @@ tr.is-cleared:hover td { background: var(--good-soft); }
      finger on it is often the quickest way. */
   user-select: all; -webkit-user-select: all;
 }
-.address button { margin-top: .6rem; }
+.address button { margin-top: .75rem; }
 @media (max-width: 600px) { .address code { font-size: 1.1rem; } }
 
 /* Install banner */
@@ -1006,4 +1010,22 @@ tr.is-cleared:hover td { background: var(--good-soft); }
 @media print {
   .note-para { color: #000; max-width: none; }
   .note-block { break-inside: auto; }
+}
+
+/* The bar that says the engine is working.
+
+   Only the browser version ever shows this. There the accounting engine shares
+   a thread with the screen, so while it runs the page cannot repaint and a tap
+   does nothing. Deliberately still: something that ought to be moving and is
+   not reads as a crash, and a line of text that was never going to move does
+   not. */
+.busy {
+  position: fixed; z-index: 90;
+  left: 50%; transform: translateX(-50%);
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  padding: .45rem 1.1rem; border-radius: 999px;
+  background: var(--brand); color: #fff;
+  font-size: .82rem; font-weight: 550; letter-spacing: .01em;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .22);
+  pointer-events: none;
 }

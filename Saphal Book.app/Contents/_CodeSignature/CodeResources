@@ -18,7 +18,7 @@
 		</data>
 		<key>Resources/app/chartered_book/BUILD.txt</key>
 		<data>
-		ZK/jX3FbvFOgVcCpKZc2T6fWEQE=
+		3VvZanCHCiIFqx/Qz5JkmHZ5szY=
 		</data>
 		<key>Resources/app/chartered_book/__init__.py</key>
 		<data>
@@ -46,7 +46,7 @@
 		</data>
 		<key>Resources/app/chartered_book/core/cloud.py</key>
 		<data>
-		TH1QKHkzVNesqJC2iWLXsKIjTcE=
+		XPXIikJnt/voSstjSSb8vZkYzQA=
 		</data>
 		<key>Resources/app/chartered_book/core/cloud_config.py</key>
 		<data>
@@ -58,7 +58,7 @@
 		</data>
 		<key>Resources/app/chartered_book/core/db.py</key>
 		<data>
-		8VnUBo9sHPjQvP3K75ZEzHNHrBg=
+		kfn+E7fl+FRimN/BHxYovTKv9y8=
 		</data>
 		<key>Resources/app/chartered_book/core/gdrive.py</key>
 		<data>
@@ -150,7 +150,7 @@
 		</data>
 		<key>Resources/app/chartered_book/modules/sync.py</key>
 		<data>
-		6kF6yBDXAsjphsDWYE6vsjpwUU4=
+		8EQTBsPTi2HPa63aGORAIf14xpY=
 		</data>
 		<key>Resources/app/chartered_book/modules/tb_import.py</key>
 		<data>
@@ -166,7 +166,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/api.py</key>
 		<data>
-		3b5hCptKAU6pmTSHVer2c+P3f5A=
+		3jJGM9TkZR5kQn+480ycmvYW0EA=
 		</data>
 		<key>Resources/app/chartered_book/web/embedded.py</key>
 		<data>
@@ -178,7 +178,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/static/app.js</key>
 		<data>
-		PzkVmW0wtJqCM0VMij7oNkS6FMo=
+		2tgqCPISi9Yaei9lLtE5REAT8og=
 		</data>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
 		<data>
@@ -246,7 +246,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/static/style.css</key>
 		<data>
-		q0JGQh3BgQpAOwGKHFum5qzTZxY=
+		kyFYSRZyuRp9UNIttlFEhEmoaxc=
 		</data>
 		<key>Resources/app/chartered_book/web/static/sw.js</key>
 		<data>
@@ -254,7 +254,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/static/ui.js</key>
 		<data>
-		3rhW4Qpka+66zH1qdfQ7R9Mt2b8=
+		iFBZKN760aedK//j8SgE1U/jioE=
 		</data>
 		<key>Resources/app/chartered_book/web/static/vouchers.js</key>
 		<data>
@@ -303,6 +303,10 @@
 		<key>Resources/app/tests/test_statements.py</key>
 		<data>
 		jadMJ2ALowPhvJsMWj3eo7oQtEE=
+		</data>
+		<key>Resources/app/tests/test_sync.py</key>
+		<data>
+		u9g9xHATBxYyapZp+VAgdQX4soQ=
 		</data>
 		<key>Resources/app/tests/test_tax.py</key>
 		<data>
@@ -365,7 +369,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			ChIxAe3UPKB5+RwRCxDjVbphaOo/lapt8GH/D2cJ9VU=
+			dpBGqYgyIuKCBrwJ90pl0BpbvWGpV3PSEe9j23nztFw=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/__init__.py</key>
@@ -414,7 +418,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			0P/ORyrGB2spoLQEOLKmf4ay8o5b6aVVR+oCWvaOhfA=
+			per4fHQ+kFQpumeejKt2ctX2Aw7l40I6f5sYGSSptcA=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/core/cloud_config.py</key>
@@ -435,7 +439,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			TZs5t1PE2V0E52BmM6Pxd6Zi785FAFTmLWjz5tmfnfM=
+			c5dJVYd0beLH8picJJXvuyVGdiBAt/4Ysp7R2O4jCFM=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/core/gdrive.py</key>
@@ -596,7 +600,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			oOdT0Pquh/yeVIMWV2QzrVG2adkoj9N4EJCZJpfEMBs=
+			mPAr42LCnwFVbcaLf+gH0e7+079sNWK7Z5gSZ73T1cE=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/modules/tb_import.py</key>
@@ -617,7 +621,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			F3FnoWj+uBlaFuQJV7ev5U+lqcWngqkLABoLuuLW6wg=
+			X1CQ56HTPritQ9jWXLJDQlTi0zm0gth7MKhTSo7r3hE=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/embedded.py</key>
@@ -638,7 +642,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			ezxXZUud60w7Fg03MA5+6gqcY3x6ZzupmWrraRfesIM=
+			I+nseswtsa/B/WUBA1VNm00rdF5pfk85xEt3qrm7o3k=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
@@ -757,7 +761,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			3l1g0nDNC/MPH/pwq1FspJgT7mS1EMAGhpJBVE/DNJ0=
+			a9sEXyw+gzkK7yaTXtjQbo0EutpJvu+Rwh+T4C1peO4=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/sw.js</key>
@@ -771,7 +775,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			S42ILJC0Y80Vlj8d1fwjHdc/URvnmh0oYsmoARNaoTM=
+			sETYJzvnIxPhKrjoypfqmqyVC1fG5MdplRtogEkYcfc=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/vouchers.js</key>
@@ -856,6 +860,13 @@
 			<key>hash2</key>
 			<data>
 			NoHPjCs/qA4thg9wQeSPpRvdgWVspS2JvYy6wIOE3+0=
+			</data>
+		</dict>
+		<key>Resources/app/tests/test_sync.py</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			ox1J3irQdguTkU+GAuEkU7h3IXeKNwTNW7r2AQWgq2M=
 			</data>
 		</dict>
 		<key>Resources/app/tests/test_tax.py</key>

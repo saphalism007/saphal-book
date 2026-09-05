@@ -368,6 +368,26 @@ SYSTEM_MIGRATIONS.append((3, "knowing when a set of books has changed", """
 """))
 
 
+SYSTEM_MIGRATIONS.append((4, "staying signed in to the account", """
+
+    -- Staying signed in between one opening of Saphal Book and the next.
+    --
+    -- The key that unlocks the copies on the server is worked out from the
+    -- password and used to be held in memory only, so closing the software
+    -- ended the connection and the password had to be typed again. On a tablet
+    -- that meant two sign ins to do one thing, and the second one looked like a
+    -- different account entirely.
+    --
+    -- Keeping the key here gives nothing away. The books on this device are
+    -- already open: anybody holding the device can read them without any key at
+    -- all. The key protects the copies on the server, and the server is not on
+    -- this device. So it lives beside the books it belongs to, and signing out
+    -- removes it.
+    ALTER TABLE cloud_account ADD COLUMN master_key TEXT NOT NULL DEFAULT '';
+    ALTER TABLE cloud_account ADD COLUMN refresh_token TEXT NOT NULL DEFAULT '';
+"""))
+
+
 def open_system():
     """Open, and if needed create, the system database."""
     ensure_dirs()

@@ -71,6 +71,14 @@ def network(request):
                 addresses.append(address)
     except OSError:
         pass
+    # An address nobody can type into a phone is worse than none: the screen
+    # offered http://0.0.0.0:8790 as the thing to type, which is what the name
+    # of every address means, not the name of this one. Inside the browser
+    # version there is no server on a wifi at all, and that is where it came
+    # from.
+    addresses = [a for a in addresses
+                 if a and not a.startswith(("0.", "127.", "169.254."))]
+
     from .server import BIND
     port = BIND["port"]
     # Only a server bound to every address can be reached by another machine.
@@ -275,19 +283,71 @@ def _try_account(request, username, password, making_account):
             "user_id": session.user_id or ""}
 
 
+def _bring_down_what_is_waiting(request, session):
+    """
+    Fetch anything on the account this device has never seen, without being asked.
+
+    Signing in with the same name on a second device is the whole point of
+    having an account, so the books should already be there when the screen
+    comes up. Making somebody find a settings page and press a button was work
+    nobody asked for, and on a tablet that had never seen the books it meant
+    signing in and being shown nothing at all.
+
+    Nothing here can stop a sign in. The books on this machine are the real ones
+    and a shop with the internet down still has to trade, so a failure is
+    reported and the door still opens.
+    """
+    from ..modules import sync
+    try:
+        result = sync.bring_new(request.system, session)
+    except Exception as exc:                                        # noqa: BLE001
+        return {"count": 0, "why": str(exc)}
+    return {"count": result["count"],
+            "names": [row["name"] or row["slug"] for row in result["brought"]],
+            "skipped": result.get("skipped_count", 0)}
+
+
+def _hold_account(system, token, session):
+    """
+    Keep a connection to the account, in memory and on the device.
+
+    On the device as well as in memory, because holding it only in memory meant
+    closing Saphal Book ended it and the password had to be typed a second time
+    on the next opening. That read as a second account rather than as the same
+    one, and on a tablet it was the difference between the books being there and
+    an empty screen.
+
+    What is kept is the key that unlocks the copies on the server. The books on
+    this device are already open, so anybody holding the device can read them
+    with or without it. Signing out removes it.
+    """
+    import binascii
+    _CLOUD_SESSIONS[token] = session
+    system.execute(
+        """INSERT INTO cloud_account (id, username, user_id, last_signed_in,
+                                      master_key, refresh_token)
+           VALUES (1, ?, ?, ?, ?, ?)
+           ON CONFLICT (id) DO UPDATE SET username = excluded.username,
+                                          user_id = excluded.user_id,
+                                          last_signed_in = excluded.last_signed_in,
+                                          master_key = excluded.master_key,
+                                          refresh_token = excluded.refresh_token""",
+        (session.username, session.user_id or "", db.now_stamp(),
+         binascii.hexlify(session.master_key or b"").decode("ascii"),
+         session.refresh_token or ""))
+    system.commit()
+
+
+def _forget_account(system):
+    system.execute("UPDATE cloud_account SET master_key = '', refresh_token = '' WHERE id = 1")
+    system.commit()
+
+
 def _finish_account(request, note, token):
     """Hold on to the signed in connection and remember the name."""
     if not note or not note.get("reached"):
         return
-    _CLOUD_SESSIONS[token] = note["session"]
-    request.system.execute(
-        """INSERT INTO cloud_account (id, username, user_id, last_signed_in)
-           VALUES (1, ?, ?, ?)
-           ON CONFLICT (id) DO UPDATE SET username = excluded.username,
-                                          user_id = excluded.user_id,
-                                          last_signed_in = excluded.last_signed_in""",
-        (note["username"], note["user_id"], db.now_stamp()))
-    request.system.commit()
+    _hold_account(request.system, token, note["session"])
 
 
 @route("POST", "/api/login")
@@ -327,11 +387,24 @@ def login(request):
     company_id = companies[0]["id"] if len(companies) == 1 else None
     token = auth.start_session(request.system, user["id"], company_id)
     _finish_account(request, note, token)
+
+    # A device that has just been given the name gets the books that go with it,
+    # here and now, rather than being shown an empty screen and a button.
+    fetched = None
+    if note and note.get("reached"):
+        fetched = _bring_down_what_is_waiting(request, note["session"])
+        if fetched["count"]:
+            companies = company_module.list_companies(request.system)
+            if len(companies) == 1:
+                auth.set_session_company(request.system, token, companies[0]["id"])
+            request.system.commit()
+
     request.set_cookie = token
     return {"ok": True, "username": user["username"], "role": user["role"],
             "must_change": user["must_change"],
             "account": bool(note and note.get("reached")),
-            "account_note": "" if not note else note.get("why", "")}
+            "account_note": "" if not note else note.get("why", ""),
+            "brought_down": fetched or {"count": 0}}
 
 
 @route("POST", "/api/register")
@@ -1600,12 +1673,38 @@ _CLOUD_SESSIONS = {}
 
 
 def _cloud_session(request, required=True):
-    from ..core import cloud
+    """
+    The connection to the account, picked back up where it has been lost.
+
+    Memory does not survive Saphal Book being closed, so this looks on the
+    device for what was kept at sign in and gets a fresh ticket with it. Only
+    when that fails is the password asked for.
+    """
+    from ..core import cloud, cloud_config
     token = request.session["token"] if request.session else ""
     held = _CLOUD_SESSIONS.get(token)
-    if held is None and required:
+    if held is not None:
+        return held
+
+    row = request.system.execute("SELECT * FROM cloud_account WHERE id = 1").fetchone()
+    keys = row.keys() if row else []
+    if row and "master_key" in keys and row["master_key"] and row["refresh_token"]:
+        try:
+            import binascii
+            settings = cloud_config.settings(request.system)
+            session = cloud.Cloud(settings["url"], settings["anon_key"])
+            session.resume(row["username"], binascii.unhexlify(row["master_key"]),
+                           row["refresh_token"])
+            _hold_account(request.system, token, session)
+            return session
+        except Exception:                                           # noqa: BLE001
+            # The ticket has run out or been withdrawn. Clear it so the screen
+            # asks for the password rather than trying this again on every call.
+            _forget_account(request.system)
+
+    if required:
         raise ApiError("Sign in to your account first.", 409)
-    return held
+    return None
 
 
 @route("GET", "/api/cloud/status")
@@ -1635,16 +1734,7 @@ def _cloud_open(request, username, password, making_account):
             session.sign_in(username, password)
     except cloud.CloudError as exc:
         raise ApiError(str(exc))
-    token = request.session["token"]
-    _CLOUD_SESSIONS[token] = session
-    request.system.execute(
-        """INSERT INTO cloud_account (id, username, user_id, last_signed_in)
-           VALUES (1, ?, ?, ?)
-           ON CONFLICT (id) DO UPDATE SET username = excluded.username,
-                                          user_id = excluded.user_id,
-                                          last_signed_in = excluded.last_signed_in""",
-        (session.username, session.user_id or "", db.now_stamp()))
-    request.system.commit()
+    _hold_account(request.system, request.session["token"], session)
 
     # The Google connection belongs to the person, not to the machine. Signing
     # in brings it with them, so a tablet backs up to the same Drive as the
@@ -1676,6 +1766,9 @@ def cloud_sign_out(request):
     held = _CLOUD_SESSIONS.pop(token, None)
     if held:
         held.sign_out()
+    # Signing out has to take the key off the device too, or the next call
+    # would quietly pick the connection back up.
+    _forget_account(request.system)
     return {"ok": True}
 
 
