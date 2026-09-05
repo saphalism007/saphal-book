@@ -103,6 +103,27 @@ def main():
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (key, value))
     system.commit()
     print("\nConnected. Saphal Book can now put backups into your Drive.")
+
+    # And tell the account, so the same person signing in on another device
+    # reaches the same Drive without doing any of this again.
+    try:
+        from chartered_book.core import backup, cloud, cloud_config
+        settings = cloud_config.settings(system)
+        row = system.execute("SELECT username FROM cloud_account WHERE id = 1").fetchone()
+        if row and row["username"]:
+            print("\nSo your other devices get this too, sign in to your Saphal Book "
+                  "account once.")
+            password = input("  Password for %s (or press Enter to skip): "
+                             % row["username"])
+            if password.strip():
+                session = cloud.Cloud(settings["url"], settings["anon_key"])
+                session.sign_in(row["username"], password)
+                who = backup.publish_google_link(system, session)
+                print("  Carried to your account. Any device signing in as %s will "
+                      "back up to %s." % (row["username"], who))
+    except Exception as exc:                                        # noqa: BLE001
+        print("  Could not carry it to your account: %s" % exc)
+        print("  Backups still work on this machine.")
     return 0
 
 

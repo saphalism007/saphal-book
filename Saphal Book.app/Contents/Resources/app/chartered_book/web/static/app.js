@@ -1275,7 +1275,15 @@ var App = (function () {
               el("div", { style: "font-size:1.02rem;font-weight:600", text: g.account
                           || "Google Drive" }),
               el("div", { style: "color:var(--ink-faint);font-size:.85rem;margin-top:.15rem",
-                          text: g.folder_name || "Saphal Book backups" })
+                          text: g.folder_name || "Saphal Book backups" }),
+              // Which account this belongs to, since it follows the person from
+              // device to device rather than living on any one machine.
+              state.user
+                ? el("div", { style: "color:var(--ink-faint);font-size:.8rem;margin-top:.4rem",
+                              text: "Linked to " + state.user.username
+                                    + ". Signing in with that name on another device "
+                                    + "backs up here too." })
+                : null
             ])
           : el("p.card-note", { text: "No Google account is connected yet, so backups are "
               + "only kept on this computer." })

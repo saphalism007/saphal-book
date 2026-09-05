@@ -498,3 +498,73 @@ def likely_cloud_folders():
             continue
         offer(label, path)
     return found
+
+
+# Carrying the Google connection between a person's devices
+
+
+GOOGLE_KEYS = ("gdrive_client_id", "gdrive_client_secret", "gdrive_refresh_token",
+               "gdrive_folder_id", "gdrive_folder_name", "gdrive_account")
+
+
+def _remember_google(system_conn, details):
+    for key in GOOGLE_KEYS:
+        if details.get(key) is None:
+            continue
+        system_conn.execute(
+            "INSERT INTO app_settings (key, value) VALUES (?, ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, str(details[key])))
+    system_conn.commit()
+
+
+def publish_google_link(system_conn, session):
+    """
+    Send this machine's Google connection up, so the person's other devices get it.
+
+    Called after somebody connects a Drive. Without it the connection would
+    belong to whichever machine happened to be in front of them that day, and
+    every other device would have to be walked through Google's consent screens
+    again.
+    """
+    from . import cloud
+    settings = google_settings(system_conn)
+    if settings is None or session is None or not session.signed_in():
+        return None
+    details = {
+        "gdrive_client_id": settings["client_id"],
+        "gdrive_client_secret": settings["client_secret"],
+        "gdrive_refresh_token": settings["refresh_token"],
+        "gdrive_folder_id": settings["folder_id"],
+        "gdrive_folder_name": settings["folder_name"],
+        "gdrive_account": google_account(system_conn),
+    }
+    cloud.save_linked_account(session, details)
+    return details["gdrive_account"]
+
+
+def adopt_google_link(system_conn, session):
+    """
+    Take the Google connection this person set up elsewhere.
+
+    Run when somebody signs in to their account. A tablet that has never seen
+    Google before ends up backing up to the same Drive as the shop machine,
+    because the connection followed the person rather than staying on the
+    machine.
+
+    Anything already set up on this machine is left alone, so a deliberate
+    choice made here is not quietly replaced by one made somewhere else.
+    """
+    from . import cloud
+    if session is None or not session.signed_in():
+        return None
+    if google_settings(system_conn) is not None:
+        return None
+    try:
+        details = cloud.linked_account(session)
+    except cloud.CloudError:
+        return None
+    if not details or not details.get("gdrive_refresh_token"):
+        return None
+    _remember_google(system_conn, details)
+    return details.get("gdrive_account", "")

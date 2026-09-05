@@ -1641,7 +1641,16 @@ def _cloud_open(request, username, password, making_account):
                                           last_signed_in = excluded.last_signed_in""",
         (session.username, session.user_id or "", db.now_stamp()))
     request.system.commit()
-    return {"ok": True, "username": session.username}
+
+    # The Google connection belongs to the person, not to the machine. Signing
+    # in brings it with them, so a tablet backs up to the same Drive as the
+    # shop machine without being walked through Google again.
+    adopted = None
+    try:
+        adopted = backup.adopt_google_link(request.system, session)
+    except Exception:                                               # noqa: BLE001
+        adopted = None
+    return {"ok": True, "username": session.username, "google_adopted": adopted}
 
 
 @route("POST", "/api/cloud/sign-up")

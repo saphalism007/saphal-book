@@ -125,7 +125,7 @@ window.CB = (function () {
       });
 
       step("Unpacking Saphal Book", 0.75);
-      var response = await fetch("chartered_book.zip?v=a90c81cca033",
+      var response = await fetch("chartered_book.zip?v=f4080a2360d0",
                                  { cache: "no-cache" });
       if (!response.ok) { throw new Error("the engine file is missing"); }
       var buffer = await response.arrayBuffer();

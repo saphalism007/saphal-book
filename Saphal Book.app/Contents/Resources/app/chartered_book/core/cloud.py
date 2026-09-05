@@ -437,3 +437,51 @@ class Cloud(object):
         The master key itself, which only ever exists in memory on this machine.
         """
         return self.master_key.hex()
+
+
+# Settings that belong to the person rather than to the machine
+
+
+# A reserved name, kept apart from any company slug so it can never collide with
+# one. The server sees only the fingerprint of it, as with everything else.
+LINKED_ACCOUNT = "\x00saphal-book/linked-google-account"
+
+
+def _secret_slug(name):
+    return "\x00saphal-book/" + name
+
+
+def save_linked_account(session, details):
+    """
+    Put somebody's Google connection where their other devices can reach it.
+
+    The connection belongs to the person, not to the machine they happened to
+    set it up on. Signing in as the same person on a tablet should reach the
+    same Drive without going through Google's consent screens again.
+
+    It travels the way the books do, locked with the key made from the password,
+    so the server stores something it cannot read. What Google handed over is a
+    key to somebody's Drive, and it gets at least the care the books get.
+    """
+    blob = json.dumps(details, ensure_ascii=False).encode("utf-8")
+    held = session.remote_version(LINKED_ACCOUNT)
+    return session.push(LINKED_ACCOUNT, blob, held["version"], device="linked account")
+
+
+def linked_account(session):
+    """The Google connection this person set up, wherever they set it up."""
+    got = session.fetch(LINKED_ACCOUNT)
+    if got is None:
+        return None
+    try:
+        return json.loads(got["data"].decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        return None
+
+
+def forget_linked_account(session):
+    try:
+        session.forget(LINKED_ACCOUNT)
+    except CloudError:
+        pass
+    return True
