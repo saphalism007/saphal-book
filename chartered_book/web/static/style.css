@@ -1060,3 +1060,22 @@ tr.is-cleared:hover td { background: var(--good-soft); }
   display: block; width: 100%; margin: .5rem 0 .1rem; padding: .55rem;
   font-size: .88rem;
 }
+
+/* The calculator button.
+
+   It used to be a lone "=" in the top bar, which nobody read as a calculator,
+   so a calculator that was there all along went unfound. It says what it is
+   now, and keeps only the icon where there is no room for the word. */
+.calc-button {
+  display: inline-flex; align-items: center; gap: .35rem;
+  padding: .32rem .6rem; border-radius: var(--radius-sm, 7px);
+  border: 1px solid var(--line); background: var(--paper);
+  color: var(--ink-soft); font-size: .8rem; font-weight: 550;
+  cursor: pointer; white-space: nowrap;
+}
+.calc-button:hover { background: var(--raised); color: var(--ink); }
+.calc-button svg { flex: 0 0 auto; }
+@media (max-width: 760px) {
+  .calc-button span { display: none; }
+  .calc-button { padding: .32rem .42rem; }
+}

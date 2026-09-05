@@ -261,6 +261,62 @@ def send_up(system, session, slug, decided=False):
     return {"slug": slug, "version": version, "size": len(data)}
 
 
+def _describe(data):
+    """
+    What is actually inside a set of books, without touching anything.
+
+    Used when the same books have been changed in two places and somebody has
+    to choose between them. Being asked to pick one of two copies with nothing
+    to tell them apart is not a question anybody can answer, so this counts what
+    is in each and finds the last day anything was entered.
+    """
+    handle, temp = tempfile.mkstemp(suffix=".db")
+    os.close(handle)
+    try:
+        with open(temp, "wb") as writer:
+            writer.write(data)
+        conn = None
+        try:
+            conn = sqlite3.connect(temp)
+            row = conn.execute(
+                "SELECT COUNT(*) AS n, MAX(date_ad) AS last FROM vouchers "
+                "WHERE status != 'cancelled'").fetchone()
+            name = conn.execute("SELECT name FROM company WHERE id = 1").fetchone()
+            return {"entries": row[0] or 0, "last_entry_ad": row[1] or "",
+                    "name": name[0] if name else "", "size": len(data)}
+        except sqlite3.Error:
+            return {"entries": 0, "last_entry_ad": "", "name": "", "size": len(data)}
+        finally:
+            if conn is not None:
+                conn.close()
+    finally:
+        for leftover in (temp, temp + "-wal", temp + "-shm"):
+            if os.path.exists(leftover):
+                os.remove(leftover)
+
+
+def compare(system, session, slug):
+    """
+    Put the two copies of one set of books side by side.
+
+    The copy on the server has to be brought down to be counted, because
+    everything about it is inside the locked file. Nothing on this device is
+    touched: it is fetched, counted, and let go.
+    """
+    if not session or not session.signed_in():
+        raise SyncError("Sign in to your account first.")
+    here = _describe(_snapshot(slug))
+    here["device"] = device_name(system)
+
+    there = None
+    got = session.fetch(slug)
+    if got is not None:
+        there = _describe(got["data"])
+        there["device"] = got.get("device", "")
+        there["version"] = got.get("version", 0)
+    return {"slug": slug, "here": here, "there": there}
+
+
 def _install(system, slug, data, version, device):
     """
     Put a downloaded copy in place, once it has been found to be real books.

@@ -1730,15 +1730,41 @@ def _cloud_session(request, required=True):
 
 @route("GET", "/api/cloud/status")
 def cloud_status(request):
-    """Where every set of books stands against the server."""
+    """
+    Where every set of books stands against the account.
+
+    Two answers, because they cost very different amounts. Asked with quick=1
+    nothing leaves this device: what comes back is what this device already
+    knows from the last time the two spoke, which is enough to draw the whole
+    screen and is instant. Asked without it, the account is contacted, which
+    means picking the connection back up and listing what is held, and that is
+    two round trips over somebody's internet.
+
+    The screen asks for the quick one first and draws, then asks for the full
+    one and redraws. It used to only have the slow one, which is why opening it
+    sat blank.
+    """
     from ..core import cloud_config
     from ..modules import sync
     request.require_user()
-    session = _cloud_session(request, required=False)
-    found = sync.status(request.system, session)
-    found["configured"] = cloud_config.configured(request.system)
-    found["signed_in"] = bool(session and session.signed_in())
     row = request.system.execute("SELECT * FROM cloud_account WHERE id = 1").fetchone()
+    keys = row.keys() if row else []
+
+    if request.arg("quick") == "1":
+        found = sync.status(request.system, None)
+        # Signed in is knowable without asking anybody: the key that unlocks the
+        # copies is either kept on this device or it is not.
+        found["signed_in"] = bool(
+            row and "master_key" in keys and row["master_key"] and row["refresh_token"])
+        found["username"] = row["username"] if row else ""
+        found["provisional"] = True
+    else:
+        session = _cloud_session(request, required=False)
+        found = sync.status(request.system, session)
+        found["signed_in"] = bool(session and session.signed_in())
+        found["provisional"] = False
+
+    found["configured"] = cloud_config.configured(request.system)
     found["remembered"] = row["username"] if row else ""
     return found
 
@@ -1807,6 +1833,28 @@ def cloud_sign_out(request):
     # would quietly pick the connection back up.
     _forget_account(request.system)
     return {"ok": True}
+
+
+@route("GET", "/api/cloud/compare")
+def cloud_compare(request):
+    """
+    What is in each of the two copies, so the choice can actually be made.
+
+    Nothing is changed. The copy on the account is brought down, counted and
+    let go, because everything about it is inside the locked file and there is
+    no other way to see it.
+    """
+    from ..core import cloud
+    from ..modules import sync
+    request.require_user()
+    session = _cloud_session(request)
+    slug = (request.arg("slug") or "").strip()
+    if not slug:
+        raise ApiError("Say which books to compare.")
+    try:
+        return sync.compare(request.system, session, slug)
+    except (cloud.CloudError, sync.SyncError) as exc:
+        raise ApiError(str(exc))
 
 
 @route("POST", "/api/cloud/send")

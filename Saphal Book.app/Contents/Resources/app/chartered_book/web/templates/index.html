@@ -96,7 +96,20 @@
       <div class="topbar-right">
         <button class="today" id="today-chip" title="Open the Nepali calendar (F3)"></button>
         <div class="fy-chip" id="fy-chip"></div>
-        <button class="icon-button" id="btn-calc" title="Calculator (F2)">=</button>
+        <button class="calc-button" id="btn-calc" title="Calculator (F2)" aria-label="Calculator">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+               stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
+            <rect x="4" y="2.5" width="16" height="19" rx="2.5"></rect>
+            <line x1="7.5" y1="7" x2="16.5" y2="7"></line>
+            <line x1="8" y1="12" x2="8" y2="12"></line>
+            <line x1="12" y1="12" x2="12" y2="12"></line>
+            <line x1="16" y1="12" x2="16" y2="12"></line>
+            <line x1="8" y1="16.5" x2="8" y2="16.5"></line>
+            <line x1="12" y1="16.5" x2="12" y2="16.5"></line>
+            <line x1="16" y1="16.5" x2="16" y2="16.5"></line>
+          </svg>
+          <span>Calculator</span>
+        </button>
         <div class="user-chip" id="user-chip"></div>
       </div>
     </header>

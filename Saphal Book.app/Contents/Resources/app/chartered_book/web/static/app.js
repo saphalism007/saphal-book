@@ -648,15 +648,23 @@ var App = (function () {
     }
 
     /* Something was entered. Wait for the typing to stop before sending, so a
-       run of ten invoices is one upload and not ten. */
+       run of ten invoices is one upload and not ten.
+
+       The wait used to be eight seconds. Every second of it is a second in
+       which the other device can be opened and the two drift apart, and being
+       asked afterwards which copy to keep is far more annoying than an upload
+       nobody notices. Two seconds is long enough to gather a run of entries and
+       short enough that walking to the other device does not outrun it. */
     function touched() {
       if (settle) { clearTimeout(settle); }
-      settle = setTimeout(function () { run("entered"); }, 8000);
+      settle = setTimeout(function () { run("entered"); }, 2000);
     }
 
     function start() {
       if (timer) { return; }
-      timer = setInterval(function () { run("timer"); }, 120000);
+      // Every minute rather than every two. The cost is one small call; the
+      // saving is not being asked which copy to keep.
+      timer = setInterval(function () { run("timer"); }, 60000);
       window.addEventListener("focus", function () {
         if (Date.now() - last > 30000) { run("focus"); }
       });
@@ -1548,13 +1556,11 @@ var App = (function () {
     return load();
 
     function load() {
-      // Draw from what this device already knows, at once. Checking with the
-      // account reaches the network, and this screen used to sit blank for
-      // several seconds waiting for that before it would show anything. The
-      // check still happens, behind the screen, and what it finds is drawn in
-      // when it arrives.
-      return api("/api/cloud/status").then(function (state) {
-        draw(state);
+      // The quick answer costs nothing and never leaves this device, so the
+      // screen is up straight away. The account is then asked properly, behind
+      // the screen, and what it says is drawn in when it arrives.
+      return api("/api/cloud/status", { query: { quick: "1" } }).then(function (known) {
+        draw(known);
         Sync.run("opened the account screen").then(function () {
           return api("/api/cloud/status");
         }).then(function (fresh) {
@@ -1574,6 +1580,7 @@ var App = (function () {
       }
       if (!state.signed_in) { page.appendChild(gate(state)); return; }
 
+      App.state.device = state.device;
       page.appendChild(who(state));
 
       var split = (App.state.conflicts || []).filter(function (row) { return row.slug; });
@@ -1585,6 +1592,8 @@ var App = (function () {
     }
 
     function reload() {
+      // After somebody has done something, the fresh answer is the whole point,
+      // so this one does ask the account.
       return api("/api/cloud/status").then(draw);
     }
 
@@ -1750,51 +1759,85 @@ var App = (function () {
       return name;
     }
 
-    /* The one real decision: the same books changed in two places */
+    /* The one real decision: the same books changed in two places.
+
+       This used to ask which copy to keep and give nothing to decide it with,
+       which is not a question anybody can answer. Both copies are counted now,
+       so the choice reads as: this one has 47 entries up to 20 Bhadra, that one
+       has 52 up to 21 Bhadra. Then it answers itself. */
 
     function toDecide(split, state) {
       var card = el("div.card", {}, [
         el("div.card-head", {}, [
           el("h2", { text: split.length === 1
-            ? "One company does not match"
-            : split.length + " companies do not match" })
+            ? "One company is in two places"
+            : split.length + " companies are in two places" })
         ]),
-        el("p.card-note", { text: "You have entered things here, and also on another "
-          + "device, since these two last agreed. So they now hold different work and "
-          + "there is no way to add one to the other." }),
-        el("p.card-note", { text: "Pick the one that has the entries you want. The one "
-          + "you do not pick is saved on this device as a spare file, so nothing is "
-          + "thrown away." })
+        el("p.card-note", { text: "Entries were made here and on another device without "
+          + "the two meeting in between, so each holds work the other does not. Pick the "
+          + "one to keep. The other is saved on this device as a spare file." })
       ]);
 
       split.forEach(function (row) {
         var book = (state.books || []).filter(function (b) {
           return b.slug === row.slug;
         })[0] || {};
-        var other = friendlyDevice(book.server_device);
-        var when = book.server_updated_at
-          ? UI.bs(book.server_updated_at.slice(0, 10), "short") : "";
-
-        card.appendChild(el("div.decide", {}, [
+        var block = el("div.decide", {}, [
           el("div.decide-name", { text: row.name }),
-          el("div.decide-pair", {}, [
-            el("button.secondary", {
-              onclick: function () { keepHere(row, book); }
-            }, [
-              el("div", { text: "Keep this one" }),
-              el("small", { text: "What is on " + state.device })
-            ]),
-            el("button.secondary", {
-              onclick: function () { keepThere(row, book, other); }
-            }, [
-              el("div", { text: "Keep that one" }),
-              el("small", { text: "What is on " + other
-                + (when ? ", written " + when : "") })
-            ])
-          ])
-        ]));
+          el("div.card-note", { style: "margin:.1rem 0 .5rem", text: "Counting both copies" })
+        ]);
+        card.appendChild(block);
+
+        api("/api/cloud/compare", { query: { slug: row.slug } })
+          .then(function (seen) { paintChoice(block, row, book, seen); })
+          .catch(function () { paintChoice(block, row, book, null); });
       });
       return card;
+    }
+
+    function describeSide(side) {
+      if (!side) { return "could not be counted"; }
+      var bits = [side.entries + (side.entries === 1 ? " entry" : " entries")];
+      if (side.last_entry_ad) {
+        bits.push("last on " + UI.bs(side.last_entry_ad, "short"));
+      }
+      return bits.join(", ");
+    }
+
+    function paintChoice(block, row, book, seen) {
+      UI.clear(block);
+      var here = seen && seen.here;
+      var there = seen && seen.there;
+      var other = friendlyDevice((there && there.device) || book.server_device);
+      var mine = (here && here.device) || (App.state.device || "this device");
+
+      // Say plainly which one holds more work, because that is the thing being
+      // asked and nobody should have to do the subtraction themselves.
+      var hint = "";
+      if (here && there) {
+        if (here.entries > there.entries) {
+          hint = "This device has " + (here.entries - there.entries) + " more.";
+        } else if (there.entries > here.entries) {
+          hint = other + " has " + (there.entries - here.entries) + " more.";
+        } else {
+          hint = "Both have the same number of entries, so check the dates.";
+        }
+      }
+
+      block.appendChild(el("div.decide-name", { text: row.name }));
+      if (hint) {
+        block.appendChild(el("div.card-note", { style: "margin:.1rem 0 .5rem", text: hint }));
+      }
+      block.appendChild(el("div.decide-pair", {}, [
+        el("button.secondary", { onclick: function () { keepHere(row, book); } }, [
+          el("div", { text: "Keep this one" }),
+          el("small", { text: mine + "  ·  " + describeSide(here) })
+        ]),
+        el("button.secondary", { onclick: function () { keepThere(row, book, other); } }, [
+          el("div", { text: "Keep that one" }),
+          el("small", { text: other + "  ·  " + describeSide(there) })
+        ])
+      ]));
     }
 
     function keepHere(row, book) {
