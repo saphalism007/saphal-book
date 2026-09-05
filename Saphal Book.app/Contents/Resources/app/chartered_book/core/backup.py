@@ -362,8 +362,53 @@ def send_to_google(system_conn, zip_path):
         return {"ok": False, "message": str(exc), "where": "Google Drive"}
 
 
+# What a backup this software wrote is called. Nothing outside this pattern is
+# ever touched by the tidying below, so a folder shared with somebody's own
+# files stays exactly as they left it.
+BACKUP_PREFIX = "saphal_book_"
+
+
+def tidy_folder(folder, keep=None):
+    """
+    Keep the newest few backups in one folder and remove the rest.
+
+    Only files this software wrote are considered, matched on the name it gives
+    them. Anything else in the folder is none of its business.
+    """
+    keep = KEEP_DAYS if keep is None else keep
+    if not os.path.isdir(folder):
+        return 0
+    ours = []
+    for name in os.listdir(folder):
+        if not (name.startswith(BACKUP_PREFIX) and name.endswith(".zip")):
+            continue
+        full = os.path.join(folder, name)
+        try:
+            ours.append((os.path.getmtime(full), full))
+        except OSError:
+            continue
+    ours.sort(reverse=True)
+    removed = 0
+    for _when, full in ours[keep:]:
+        try:
+            os.remove(full)
+            removed += 1
+        except OSError:
+            pass
+    return removed
+
+
 def copy_to_destinations(zip_path, folders):
-    """Copy a finished backup to each extra folder. A failure never loses the backup."""
+    """
+    Copy a finished backup to each extra folder, and tidy that folder after.
+
+    The tidying was missing, so the main folder held three and a cloud folder
+    beside it had nineteen going back over days, all of them nearly identical.
+    A folder that only grows is a folder nobody opens, and on a cloud folder it
+    is somebody's storage quota as well.
+
+    A failure never loses the backup: the copy that matters is already written.
+    """
     results = []
     for folder in folders or []:
         try:
@@ -374,7 +419,11 @@ def copy_to_destinations(zip_path, folders):
                 os.makedirs(folder)
             target = os.path.join(folder, os.path.basename(zip_path))
             shutil.copy2(zip_path, target)
-            results.append({"folder": folder, "ok": True, "message": "Copied."})
+            dropped = tidy_folder(folder)
+            results.append({"folder": folder, "ok": True,
+                            "message": "Copied." if not dropped else
+                            "Copied, and %d older one%s cleared."
+                            % (dropped, "" if dropped == 1 else "s")})
         except OSError as exc:
             results.append({"folder": folder, "ok": False, "message": str(exc)})
     return results
