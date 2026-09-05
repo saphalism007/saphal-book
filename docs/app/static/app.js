@@ -1238,9 +1238,21 @@ var App = (function () {
             "Every backup is a single zip file holding all companies at that moment.")
         ]));
 
-        var rows = data.folders.map(function (folder) {
+        var rows = data.folders.map(function (entry) {
+          var folder = entry.path;
           return el("tr", {}, [
-            el("td", { text: folder, style: "font-family:var(--num);font-size:.78rem" }),
+            el("td", {}, [
+              el("div", { text: folder,
+                          style: "font-family:var(--num);font-size:.78rem" }),
+              entry.syncing === false
+                ? el("div", { style: "color:var(--bad);font-size:.76rem;margin-top:.2rem",
+                              text: entry.note })
+                : (entry.syncing === true
+                    ? el("div", { style: "color:var(--good);font-size:.76rem;margin-top:.2rem",
+                                  text: entry.service + " is running, so these reach the "
+                                        + "internet." })
+                    : null)
+            ]),
             el("td.no-print", {}, [
               el("button.link-button", { text: "Remove", onclick: function () {
                 // One click used to be enough, and the thing it switches off is
@@ -1252,7 +1264,8 @@ var App = (function () {
                   + "New ones will only be kept on this computer, so nothing would "
                   + "survive this machine being lost or its disk failing.",
                   function () {
-                    var kept = data.folders.filter(function (f) { return f !== folder; });
+                    var kept = data.folders.map(function (e) { return e.path; })
+                      .filter(function (f) { return f !== folder; });
                     return saveFolders(kept);
                   }, "Stop copying there");
               }})
@@ -1261,12 +1274,14 @@ var App = (function () {
         });
 
         var suggestions = el("div.row", { style: "margin-top:.6rem" });
+        var alreadySet = data.folders.map(function (e) { return e.path; });
         data.suggestions.forEach(function (option) {
-          if (data.folders.indexOf(option.path) >= 0) { return; }
+          if (alreadySet.indexOf(option.path) >= 0) { return; }
           suggestions.appendChild(el("button.secondary", {
-            text: "Also copy to " + option.label,
+            text: "Also copy to " + option.label
+                  + (option.syncing === false ? "  (not running)" : ""),
             title: option.path,
-            onclick: function () { saveFolders(data.folders.concat([option.path])); }
+            onclick: function () { saveFolders(alreadySet.concat([option.path])); }
           }));
         });
 

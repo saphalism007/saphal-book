@@ -1383,9 +1383,16 @@ def create_warehouse(request):
 @route("GET", "/api/backup/destinations")
 def backup_destinations(request):
     request.require("backup.run")
+    running = backup._running_programs()
+    folders = backup.get_destinations(request.system)
     return {
-        "folders": backup.get_destinations(request.system),
-        "suggestions": backup.likely_cloud_folders(),
+        # Each folder says whether anything is actually carrying it to the
+        # internet. A folder belonging to a cloud service whose program has been
+        # uninstalled looks exactly as it always did, and quietly keeps every
+        # backup on this machine.
+        "folders": [dict(backup.sync_state(f, running), path=f) for f in folders],
+        "suggestions": [dict(s, **backup.sync_state(s["path"], running))
+                        for s in backup.likely_cloud_folders()],
         "data_folder": db.DATA_DIR,
         "backup_folder": db.BACKUP_DIR,
     }

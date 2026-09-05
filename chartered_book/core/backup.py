@@ -284,6 +284,66 @@ def copy_to_destinations(zip_path, folders):
     return results
 
 
+# Which program has to be running for a folder to actually reach the internet.
+# A folder belonging to a cloud service is only a folder. Something has to be
+# running to carry what is put in it upwards, and where that something has been
+# uninstalled the folder stays behind looking exactly as it did. Files written
+# into it then sit there forever while everybody believes they are safe.
+SYNC_AGENTS = (
+    # Named exactly. An earlier attempt matched FileProvider as well, which is
+    # part of macOS and always running, so a Drive that had been uninstalled
+    # still reported itself as working. A check that cannot fail is not a check.
+    ("googledrive", "Google Drive", ("Google Drive", "FinderSyncExt")),
+    ("google drive", "Google Drive", ("Google Drive", "FinderSyncExt")),
+    ("onedrive", "OneDrive", ("OneDrive",)),
+    ("dropbox", "Dropbox", ("Dropbox",)),
+    ("icloud", "iCloud Drive", ("bird",)),
+    ("mobile documents", "iCloud Drive", ("bird",)),
+)
+
+
+def _running_programs():
+    """The names of the programs running on this machine, lowercased."""
+    import subprocess
+    try:
+        out = subprocess.run(["ps", "-axo", "comm"], capture_output=True, text=True,
+                             timeout=8).stdout
+    except Exception:
+        return None
+    return out.lower()
+
+
+def sync_state(path, running=None):
+    """
+    Whether anything is actually carrying this folder to the internet.
+
+    Returns the name of the service and whether its program is running. Where
+    the folder is an ordinary one on this disk, nothing is claimed either way.
+    """
+    lowered = path.lower()
+    service = None
+    markers = ()
+    for needle, name, processes in SYNC_AGENTS:
+        if needle in lowered:
+            service, markers = name, processes
+            break
+    if service is None:
+        return {"service": "", "syncing": None,
+                "note": "An ordinary folder on this computer."}
+    if running is None:
+        running = _running_programs()
+    if running is None:
+        return {"service": service, "syncing": None, "note": ""}
+    alive = any(marker.lower() in running for marker in markers)
+    return {
+        "service": service,
+        "syncing": alive,
+        "note": "" if alive else
+                "%s is not running on this computer, so anything put in this folder stays "
+                "on this machine and never reaches the internet." % service,
+    }
+
+
 def _writable(path):
     """Whether a folder will actually accept a file, rather than merely existing."""
     probe = os.path.join(path, ".saphal-book-write-test")
