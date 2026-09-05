@@ -17,7 +17,6 @@ import zipfile
 
 from . import db, nepali_date as nd
 
-KEEP_AUTOMATIC = 30
 
 
 def _safe_copy(source_path, target_path):
@@ -31,12 +30,29 @@ def _safe_copy(source_path, target_path):
         source.close()
 
 
+# How many days of backups to hold, here and in Drive. Enough to fall back
+# on if today's turns out to contain the mistake, and few enough that the
+# folder never becomes a list nobody reads.
+KEEP_DAYS = 3
+
+
 def create_backup(note="", kind="manual"):
     """Write a backup zip and return a description of it."""
     db.ensure_dirs()
     stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     bs = nd.format_bs(nd.today_bs(), "numeric")
-    name = "saphal_book_%s_%s.zip" % (kind, stamp)
+    # One file a day, not one a press.
+    #
+    # The name used to carry the time, so pressing backup four times in an
+    # afternoon left four files that differ by nothing anybody would want, and a
+    # folder that only grows is a folder nobody opens. The name carries the day
+    # only, so today's backup replaces today's backup.
+    #
+    # Not one file in total, though it was asked for that way. A backup taken
+    # after a mistake would then be the only backup there is, and the mistake
+    # would be the only thing kept. Three days are held: today, and two to fall
+    # back on.
+    name = "saphal_book_%s.zip" % datetime.datetime.now().strftime("%Y%m%d")
     target = os.path.join(db.BACKUP_DIR, name)
     staging = os.path.join(db.BACKUP_DIR, "_staging_%s" % stamp)
     os.makedirs(staging, exist_ok=True)
@@ -72,8 +88,10 @@ def create_backup(note="", kind="manual"):
     finally:
         shutil.rmtree(staging, ignore_errors=True)
 
-    if kind == "automatic":
-        prune_automatic()
+    # Every backup, not only the automatic ones. There is one file a day now,
+    # so a backup taken by hand is today's backup rather than an extra one, and
+    # the old days go the same way whoever asked for them.
+    prune_automatic()
     info = describe(target)
     try:
         system = db.connect(db.SYSTEM_DB) if os.path.exists(db.SYSTEM_DB) else None
@@ -127,16 +145,16 @@ def list_backups():
     return out
 
 
-def prune_automatic(keep=KEEP_AUTOMATIC):
+def prune_automatic(keep=KEEP_DAYS):
     """
-    Remove the older automatic backups, keeping the newest few.
+    Keep the newest few days of backups and remove the rest.
 
-    Anything taken by hand is left alone, because somebody meant to take it.
+    There is one file per day now, so this counts days rather than presses.
     Gives back how many were actually removed, so the screen can say.
     """
-    automatic = [b for b in list_backups() if b["kind"] != "manual"]
+    everything = list_backups()
     removed = 0
-    for old in automatic[keep:]:
+    for old in everything[keep:]:
         try:
             os.remove(old["path"])
             removed += 1
@@ -335,7 +353,7 @@ def send_to_google(system_conn, zip_path):
         folder = settings["folder_id"] or gdrive.ensure_folder(
             token, settings["folder_name"])
         sent = gdrive.upload(token, zip_path, folder)
-        removed = gdrive.tidy(token, folder, settings["keep"])
+        removed = gdrive.tidy(token, folder, KEEP_DAYS)
         return {"ok": True, "name": sent.get("name"), "removed": removed,
                 "where": "Google Drive"}
     except Exception as exc:                                        # noqa: BLE001

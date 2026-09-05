@@ -18,7 +18,7 @@
 		</data>
 		<key>Resources/app/chartered_book/BUILD.txt</key>
 		<data>
-		kJzZFzorWCQdOo758b6y/icN95U=
+		Irow0YBf62J6cP3tWhGvfSO9vpQ=
 		</data>
 		<key>Resources/app/chartered_book/__init__.py</key>
 		<data>
@@ -38,7 +38,7 @@
 		</data>
 		<key>Resources/app/chartered_book/core/backup.py</key>
 		<data>
-		li+RxF/vZNLJj406C2nDF/tCoTU=
+		2/dx8J41lg/AcRx2sAWPeIIXiHU=
 		</data>
 		<key>Resources/app/chartered_book/core/build.py</key>
 		<data>
@@ -62,7 +62,7 @@
 		</data>
 		<key>Resources/app/chartered_book/core/gdrive.py</key>
 		<data>
-		ew6xuYblO3eZYsjNpA9L/gjLqLg=
+		fkVR+DfTpqgcBw/JXqU87ZbRT/8=
 		</data>
 		<key>Resources/app/chartered_book/core/money.py</key>
 		<data>
@@ -83,6 +83,10 @@
 		<key>Resources/app/chartered_book/core/vault.py</key>
 		<data>
 		vaPsHnZjS7YDF9oJVdSk4TVRs+I=
+		</data>
+		<key>Resources/app/chartered_book/core/webcall.py</key>
+		<data>
+		8wbGTR3o4KSM+sE6cqTzt8GhBS4=
 		</data>
 		<key>Resources/app/chartered_book/modules/__init__.py</key>
 		<data>
@@ -373,7 +377,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			jgTmGuBVUYrqJiyO0NhC2hbtG2bHHXmuNWF6mpMJvqg=
+			rAf5BBRerp3+ZRA0jogCAtCRRqTtW2JDqVI1hMYgwQo=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/__init__.py</key>
@@ -408,7 +412,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			IG9N4rK2gK0x8KhrhFGwiq+uQBi4VstAT5jtJe86CH4=
+			4ZSTCmyfvCFn+pDYYwbtzA+v/7ecUbkSpDuMwz5Za1I=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/core/build.py</key>
@@ -450,7 +454,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			Pqw5qiXUgMX+b2K9KwcZhwgTqIfeGAkKqQp2Y1lbdq4=
+			Ww7yQEezVNK9CQQtWNGPbpMVHMieHBsZbpVXN9RJ3kc=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/core/money.py</key>
@@ -486,6 +490,13 @@
 			<key>hash2</key>
 			<data>
 			hiolZaSGVOdB/ljAFU+No9+7g1jHwwEejrJqrKIm0RU=
+			</data>
+		</dict>
+		<key>Resources/app/chartered_book/core/webcall.py</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			JoG15X8YtFJSs2bHjcB9ePERXU/Z1Mb/zDEuyHVwxLM=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/modules/__init__.py</key>

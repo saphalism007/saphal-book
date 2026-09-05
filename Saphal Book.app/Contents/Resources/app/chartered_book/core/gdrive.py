@@ -18,9 +18,9 @@ point after what happened when the full application was tried.
 
 import json
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
+
+from . import webcall
 
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -39,22 +39,17 @@ class DriveError(Exception):
 
 def _post_form(url, fields):
     data = urllib.parse.urlencode(fields).encode("utf-8")
-    request = urllib.request.Request(url, data=data, method="POST")
-    request.add_header("Content-Type", "application/x-www-form-urlencoded")
     try:
-        answer = urllib.request.urlopen(request, timeout=TIMEOUT)
-        return json.loads(answer.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        body = error.read().decode("utf-8", "replace")
-        try:
-            detail = json.loads(body)
-        except ValueError:
-            detail = {"error_description": body[:300]}
+        status, detail = webcall.call_json(
+            url, "POST", data,
+            {"Content-Type": "application/x-www-form-urlencoded"}, TIMEOUT)
+    except webcall.CallFailed as error:
+        raise DriveError(str(error))
+    if status >= 400:
+        detail = detail or {}
         raise DriveError(detail.get("error_description") or detail.get("error")
                          or "Google refused the request.")
-    except urllib.error.URLError as error:
-        raise DriveError("Could not reach Google. Check the internet connection. (%s)"
-                         % error.reason)
+    return detail or {}
 
 
 def consent_url(client_id, redirect_uri):
@@ -99,25 +94,21 @@ def access_token(client_id, client_secret, refresh_token):
 
 def _call(token, url, method="GET", body=None, headers=None):
     data = json.dumps(body).encode("utf-8") if body is not None else None
-    request = urllib.request.Request(url, data=data, method=method)
-    request.add_header("Authorization", "Bearer " + token)
+    send = {"Authorization": "Bearer " + token}
     if data is not None:
-        request.add_header("Content-Type", "application/json")
-    for key, value in (headers or {}).items():
-        request.add_header(key, value)
+        send["Content-Type"] = "application/json"
+    send.update(headers or {})
     try:
-        answer = urllib.request.urlopen(request, timeout=TIMEOUT)
-        raw = answer.read().decode("utf-8")
-        return json.loads(raw) if raw.strip() else {}
-    except urllib.error.HTTPError as error:
-        body = error.read().decode("utf-8", "replace")
-        try:
-            detail = json.loads(body).get("error", {}).get("message")
-        except ValueError:
-            detail = body[:300]
-        raise DriveError(detail or "Google refused the request.")
-    except urllib.error.URLError as error:
-        raise DriveError("Could not reach Google. (%s)" % error.reason)
+        status, detail = webcall.call_json(url, method, data, send, TIMEOUT)
+    except webcall.CallFailed as error:
+        raise DriveError(str(error))
+    if status >= 400:
+        message = ""
+        if isinstance(detail, dict):
+            message = (detail.get("error") or {}).get("message") if isinstance(
+                detail.get("error"), dict) else detail.get("message", "")
+        raise DriveError(message or "Google refused the request.")
+    return detail or {}
 
 
 def ensure_folder(token, name, parent=None):
@@ -142,10 +133,33 @@ def ensure_folder(token, name, parent=None):
     return made["id"]
 
 
+def find_by_name(token, name, folder_id):
+    """The id of a file this software already put there under that name."""
+    query = "name = '%s' and trashed = false" % name.replace("'", "\\'")
+    if folder_id:
+        query += " and '%s' in parents" % folder_id
+    found = _call(token, FILES_URL + "?" + urllib.parse.urlencode({
+        "q": query, "fields": "files(id,name)", "pageSize": "10"}))
+    files = found.get("files") or []
+    return files[0]["id"] if files else None
+
+
 def upload(token, path, folder_id=None, name=None):
-    """Send one file up. Nothing else on the machine is read or changed."""
+    """
+    Send one file up, replacing what is there under the same name.
+
+    Drive is happy to keep several files with identical names in one folder, so
+    sending today's backup twice used to leave two of them, and then three.
+    Today's backup replaces today's backup: the file that is already there is
+    updated in place, keeping its own id and its own link.
+    """
     import os
     name = name or os.path.basename(path)
+    existing = None
+    try:
+        existing = find_by_name(token, name, folder_id)
+    except DriveError:
+        existing = None
     with open(path, "rb") as handle:
         payload = handle.read()
 
@@ -160,30 +174,50 @@ def upload(token, path, folder_id=None, name=None):
         + payload
         + ("\r\n--%s--\r\n" % boundary).encode())
 
-    request = urllib.request.Request(
-        UPLOAD_URL + "?uploadType=multipart&fields=id,name,size", data=body, method="POST")
-    request.add_header("Authorization", "Bearer " + token)
-    request.add_header("Content-Type", "multipart/related; boundary=%s" % boundary)
+    if existing:
+        # Replacing: the parent is already set and Drive refuses to be told it
+        # again on an update.
+        meta.pop("parents", None)
+        body = (
+            ("--%s\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" % boundary).encode()
+            + json.dumps(meta).encode("utf-8")
+            + ("\r\n--%s\r\nContent-Type: application/zip\r\n\r\n" % boundary).encode()
+            + payload
+            + ("\r\n--%s--\r\n" % boundary).encode())
+        where = UPLOAD_URL + "/" + existing + "?uploadType=multipart&fields=id,name,size"
+        how = "PATCH"
+    else:
+        where = UPLOAD_URL + "?uploadType=multipart&fields=id,name,size"
+        how = "POST"
+
     try:
-        answer = urllib.request.urlopen(request, timeout=TIMEOUT * 4)
-        return json.loads(answer.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        raw = error.read().decode("utf-8", "replace")
-        try:
-            detail = json.loads(raw).get("error", {}).get("message")
-        except ValueError:
-            detail = raw[:300]
-        raise DriveError(detail or "Google would not take the file.")
-    except urllib.error.URLError as error:
-        raise DriveError("Could not reach Google. (%s)" % error.reason)
+        status, answer = webcall.call_json(
+            where, how, body,
+            {"Authorization": "Bearer " + token,
+             "Content-Type": "multipart/related; boundary=%s" % boundary},
+            TIMEOUT * 4)
+    except webcall.CallFailed as error:
+        raise DriveError(str(error))
+    if status >= 400:
+        message = ""
+        if isinstance(answer, dict):
+            message = (answer.get("error") or {}).get("message") if isinstance(
+                answer.get("error"), dict) else answer.get("message", "")
+        raise DriveError(message or "Google would not take the file.")
+    return answer or {}
 
 
-def tidy(token, folder_id, keep=20):
+def tidy(token, folder_id, keep=3):
     """
     Keep the newest few backups in Drive and remove the rest.
 
-    Only files this software put there are visible to it, so nothing else can
-    be caught by this.
+    Three, not twenty. Clicking backup twice in a day used to leave two files
+    that differ by nothing anybody would want, and a folder that grows for ever
+    is a folder nobody looks in. Three is what is left: today, and two days to
+    fall back on if today's turns out to hold a mistake.
+
+    Only files this software put there are visible to it, so nothing else in the
+    Drive can be caught by this.
     """
     found = _call(token, FILES_URL + "?" + urllib.parse.urlencode({
         "q": "'%s' in parents and trashed = false" % folder_id,
