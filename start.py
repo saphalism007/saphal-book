@@ -118,17 +118,21 @@ def open_in_own_window(url):
             if found:
                 candidates.append(found)
 
-    profile = os.path.join(db.DATA_DIR, "window")
+    # The window opens in the browser already running on the machine rather than
+    # in a profile of its own.
+    #
+    # A separate profile sounds tidier and cost nearly five seconds on every
+    # single launch, because it is a whole cold browser start each time however
+    # long the real one has been open. Measured: the books themselves are ready
+    # in a third of a second and the wait was entirely this. Nobody minds an
+    # extension being loaded; everybody minds waiting five seconds to look up a
+    # customer.
     for path in candidates:
         if not os.path.exists(path):
             continue
         try:
             subprocess.Popen(
-                [path, "--app=%s" % url,
-                 # Its own small profile, so the window does not inherit tabs,
-                 # extensions or a signed in browser account from anywhere else.
-                 "--user-data-dir=%s" % profile,
-                 "--no-first-run", "--no-default-browser-check"],
+                [path, "--app=%s" % url, "--no-first-run", "--no-default-browser-check"],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return True
         except Exception:
