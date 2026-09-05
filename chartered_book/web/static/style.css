@@ -1029,3 +1029,13 @@ tr.is-cleared:hover td { background: var(--good-soft); }
   box-shadow: 0 6px 20px rgba(0, 0, 0, .22);
   pointer-events: none;
 }
+
+/* The one decision the software cannot make for anybody: the same books
+   changed in two places. Each gets its own block with the two answers next to
+   each other, so the choice reads as a choice rather than as a row in a
+   table. */
+.decide {
+  padding: .75rem 0; border-top: 1px solid var(--line-soft);
+}
+.decide:first-of-type { border-top: 0; padding-top: .25rem; }
+.decide-name { font-weight: 600; font-size: .95rem; margin-bottom: .5rem; }

@@ -185,12 +185,22 @@ def status(system, session):
             "username": session.username if session and session.signed_in() else ""}
 
 
-def send_up(system, session, slug):
-    """Put this device's copy on the server."""
+def send_up(system, session, slug, decided=False):
+    """
+    Put this device's copy on the server.
+
+    Ordinarily the server refuses a send from a device that has fallen behind,
+    which is what stops one machine writing over another's day of work. Where
+    somebody has been shown both and has said to keep this one, that refusal has
+    served its purpose and is stepped past: decided says so, and nothing sets it
+    but a person answering that question.
+    """
     if not session or not session.signed_in():
         raise SyncError("Sign in to your account first.")
     state = _state(system, slug)
     expected = state["version"]
+    if decided:
+        expected = session.remote_version(slug)["version"]
 
     # Where this device believes it has sent these books before but the server
     # is holding nothing, they have been taken off it, by this person on another

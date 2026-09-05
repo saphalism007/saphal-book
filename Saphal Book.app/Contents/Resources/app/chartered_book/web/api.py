@@ -1783,7 +1783,8 @@ def cloud_send(request):
     if not slug:
         raise ApiError("Say which books to send.")
     try:
-        return sync.send_up(request.system, session, slug)
+        return sync.send_up(request.system, session, slug,
+                            decided=bool(request.body.get("force")))
     except cloud.Conflict as exc:
         raise ApiError(
             "%s Bring it down first, or send anyway only if you are certain this "

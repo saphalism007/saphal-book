@@ -18,7 +18,7 @@
 		</data>
 		<key>Resources/app/chartered_book/BUILD.txt</key>
 		<data>
-		3VvZanCHCiIFqx/Qz5JkmHZ5szY=
+		KMW8Bt9XxF3NvYgObkL6xXgpkeU=
 		</data>
 		<key>Resources/app/chartered_book/__init__.py</key>
 		<data>
@@ -150,7 +150,7 @@
 		</data>
 		<key>Resources/app/chartered_book/modules/sync.py</key>
 		<data>
-		8EQTBsPTi2HPa63aGORAIf14xpY=
+		u5o2QtFqVM7ZsQf1pzP0QJYkOWk=
 		</data>
 		<key>Resources/app/chartered_book/modules/tb_import.py</key>
 		<data>
@@ -166,7 +166,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/api.py</key>
 		<data>
-		3jJGM9TkZR5kQn+480ycmvYW0EA=
+		Cw5uRhGj6uSHgV+HfyFtGZKqi7g=
 		</data>
 		<key>Resources/app/chartered_book/web/embedded.py</key>
 		<data>
@@ -178,7 +178,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/static/app.js</key>
 		<data>
-		2tgqCPISi9Yaei9lLtE5REAT8og=
+		Kzjb60cTa+Qzw43WbR5NQa96RaE=
 		</data>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
 		<data>
@@ -246,7 +246,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/static/style.css</key>
 		<data>
-		kyFYSRZyuRp9UNIttlFEhEmoaxc=
+		SQertjI9Fw2qj1hPlbDpq2aHkd4=
 		</data>
 		<key>Resources/app/chartered_book/web/static/sw.js</key>
 		<data>
@@ -369,7 +369,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			dpBGqYgyIuKCBrwJ90pl0BpbvWGpV3PSEe9j23nztFw=
+			TAqswIYoP166ryVx7k8bPUguyGg68Odakw27FqmkJbM=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/__init__.py</key>
@@ -600,7 +600,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			mPAr42LCnwFVbcaLf+gH0e7+079sNWK7Z5gSZ73T1cE=
+			XaIMv2kd7Xw4TjWXmfix2Vg2WYotEegc9q4vv+dlG0k=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/modules/tb_import.py</key>
@@ -621,7 +621,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			X1CQ56HTPritQ9jWXLJDQlTi0zm0gth7MKhTSo7r3hE=
+			d0bUunA6LFR+4/W8eiCgb4yg3q5DM2HNSCSFMBzJLPk=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/embedded.py</key>
@@ -642,7 +642,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			I+nseswtsa/B/WUBA1VNm00rdF5pfk85xEt3qrm7o3k=
+			Zmt8595duSYp7sUU8A03Junn+/pBTy0R88k58dCUqr4=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
@@ -761,7 +761,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			a9sEXyw+gzkK7yaTXtjQbo0EutpJvu+Rwh+T4C1peO4=
+			67HhW7HE7x+pESfAuUfeLjdHxH8PiTh3qtnGzEspDvk=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/sw.js</key>

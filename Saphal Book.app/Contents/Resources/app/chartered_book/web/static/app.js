@@ -15,6 +15,9 @@ var App = (function () {
     permissions: {},
     lookups: null,
     today: null,
+    // Books changed in two places at once, as the last automatic run found
+    // them. The account screen turns these into a question with two answers.
+    conflicts: [],
     route: "dashboard"
   };
 
@@ -96,7 +99,7 @@ var App = (function () {
         { key: "company", label: "Company" },
         { key: "users", label: "Users" },
         { key: "devices", label: "Use on your phone" },
-        { key: "cloud", label: "Your account and sync" },
+        { key: "cloud", label: "Your account" },
         { key: "backup", label: "Backup and safety" },
         { key: "dates", label: "Date converter" },
         { key: "guide", label: "Notes and rules" }
@@ -601,6 +604,11 @@ var App = (function () {
 
   var Sync = (function () {
     var timer = null, settle = null, running = false, last = 0;
+    /* A set of books that cannot be settled without somebody choosing is worth
+       saying once. It used to be said on every run, so a yellow bar came back
+       every two minutes saying the same thing, which is nagging rather than
+       telling. The screen carries it from then on. */
+    var told = {};
 
     function run(why) {
       if (running || !state.user) { return Promise.resolve(); }
@@ -620,9 +628,20 @@ var App = (function () {
             // Books that arrived change what is on the screen underneath.
             if ((result.fetched || []).length) { refresh(); }
           }
-          (result.conflicts || []).forEach(function (row) {
-            UI.flash(row.name + ": " + row.why, "warn");
+          var waiting = (result.conflicts || []).filter(function (row) {
+            return row.slug && !told[row.slug];
           });
+          (result.conflicts || []).forEach(function (row) {
+            if (row.slug) { told[row.slug] = true; }
+          });
+          if (waiting.length) {
+            UI.flash(waiting.length === 1
+              ? waiting[0].name + " was changed in two places. Open Your account to "
+                + "choose which copy to keep."
+              : waiting.length + " sets of books were changed in two places. Open Your "
+                + "account to choose which copies to keep.", "warn");
+          }
+          state.conflicts = result.conflicts || [];
         })
         .catch(function () { /* offline, or not signed in. Nothing to say. */ })
         .then(function () { running = false; });
@@ -647,7 +666,9 @@ var App = (function () {
       run("start");
     }
 
-    return { run: run, touched: touched, start: start };
+    function forget(slug) { delete told[slug]; }
+
+    return { run: run, touched: touched, start: start, forget: forget };
   }());
 
   /* Finishing for the day.
@@ -1498,20 +1519,49 @@ var App = (function () {
      this machine; the server only carries a locked copy between devices. */
 
   register("cloud", function (page) {
-    return api("/api/cloud/status").then(function (state) { draw(state); });
+    /* Your account.
+
+       This screen used to be the machinery: a row for every set of books, a
+       version number here and a version number there, and a Send up and a
+       Bring down against each one. All of that is how it works, none of it is
+       anything to do. The books go up and come down on their own.
+
+       So there are only two things here now. Who you are signed in as, and
+       whether everything is safe. The one time a person genuinely has to
+       decide is when the same books were changed in two places at once, and
+       that is asked as a plain question with the two answers spelled out. */
+
+    var showWorkings = false;
+
+    return load();
+
+    function load() {
+      // Ask the account where things stand before drawing, so opening this
+      // screen answers the question it was opened to answer rather than
+      // showing whatever the last automatic run happened to leave behind.
+      return Sync.run("opened the account screen")
+        .then(function () { return api("/api/cloud/status"); })
+        .then(draw);
+    }
 
     function draw(state) {
       UI.clear(page);
 
       if (!state.configured) {
         page.appendChild(el("div.card", {}, [
-          el("div.empty", { text: "No server has been set up for these books." })
+          el("div.empty", { text: "No account server has been set up for these books." })
         ]));
         return;
       }
+      if (!state.signed_in) { page.appendChild(gate(state)); return; }
 
-      page.appendChild(state.signed_in ? account(state) : gate(state));
-      if (state.signed_in) { page.appendChild(booksCard(state)); }
+      page.appendChild(who(state));
+
+      var split = (App.state.conflicts || []).filter(function (row) { return row.slug; });
+      if (split.length) { page.appendChild(toDecide(split, state)); }
+
+      page.appendChild(standing(state, split.length));
+      if (showWorkings) { page.appendChild(workings(state)); }
       page.appendChild(explainer());
     }
 
@@ -1519,31 +1569,21 @@ var App = (function () {
       return api("/api/cloud/status").then(draw);
     }
 
-    /* The connection to the account lives in memory and nowhere else, because
-       it carries the key that opens the books. Closing the app, or a new
-       version of it starting, therefore ends it. A page left open from before
-       goes on showing the old card, so anything that comes back saying the
-       connection has gone puts the sign in form up again rather than leaving
-       somebody looking at a screen that says they are signed in and a message
-       saying they are not. */
-
     function lost(error) {
       if (error && /sign in to your account/i.test(error.message || "")) {
-        UI.flash("Your account needs signing in to again. This happens when the "
-                 + "connection has been left unused for a long time.", "warn");
+        UI.flash("Your account needs signing in to again.", "warn");
         return reload();
       }
       UI.flash((error && error.message) || "That did not work.", "bad");
       return null;
     }
 
-    /* Signing in, or opening an account */
+    /* Signing in */
 
     function gate(state) {
       var username = el("input", { type: "text", value: state.remembered || "",
                                    placeholder: "The name you sign in with" });
       var password = el("input", { type: "password", placeholder: "Your password" });
-      var note = el("div.card-note");
 
       function go(making) {
         var name = username.value.trim();
@@ -1554,20 +1594,14 @@ var App = (function () {
                    + "books, so a short one is the weak link.", "bad");
           return;
         }
-        note.textContent = making ? "Opening the account…" : "Signing in…";
         api(making ? "/api/cloud/sign-up" : "/api/cloud/sign-in",
             { body: { username: name, password: secret } })
           .then(function () {
             password.value = "";
             UI.flash(making ? "Account opened." : "Signed in.", "good");
-            // Fetch whatever is waiting and send whatever is not up there yet,
-            // straight away, so signing in is the only thing anybody has to do.
             return Sync.run("signed in").then(reload);
           })
-          .catch(function (error) {
-            note.textContent = "";
-            UI.flash(error.message, "bad");
-          });
+          .catch(function (error) { UI.flash(error.message, "bad"); });
       }
 
       password.addEventListener("keydown", function (event) {
@@ -1586,8 +1620,7 @@ var App = (function () {
         el("div.row", {}, [
           el("button.primary", { text: "Sign in", onclick: function () { go(false); } }),
           el("button.secondary", { text: "Open a new account",
-                                   onclick: function () { go(true); } }),
-          el("div.spacer"), note
+                                   onclick: function () { go(true); } })
         ]),
         el("p.card-note", { style: "margin-top:.6rem", text: "This password also unlocks "
           + "the books. Nobody can reset it, not the makers of this software and not the "
@@ -1596,32 +1629,166 @@ var App = (function () {
       ]);
     }
 
-    function account(state) {
+    function who(state) {
       return el("div.card", {}, [
         el("div.card-head", {}, [
           el("h2", { text: "Signed in as " + state.username }),
           el("button.secondary", { text: "Sign out", onclick: function () {
-            api("/api/cloud/sign-out", { body: {} })
-              .then(function () { UI.flash("Signed out.", "warn"); return reload(); });
-          } })
+            UI.confirmAction("Sign out of your account",
+              "The books stay on this device and go on working. They simply stop going "
+              + "to and from your other devices until you sign in again.",
+              function () {
+                return api("/api/cloud/sign-out", { body: {} })
+                  .then(function () { UI.flash("Signed out.", "warn"); return reload(); });
+              }, "Sign out");
+          }})
         ]),
-        el("p.card-note", { text: "This device is known as " + state.device
-          + ". Other devices are shown that name when they are told who wrote last." })
+        el("p.card-note", { text: "This device is called " + state.device
+          + ". Your other devices are shown that name when they are told who wrote last." })
       ]);
     }
 
-    /* Each set of books, and what to do about it */
+    /* Whether everything is safe, in one line */
 
-    function booksCard(state) {
-      var rows = state.books.map(function (book) {
-        var behind = book.standing === "newer on the server";
-        var ahead = book.standing === "newer here" || book.standing === "not sent yet"
-                    || book.standing === "removed from the server";
+    function standing(state, splitCount) {
+      var books = state.books || [];
+      var behind = books.filter(function (b) {
+        return b.standing !== "up to date" && b.standing !== "not sent yet";
+      }).length;
+      var never = books.filter(function (b) { return b.standing === "not sent yet"; }).length;
 
-        var pill = "pill";
-        if (book.standing === "up to date") { pill += ".good"; }
-        else if (behind) { pill += ".warn"; }
+      var line, tone;
+      if (!books.length) {
+        line = "No companies on this device yet.";
+        tone = "";
+      } else if (splitCount >= books.length) {
+        line = "Once you have chosen above, everything is saved again.";
+        tone = "";
+      } else if (splitCount) {
+        line = "Everything else is up to date.";
+        tone = "";
+      } else if (behind || never) {
+        line = "Catching up.";
+        tone = "";
+      } else {
+        line = books.length === 1
+          ? "Your books are saved to your account."
+          : "All " + books.length + " sets of books are saved to your account.";
+        tone = "good";
+      }
 
+      return el("div.card", {}, [
+        el("div.card-head", {}, [
+          el("h2", { text: "Everything you enter is kept" }),
+          el("button.secondary", { text: "Check now", onclick: function () {
+            return Sync.run("asked").then(reload);
+          }})
+        ]),
+        el("div.row", { style: "align-items:center;gap:.5rem" }, [
+          tone ? el("span.pill.good", { text: "Up to date" }) : null,
+          el("span", { text: line })
+        ]),
+        el("p.card-note", { text: "This happens on its own, a few seconds after you stop "
+          + "typing and whenever Saphal Book is opened. There is nothing to press." }),
+        el("button.link-button", {
+          text: showWorkings ? "Hide the detail" : "Show the detail",
+          onclick: function () { showWorkings = !showWorkings; return reload(); }
+        })
+      ]);
+    }
+
+    /* The one real decision: the same books changed in two places */
+
+    function toDecide(split, state) {
+      var card = el("div.card", {}, [
+        el("div.card-head", {}, [
+          el("h2", { text: split.length === 1
+            ? "One set of books was changed in two places"
+            : split.length + " sets of books were changed in two places" })
+        ]),
+        el("p.card-note", { text: "Work was entered here and on another device since these "
+          + "last agreed, so they no longer match. Nothing can put two days of separate "
+          + "entries together, so choose which one to keep. The other is set aside on this "
+          + "device, not thrown away." })
+      ]);
+
+      split.forEach(function (row) {
+        var book = (state.books || []).filter(function (b) {
+          return b.slug === row.slug;
+        })[0] || {};
+        var other = book.server_device || "your other device";
+
+        card.appendChild(el("div.decide", {}, [
+          el("div.decide-name", { text: row.name }),
+          el("div.row", {}, [
+            el("button.secondary", {
+              text: "Keep what is on this device",
+              onclick: function () { keepHere(row, book); }
+            }),
+            el("button.secondary", {
+              text: "Keep what is on " + other,
+              onclick: function () { keepThere(row, book, other); }
+            })
+          ]),
+          book.server_updated_at
+            ? el("div.card-note", { style: "margin:.35rem 0 0",
+                text: other + " last wrote to these on "
+                      + UI.bs(book.server_updated_at.slice(0, 10), "short") + "." })
+            : null
+        ]));
+      });
+      return card;
+    }
+
+    function keepHere(row, book) {
+      UI.confirmAction("Keep this device's copy of " + row.name,
+        "What is on this device becomes the one everybody gets. Anything entered on "
+        + (book.server_device || "the other device") + " and not entered here as well "
+        + "will not be in it.",
+        function () {
+          return api("/api/cloud/send", { body: { slug: row.slug, force: true } })
+            .then(function () {
+              Sync.forget(row.slug);
+              App.state.conflicts = (App.state.conflicts || []).filter(function (c) {
+                return c.slug !== row.slug;
+              });
+              UI.flash(row.name + " is now the copy everybody gets.", "good");
+              return reload();
+            })
+            .catch(function (error) { lost(error); return false; });
+        }, "Keep this one");
+    }
+
+    function keepThere(row, book, other) {
+      UI.confirmAction("Keep the copy from " + other,
+        "The copy from " + other + " replaces what is on this device. Anything entered "
+        + "here and not there will not be in it. What is here now is set aside on the "
+        + "disk first, so it is not lost.",
+        function () {
+          return api("/api/cloud/bring", { body: { slug: row.slug } })
+            .then(function () {
+              Sync.forget(row.slug);
+              App.state.conflicts = (App.state.conflicts || []).filter(function (c) {
+                return c.slug !== row.slug;
+              });
+              UI.flash(row.name + " now matches " + other + ". The copy that was here "
+                       + "was kept on the disk.", "good");
+              return refresh();
+            })
+            .catch(function (error) { lost(error); return false; });
+        }, "Keep that one");
+    }
+
+    /* For when somebody wants to see what is actually going on */
+
+    function workings(state) {
+      var rows = (state.books || []).map(function (book) {
+        var plain = { "up to date": "Saved to your account",
+                      "newer on the server": "Coming down",
+                      "newer here": "Going up",
+                      "not sent yet": "Going up for the first time",
+                      "removed from the server": "Going up again" }[book.standing]
+                    || book.standing;
         return el("tr", {}, [
           el("td", {}, [
             el("div", { text: book.name }),
@@ -1630,103 +1797,30 @@ var App = (function () {
                             text: "last written by " + book.server_device })
               : null
           ]),
-          el("td", {}, [el("span." + pill, { text: book.standing })]),
+          el("td", {}, [el("span.pill" + (book.standing === "up to date" ? ".good" : ""),
+                           { text: plain })]),
           el("td.num", { text: book.version ? "v" + book.version : "" }),
-          el("td.num", { text: book.server_version ? "v" + book.server_version : "" }),
-          el("td", {}, [
-            el("div.row", { style: "gap:.35rem" }, [
-              el("button." + (ahead ? "primary" : "secondary"), {
-                text: "Send up",
-                onclick: function () { send(book); }
-              }),
-              el("button." + (behind ? "primary" : "secondary"), {
-                text: "Bring down",
-                onclick: function () { bring(book); }
-              })
-            ])
-          ])
+          el("td.num", { text: book.server_version ? "v" + book.server_version : "" })
         ]);
       });
-
       return el("div.card", {}, [
-        el("div.card-head", {}, [
-          el("h2", { text: "Books on this device" }),
-          state.waiting_elsewhere
-            ? el("button.primary", {
-                text: "Bring down the " + state.waiting_elsewhere + " waiting on the server",
-                onclick: function () { bringNew(state.waiting_elsewhere); } })
-            : null
-        ]),
+        el("div.card-head", {}, [el("h2", { text: "The detail" })]),
         UI.table(["Books", "Standing", { label: "Here", num: true },
-                  { label: "On the server", num: true }, ""], rows, null,
+                  { label: "On your account", num: true }], rows, null,
                  { emptyText: "No companies on this device yet." })
       ]);
     }
 
-    function bringNew(howMany) {
-      UI.confirmAction("Bring down " + howMany + " set" + (howMany === 1 ? "" : "s")
-                       + " of books",
-        "These are on the server and this device has never seen them. What they are "
-        + "called is inside the locked file, so it will be known once they are open. "
-        + "Nothing already on this device is touched.",
-        function () {
-          return api("/api/cloud/bring-new", { body: {} })
-            .then(function (result) {
-              var names = result.brought.map(function (b) { return b.name || b.slug; });
-              UI.flash(result.count
-                ? "Brought down " + names.join(", ") + "."
-                : "There was nothing new to bring down.", "good");
-              return reload();
-            })
-            .catch(function (error) { lost(error); return false; });
-        }, "Bring them down");
-    }
-
-    function send(book) {
-      UI.confirmAction("Send " + book.name + " up",
-        "This puts a locked copy of the books on this device onto the server, where "
-        + "your other devices can fetch it. The copy here is not changed.",
-        function () {
-          return api("/api/cloud/send", { body: { slug: book.slug } })
-            .then(function (result) {
-              UI.flash(book.name + " sent up as version " + result.version + ".", "good");
-              return reload();
-            })
-            .catch(function (error) { lost(error); return false; });
-        }, "Send it up");
-    }
-
-    function bring(book) {
-      UI.confirmAction("Bring " + book.name + " down",
-        "This replaces the books on this device with the copy from the server"
-        + (book.server_device ? ", last written by " + book.server_device : "") + ".  "
-        + "Anything entered here and not yet sent up will be gone from the working "
-        + "copy. What is here now is set aside on the disk first, so it is not lost.",
-        function () {
-          return api("/api/cloud/bring", { body: { slug: book.slug } })
-            .then(function (result) {
-              UI.flash(result.name + " brought down as version " + result.version
-                       + ". The copy that was here was kept.", "good");
-              return reload();
-            })
-            .catch(function (error) { lost(error); return false; });
-        }, "Bring it down");
-    }
-
     function explainer() {
       return el("div.card", {}, [
-        el("div.card-head", {}, [el("h2", { text: "What the server can and cannot see" })]),
-        el("p.card-note", { text: "The books on this machine are the real ones. Everything "
-          + "goes on working with the internet unplugged; the server is only a way of "
-          + "getting a copy to another device." }),
+        el("div.card-head", {}, [el("h2", { text: "What is kept, and who can read it" })]),
+        el("p.card-note", { text: "The books on this device are the real ones. Everything "
+          + "goes on working with the internet unplugged. The account is how a copy "
+          + "reaches your other devices." }),
         el("p.card-note", { text: "What is sent is locked with a key made from your "
-          + "password on this machine. The password itself never leaves, so the company "
+          + "password on this device. The password itself never leaves, so the company "
           + "holding the copies cannot read them. Even the name of the company is inside "
-          + "the locked file rather than beside it." }),
-        el("p.card-note", { text: "A device that has been out of range is refused rather "
-          + "than allowed to write over newer work, and is told which device wrote last. "
-          + "Where both have been used apart, bring one down, check it, and send it back "
-          + "up." })
+          + "the locked file rather than beside it." })
       ]);
     }
   });
