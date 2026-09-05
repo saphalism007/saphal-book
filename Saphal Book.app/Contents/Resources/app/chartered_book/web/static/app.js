@@ -1213,8 +1213,18 @@ var App = (function () {
             el("td", { text: folder, style: "font-family:var(--num);font-size:.78rem" }),
             el("td.no-print", {}, [
               el("button.link-button", { text: "Remove", onclick: function () {
-                var kept = data.folders.filter(function (f) { return f !== folder; });
-                saveFolders(kept);
+                // One click used to be enough, and the thing it switches off is
+                // the only copy of the books that would survive this computer.
+                // Worth asking twice.
+                UI.confirmAction("Stop copying backups there",
+                  "Backups will no longer be copied to:\n\n" + folder
+                  + "\n\nThe copies already in that folder stay where they are. "
+                  + "New ones will only be kept on this computer, so nothing would "
+                  + "survive this machine being lost or its disk failing.",
+                  function () {
+                    var kept = data.folders.filter(function (f) { return f !== folder; });
+                    return saveFolders(kept);
+                  }, "Stop copying there");
               }})
             ])
           ]);
