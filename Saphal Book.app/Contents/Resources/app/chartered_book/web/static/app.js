@@ -359,10 +359,28 @@ var App = (function () {
     });
     qs("#user-chip").addEventListener("click", openUserMenu);
     qs("#btn-backup-quick").addEventListener("click", function () {
-      UI.flash("Taking a backup", "warn");
-      api("/api/backup/create", { body: { note: "Quick backup from the sidebar" } })
-        .then(function (data) { UI.flash("Backed up to " + data.backup.filename, "good"); })
-        .catch(function (error) { UI.flash(error.message, "bad"); });
+      // It used to go the moment it was pressed, so pressing it a few times
+      // while wondering whether anything had happened left a pile of identical
+      // copies to sort out afterwards. It says what it is about to do now, and
+      // says when the last one was, which is usually the real question.
+      api("/api/backup/list").then(function (data) {
+        var last = (data.backups || [])[0];
+        UI.confirmAction("Take a backup now",
+          "This writes a copy of every company as one file."
+          + (last ? "  The last backup was taken " + UI.bs(last.taken_ad, "short")
+                    + " at " + (last.taken_at || "").slice(11, 16) + "."
+                  : "  There are no backups yet.")
+          + "  One is taken automatically each time Saphal Book starts and closes, "
+          + "so this is only needed before something you would rather be able to undo.",
+          function () {
+            UI.flash("Taking a backup", "warn");
+            return api("/api/backup/create",
+                       { body: { note: "Taken by hand from the sidebar" } })
+              .then(function (data) {
+                UI.flash("Backed up to " + data.backup.filename, "good");
+              });
+          }, "Take it");
+      }).catch(function (error) { UI.flash(error.message, "bad"); });
     });
 
     document.addEventListener("keydown", function (event) {
@@ -1380,6 +1398,23 @@ var App = (function () {
         UI.clear(listBox).appendChild(el("div.card", {}, [
           el("div.card-head", {}, [
             el("h2", { text: "Backups taken" }),
+            el("button.secondary.no-print", { text: "Remove old backups", onclick: function () {
+              var automatic = (data.backups || []).filter(function (b) {
+                return b.kind !== "manual";
+              }).length;
+              UI.confirmAction("Remove old backups",
+                "This clears out every backup taken automatically, keeping the newest "
+                + "three and every backup you took by hand." + (automatic > 3
+                  ? "  That is " + (automatic - 3) + " of them." : "")
+                + "  The books themselves are not touched.",
+                function () {
+                  return api("/api/backup/prune", { body: {} }).then(function (result) {
+                    UI.flash("Removed " + result.removed + " old backup"
+                             + (result.removed === 1 ? "" : "s") + ".", "good");
+                    loadList();
+                  });
+                }, "Remove them");
+            }}),
             el("button.primary", { text: "Take a backup now", onclick: function () {
               UI.promptText("Take a backup", "A note, so you can find this one later",
                 function (note) {

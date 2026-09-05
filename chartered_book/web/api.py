@@ -1398,6 +1398,21 @@ def backup_destinations(request):
     }
 
 
+@route("POST", "/api/backup/prune")
+def prune_backups(request):
+    """
+    Clear out the automatic backups, keeping the newest few.
+
+    Pressing the backup button a few times while wondering whether anything
+    happened leaves a pile of identical copies. Anything taken by hand is kept,
+    because somebody meant to take it.
+    """
+    request.require("backup.restore")
+    keep = int(request.body.get("keep") or 3)
+    removed = backup.prune_automatic(max(1, keep))
+    return {"ok": True, "removed": removed, "kept": keep}
+
+
 @route("POST", "/api/backup/destinations")
 def set_backup_destinations(request):
     request.require("backup.restore")

@@ -120,12 +120,21 @@ def list_backups():
 
 
 def prune_automatic(keep=KEEP_AUTOMATIC):
-    automatic = [b for b in list_backups() if b["kind"] == "automatic"]
+    """
+    Remove the older automatic backups, keeping the newest few.
+
+    Anything taken by hand is left alone, because somebody meant to take it.
+    Gives back how many were actually removed, so the screen can say.
+    """
+    automatic = [b for b in list_backups() if b["kind"] != "manual"]
+    removed = 0
     for old in automatic[keep:]:
         try:
             os.remove(old["path"])
+            removed += 1
         except OSError:
             pass
+    return removed
 
 
 def restore_backup(filename):
