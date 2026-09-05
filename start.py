@@ -77,6 +77,43 @@ def find_running(start_port, span=20):
     return None
 
 
+def raise_existing_window(url):
+    """
+    Bring the window that is already open to the front, if there is one.
+
+    Clicking the icon while the software is already running used to open another
+    window every time, so a day of ordinary use left a row of identical windows
+    and two icons in the Dock that nobody could tell apart. Asking the browser
+    to raise the one that exists is what anybody expects a dock icon to do.
+    """
+    if sys.platform != "darwin":
+        return False
+    import subprocess
+    script = '''
+        tell application "Google Chrome"
+            set found to false
+            repeat with w in windows
+                repeat with t in tabs of w
+                    if URL of t starts with "%s" then
+                        set index of w to 1
+                        set found to true
+                        exit repeat
+                    end if
+                end repeat
+                if found then exit repeat
+            end repeat
+            if found then activate
+            return found
+        end tell
+    ''' % url.rstrip("/")
+    try:
+        done = subprocess.run(["osascript", "-e", script], capture_output=True,
+                              text=True, timeout=6)
+        return done.stdout.strip() == "true"
+    except Exception:
+        return False
+
+
 def open_in_own_window(url):
     """
     Show the books in a window of their own, without an address bar.
@@ -261,8 +298,14 @@ def run_as_app(args):
 
     running = find_running(args.port)
     if running:
-        print("[%s] Already running on port %d, opening the browser at it." % (stamp, running))
-        open_in_own_window("http://localhost:%d/" % running)
+        address = "http://localhost:%d/" % running
+        if raise_existing_window(address):
+            print("[%s] Already running on port %d, brought the open window forward."
+                  % (stamp, running))
+        else:
+            print("[%s] Already running on port %d, opening a window at it."
+                  % (stamp, running))
+            open_in_own_window(address)
         return 0
 
     if not args.no_backup and os.path.exists(db.SYSTEM_DB):
