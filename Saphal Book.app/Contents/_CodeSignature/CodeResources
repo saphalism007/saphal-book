@@ -18,7 +18,7 @@
 		</data>
 		<key>Resources/app/chartered_book/BUILD.txt</key>
 		<data>
-		Rc+BvPzUHRKTi6hSgBReYTQ12EE=
+		TJ9ag+B3px5yJw21k62gGdF6yRA=
 		</data>
 		<key>Resources/app/chartered_book/__init__.py</key>
 		<data>
@@ -158,7 +158,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/api.py</key>
 		<data>
-		nY77Iy2SbyhEfctFdrCVwB7DPNw=
+		8Xt/6Ufbev6VRKNS5Jky8NpsFw0=
 		</data>
 		<key>Resources/app/chartered_book/web/embedded.py</key>
 		<data>
@@ -170,7 +170,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/static/app.js</key>
 		<data>
-		kBw0ususyOx+s764ZUERAzJPM1s=
+		GnaP/iEP6qi1DRiiA+wYWGba+Ac=
 		</data>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
 		<data>
@@ -250,11 +250,11 @@
 		</data>
 		<key>Resources/app/chartered_book/web/templates/index.html</key>
 		<data>
-		d2t768Fr60Dsx6J1OTF5S0mrjj4=
+		am6/IVJ2UULOapfs4XXOtzVEmaw=
 		</data>
 		<key>Resources/app/start.py</key>
 		<data>
-		Gg+825u8jptXjq2RyikkTmK7T1w=
+		7iN9hRqVd1aO4W8tJvmNRwbDGf0=
 		</data>
 		<key>Resources/app/tests/__init__.py</key>
 		<data>
@@ -341,7 +341,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			+8gERhA47gbIWL2vaApmlWE5ncfbe7bM+1rR4t+OpDE=
+			XSkh8DHpZVXWWS8G9sZJPMsvlWZhuhwhQexIqjWyRC0=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/__init__.py</key>
@@ -579,7 +579,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			enc8EWGD82ubftH6+SwNqUmgJMWpkks5tDvIAC+Cncg=
+			zdmUS0ys0vED7aR4NobNQsuDFbPh6sJ7/dDUdkWfcrM=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/embedded.py</key>
@@ -600,7 +600,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			he3M3IuEv0szdr932167rzeo2r6UdM7LxzMfu9kRb+s=
+			XU521Rv+CRwLIanmplOnabH5fVIHlv3D8muU8BknQTc=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
@@ -740,14 +740,14 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			peoW1FZ232h4IOXG+mdsQfJ/hWstG7gKey+j0bflmL4=
+			y5NDCqaNRfEBKQXGDb5Ce2AjYApf3obXCPzAAoZzyNs=
 			</data>
 		</dict>
 		<key>Resources/app/start.py</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			Igeq4Gizz4t7ljEnmrtY1oQPlgnnfW3d34twBsIYNPc=
+			AZxSBZKYku23GEOy2xavivo07QkqB7TAYpoFPDSEWbg=
 			</data>
 		</dict>
 		<key>Resources/app/tests/__init__.py</key>

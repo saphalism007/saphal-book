@@ -16,11 +16,15 @@ import json
 import os
 import signal
 import socket
+import subprocess
 import sys
 import threading
+import time
 import urllib.error
 import urllib.request
 import webbrowser
+
+HERE = os.path.dirname(os.path.abspath(__file__))
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -190,12 +194,17 @@ def main():
     parser.add_argument("--no-browser", action="store_true", help="Do not open the browser.")
     parser.add_argument("--no-backup", action="store_true",
                         help="Skip the backup normally taken at startup.")
+    parser.add_argument("--serve", action="store_true",
+                        help="Be the server. Started by the icon in the background; not "
+                             "something to run by hand.")
     parser.add_argument("--app", action="store_true",
                         help="Started from the application icon. Keeps quiet, writes what it "
                              "would have printed to a log file, and reuses a copy that is "
                              "already running instead of starting a second one.")
     args = parser.parse_args()
 
+    if args.serve:
+        return run_the_server(args)
     if args.app:
         return run_as_app(args)
 
@@ -277,36 +286,75 @@ def main():
     return 0
 
 
-def run_as_app(args):
-    """
-    Started by double clicking the icon.
-
-    There is no terminal window to read, so anything worth saying goes to
-    data/saphal-book.log instead, and the browser is opened automatically.
-    """
+def _log_to_file():
+    """Anything worth saying goes to the log, since there is no terminal."""
     db.ensure_dirs()
-    log_path = os.path.join(db.DATA_DIR, "saphal-book.log")
     try:
-        log = open(log_path, "a", buffering=1, encoding="utf-8")
+        log = open(os.path.join(db.DATA_DIR, "saphal-book.log"), "a", buffering=1,
+                   encoding="utf-8")
         sys.stdout = log
         sys.stderr = log
     except OSError:
         pass
+    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print("\n[%s] Saphal Book starting" % stamp)
+
+def run_as_app(args):
+    """
+    Started by clicking the icon.
+
+    This does as little as possible and then gets out of the way. It finds or
+    starts the server, puts the window up, and exits.
+
+    Exiting matters. When this stayed running, macOS counted the software as
+    already open, and a second click on the icon only sent it a message that a
+    script has no way to answer. Nothing happened, and the only way back in was
+    to force quit first. Because this now finishes, every click runs it again,
+    and every click therefore does something.
+    """
+    stamp = _log_to_file()
 
     running = find_running(args.port)
-    if running:
-        address = "http://localhost:%d/" % running
-        if raise_existing_window(address):
-            print("[%s] Already running on port %d, brought the open window forward."
-                  % (stamp, running))
-        else:
-            print("[%s] Already running on port %d, opening a window at it."
-                  % (stamp, running))
-            open_in_own_window(address)
-        return 0
+    if not running:
+        print("[%s] Starting the server in the background." % stamp)
+        spawned = subprocess.Popen(
+            [sys.executable, os.path.join(HERE, "start.py"), "--serve",
+             "--port", str(args.port)] + (["--lan"] if args.lan else [])
+            + (["--no-backup"] if args.no_backup else []),
+            cwd=HERE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            # Its own session, so it keeps running once this has finished and is
+            # not taken down with whatever started it.
+            start_new_session=True)
+        for _ in range(200):
+            running = find_running(args.port)
+            if running:
+                break
+            if spawned.poll() is not None:
+                break
+            time.sleep(0.05)
+        if not running:
+            print("[%s] The server did not come up." % stamp)
+            _tell_the_user("Saphal Book could not start",
+                           "Something stopped it from starting. The details are in "
+                           "saphal-book.log inside the Saphal Book folder.")
+            return 1
+
+    address = "http://localhost:%d/" % running
+    if raise_existing_window(address):
+        print("[%s] Brought the window that was open to the front." % stamp)
+    else:
+        print("[%s] Opening a window at %s" % (stamp, address))
+        open_in_own_window(address)
+    return 0
+
+
+def run_the_server(args):
+    """
+    Be the server. Started in the background by the icon, and stays until asked
+    to stop, so closing the window does not close the books.
+    """
+    stamp = _log_to_file()
+    print("\n[%s] Saphal Book starting" % stamp)
 
     if not args.no_backup and os.path.exists(db.SYSTEM_DB):
         try:
@@ -320,8 +368,6 @@ def run_as_app(args):
         httpd = server.build_server(host, args.port)
     except RuntimeError as exc:
         print("[%s] Could not start: %s" % (stamp, exc))
-        _tell_the_user("Saphal Book could not start",
-                       "Every port it tried was busy. Restart the computer and try again.")
         return 1
 
     port = httpd.server_address[1]
@@ -350,8 +396,6 @@ def run_as_app(args):
                 signal.signal(getattr(signal, name), shut_down)
             except (ValueError, OSError):
                 pass
-
-    threading.Timer(1.0, lambda: open_in_own_window("http://localhost:%d/" % port)).start()
 
     try:
         httpd.serve_forever()

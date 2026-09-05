@@ -1665,6 +1665,25 @@ def cloud_bring_new(request):
         raise ApiError(str(exc))
 
 
+@route("POST", "/api/close")
+def close_the_software(request):
+    """
+    Stop the server.
+
+    The window and the software are two different things: closing the window
+    leaves the books served, which is what lets a phone on the same wifi go on
+    reaching them. This is how somebody actually finishes for the day. A closing
+    backup is taken on the way out, as it always was.
+    """
+    import os
+    import signal
+    import threading
+    request.require_user()
+    threading.Timer(0.4, lambda: os.kill(os.getpid(), signal.SIGTERM)).start()
+    return {"ok": True,
+            "note": "Saphal Book is closing. A backup is being taken as it goes."}
+
+
 @route("POST", "/api/cloud/auto")
 def cloud_auto(request):
     """

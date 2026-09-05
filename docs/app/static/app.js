@@ -431,6 +431,7 @@ var App = (function () {
     }
 
     Sync.start();
+    wireCloseButton();
 
     var nav = UI.clear(qs("#nav"));
     buildMenu().forEach(function (group) {
@@ -644,6 +645,35 @@ var App = (function () {
 
     return { run: run, touched: touched, start: start };
   }());
+
+  /* Finishing for the day.
+
+     Closing the window leaves the books being served, which is deliberate: a
+     phone on the same wifi goes on reaching them. This is how somebody actually
+     stops the software, now that the icon no longer holds a Quit of its own. */
+
+  function wireCloseButton() {
+    var button = qs("#btn-close-app");
+    if (!button || button.dataset.wired) { return; }
+    button.dataset.wired = "1";
+    if (window.CHARTERED_BOOK_WEB) { button.style.display = "none"; return; }
+    button.onclick = function () {
+      UI.confirmAction("Finish for the day",
+        "This closes Saphal Book properly, not just the window. A backup is taken "
+        + "on the way out. Anybody using it from a phone on the same wifi will lose "
+        + "the connection until it is opened again.",
+        function () {
+          return api("/api/close", { body: {} }).then(function () {
+            document.body.innerHTML =
+              "<div style=\"display:grid;place-items:center;height:100vh;"
+              + "font:16px -apple-system,system-ui,sans-serif;color:#334\">"
+              + "<div style=\"text-align:center\"><p><b>Saphal Book is closed.</b></p>"
+              + "<p style=\"color:#889\">A backup was taken. Open it again from the "
+              + "icon whenever you need it.</p></div></div>";
+          });
+        }, "Close it");
+    };
+  }
 
   /* Routing */
 
