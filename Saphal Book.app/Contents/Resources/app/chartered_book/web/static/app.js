@@ -296,12 +296,14 @@ var App = (function () {
       UI.qsa(".hidden-when-login").forEach(function (node) {
         node.classList.toggle("hidden", !making);
       });
+      // Signing in is not the place to explain how any of this works. Somebody
+      // here wants to get into their books. The one line that survives is the
+      // one that costs them something if they do not know it: the password
+      // cannot be reset, because it is also the key the books are locked with.
       qs("#gate-help").textContent = making
-        ? "The username is held in one place, so nobody else can take it, and signing "
-          + "in with it on another device reaches the same books. Use at least eight "
-          + "characters: this password also unlocks the books, and nobody can reset it."
-        : "Sign in with the same name on any device. Where the internet is not "
-          + "available, the login kept on this machine is used instead.";
+        ? "Use at least eight characters. This password also unlocks your books "
+          + "and cannot be reset, so write it down."
+        : "";
       qs("#gate-error").textContent = "";
     }
 

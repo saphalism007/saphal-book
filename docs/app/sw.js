@@ -1,4 +1,4 @@
-var VERSION = "saphal-book-web-e38a7cd369ef";
+var VERSION = "saphal-book-web-6dca8a05b701";
 var SHELL = ["./", "index.html", "boot.js", "manifest.webmanifest",
   "chartered_book.zip",
   "static/style.css", "static/nepali.js", "static/ui.js", "static/app.js",
