@@ -636,10 +636,10 @@ var App = (function () {
           });
           if (waiting.length) {
             UI.flash(waiting.length === 1
-              ? waiting[0].name + " was changed in two places. Open Your account to "
-                + "choose which copy to keep."
-              : waiting.length + " sets of books were changed in two places. Open Your "
-                + "account to choose which copies to keep.", "warn");
+              ? waiting[0].name + " does not match your other device. Open Your account "
+                + "and pick which one to keep."
+              : waiting.length + " companies do not match your other device. Open Your "
+                + "account and pick which ones to keep.", "warn");
           }
           state.conflicts = result.conflicts || [];
         })
@@ -1259,7 +1259,19 @@ var App = (function () {
     return load();
 
     function load() {
-      return api("/api/backup/list").then(draw);
+      return api("/api/backup/list").then(function (data) {
+        draw(data);
+        // Whether this device and the account agree about Google is a question
+        // for the network, so it is asked after the screen is up rather than
+        // before it will draw at all.
+        api("/api/backup/check-google", { body: {} }).then(function (google) {
+          if (App.state.route !== "backup") { return; }
+          if (google.connected === (data.google || {}).connected
+              && google.account === (data.google || {}).account) { return; }
+          data.google = google;
+          draw(data);
+        }).catch(function () { /* offline. The local backups still show. */ });
+      });
     }
 
     function draw(data) {
@@ -1536,12 +1548,19 @@ var App = (function () {
     return load();
 
     function load() {
-      // Ask the account where things stand before drawing, so opening this
-      // screen answers the question it was opened to answer rather than
-      // showing whatever the last automatic run happened to leave behind.
-      return Sync.run("opened the account screen")
-        .then(function () { return api("/api/cloud/status"); })
-        .then(draw);
+      // Draw from what this device already knows, at once. Checking with the
+      // account reaches the network, and this screen used to sit blank for
+      // several seconds waiting for that before it would show anything. The
+      // check still happens, behind the screen, and what it finds is drawn in
+      // when it arrives.
+      return api("/api/cloud/status").then(function (state) {
+        draw(state);
+        Sync.run("opened the account screen").then(function () {
+          return api("/api/cloud/status");
+        }).then(function (fresh) {
+          if (App.state.route === "cloud") { draw(fresh); }
+        }).catch(function () { /* offline. What is drawn is still true. */ });
+      });
     }
 
     function draw(state) {
@@ -1715,54 +1734,74 @@ var App = (function () {
       ]);
     }
 
+    /* A name a person will recognise.
+
+       Older versions of the software called every browser emscripten, because
+       that is the name the accounting engine gives itself inside one. Those
+       names are already written down on the account and will stay there until
+       that device sends its books up again, so anything that looks like one is
+       turned back into plain words rather than shown as it is. */
+
+    function friendlyDevice(name) {
+      name = (name || "").trim();
+      if (!name || /emscripten/i.test(name) || name === "this device") {
+        return "your other device";
+      }
+      return name;
+    }
+
     /* The one real decision: the same books changed in two places */
 
     function toDecide(split, state) {
       var card = el("div.card", {}, [
         el("div.card-head", {}, [
           el("h2", { text: split.length === 1
-            ? "One set of books was changed in two places"
-            : split.length + " sets of books were changed in two places" })
+            ? "One company does not match"
+            : split.length + " companies do not match" })
         ]),
-        el("p.card-note", { text: "Work was entered here and on another device since these "
-          + "last agreed, so they no longer match. Nothing can put two days of separate "
-          + "entries together, so choose which one to keep. The other is set aside on this "
-          + "device, not thrown away." })
+        el("p.card-note", { text: "You have entered things here, and also on another "
+          + "device, since these two last agreed. So they now hold different work and "
+          + "there is no way to add one to the other." }),
+        el("p.card-note", { text: "Pick the one that has the entries you want. The one "
+          + "you do not pick is saved on this device as a spare file, so nothing is "
+          + "thrown away." })
       ]);
 
       split.forEach(function (row) {
         var book = (state.books || []).filter(function (b) {
           return b.slug === row.slug;
         })[0] || {};
-        var other = book.server_device || "your other device";
+        var other = friendlyDevice(book.server_device);
+        var when = book.server_updated_at
+          ? UI.bs(book.server_updated_at.slice(0, 10), "short") : "";
 
         card.appendChild(el("div.decide", {}, [
           el("div.decide-name", { text: row.name }),
-          el("div.row", {}, [
+          el("div.decide-pair", {}, [
             el("button.secondary", {
-              text: "Keep what is on this device",
               onclick: function () { keepHere(row, book); }
-            }),
+            }, [
+              el("div", { text: "Keep this one" }),
+              el("small", { text: "What is on " + state.device })
+            ]),
             el("button.secondary", {
-              text: "Keep what is on " + other,
               onclick: function () { keepThere(row, book, other); }
-            })
-          ]),
-          book.server_updated_at
-            ? el("div.card-note", { style: "margin:.35rem 0 0",
-                text: other + " last wrote to these on "
-                      + UI.bs(book.server_updated_at.slice(0, 10), "short") + "." })
-            : null
+            }, [
+              el("div", { text: "Keep that one" }),
+              el("small", { text: "What is on " + other
+                + (when ? ", written " + when : "") })
+            ])
+          ])
         ]));
       });
       return card;
     }
 
     function keepHere(row, book) {
-      UI.confirmAction("Keep this device's copy of " + row.name,
-        "What is on this device becomes the one everybody gets. Anything entered on "
-        + (book.server_device || "the other device") + " and not entered here as well "
-        + "will not be in it.",
+      UI.confirmAction("Keep this one for " + row.name,
+        "What is on this device becomes the copy every device gets. Anything typed on "
+        + friendlyDevice(book.server_device) + " and not typed here as well will not be "
+        + "in it.",
         function () {
           return api("/api/cloud/send", { body: { slug: row.slug, force: true } })
             .then(function () {
@@ -1778,10 +1817,10 @@ var App = (function () {
     }
 
     function keepThere(row, book, other) {
-      UI.confirmAction("Keep the copy from " + other,
-        "The copy from " + other + " replaces what is on this device. Anything entered "
-        + "here and not there will not be in it. What is here now is set aside on the "
-        + "disk first, so it is not lost.",
+      UI.confirmAction("Keep that one for " + row.name,
+        "The copy from " + other + " replaces what is on this device. Anything typed "
+        + "here and not there will not be in it. What is here now is saved as a spare "
+        + "file first, so it is not lost.",
         function () {
           return api("/api/cloud/bring", { body: { slug: row.slug } })
             .then(function () {
@@ -1812,7 +1851,7 @@ var App = (function () {
             el("div", { text: book.name }),
             book.server_device
               ? el("div", { style: "font-size:.76rem;color:var(--ink-faint)",
-                            text: "last written by " + book.server_device })
+                            text: "last written by " + friendlyDevice(book.server_device) })
               : null
           ]),
           el("td", {}, [el("span.pill" + (book.standing === "up to date" ? ".good" : ""),

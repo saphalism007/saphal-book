@@ -662,6 +662,8 @@ var UI = (function () {
       }));
     });
     qs("#calc-close").addEventListener("click", toggleCalculator);
+    qs("#calc-use").addEventListener("click", useCalculatorResult);
+    watchAmountFields();
     qs("#calc-display").addEventListener("keydown", function (event) {
       if (event.key === "Enter") { event.preventDefault(); pressKey("="); }
     });
@@ -721,10 +723,82 @@ var UI = (function () {
     });
   }
 
+  /* The calculator and the box you were typing in.
+
+     A calculator you have to read a number off and type again is barely a
+     calculator. Whichever amount box was last in use is remembered, so opening
+     the calculator starts from what is already in it and there is one button to
+     put the answer back. That is the whole of it: work the sum out where the
+     money is going, not beside it. */
+
+  var lastAmountField = null;
+
+  function rememberAmountField(input) {
+    lastAmountField = input;
+  }
+
+  function watchAmountFields() {
+    document.addEventListener("focusin", function (event) {
+      var node = event.target;
+      if (node && node.tagName === "INPUT"
+          && (node.classList.contains("amount") || node.classList.contains("num")
+              || node.getAttribute("inputmode") === "decimal")) {
+        lastAmountField = node;
+      }
+    });
+  }
+
+  function calculatorTarget() {
+    // Only offer it while the box is still on the screen.
+    if (lastAmountField && document.body.contains(lastAmountField)
+        && !lastAmountField.disabled && !lastAmountField.readOnly) {
+      return lastAmountField;
+    }
+    return null;
+  }
+
+  function paintCalculatorTarget() {
+    var use = qs("#calc-use");
+    if (!use) { return; }
+    var target = calculatorTarget();
+    if (!target) { use.classList.add("hidden"); return; }
+    var label = target.getAttribute("data-label")
+      || (target.closest(".field") && target.closest(".field").querySelector("label")
+          && target.closest(".field").querySelector("label").textContent.trim())
+      || "";
+    use.textContent = label ? "Put it in " + label : "Put it in the box";
+    use.classList.remove("hidden");
+  }
+
+  function useCalculatorResult() {
+    var target = calculatorTarget();
+    if (!target) { return; }
+    var raw = qs("#calc-display").value;
+    var worked = evaluate(raw);
+    var value = worked === null ? raw : trimNumber(worked);
+    target.value = value;
+    target.dispatchEvent(new Event("input", { bubbles: true }));
+    target.dispatchEvent(new Event("change", { bubbles: true }));
+    toggleCalculator();
+    target.focus();
+    if (target.select) { target.select(); }
+  }
+
   function toggleCalculator() {
     var box = qs("#calculator");
+    var opening = box.classList.contains("hidden");
     box.classList.toggle("hidden");
-    if (!box.classList.contains("hidden")) { qs("#calc-display").focus(); qs("#calc-display").select(); }
+    if (!opening) { return; }
+    paintCalculatorTarget();
+    var target = calculatorTarget();
+    var display = qs("#calc-display");
+    // Start from whatever is already in the box, so a correction is one key
+    // rather than typing the whole figure again.
+    if (target && (target.value || "").trim()) {
+      display.value = target.value.trim();
+    }
+    display.focus();
+    display.select();
   }
 
   /* Appearance */
@@ -977,6 +1051,7 @@ var UI = (function () {
     attachPicker: attachPicker, hidePicker: hidePicker, placePicker: place,
     dateField: dateField, amountInput: amountInput, evaluate: evaluate,
     setupCalculator: setupCalculator, toggleCalculator: toggleCalculator,
+    rememberAmountField: rememberAmountField,
     showBusy: showBusy, rs: rs, money: money, bs: bs, both: both, field: field, select: select, table: table,
     setLang: setLang, getLang: getLang, printPage: printPage, trimNumber: trimNumber,
     getTheme: getTheme, setTheme: setTheme, applyTheme: applyTheme,

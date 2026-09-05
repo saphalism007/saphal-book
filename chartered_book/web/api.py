@@ -1178,10 +1178,12 @@ def amount_words(request):
 @route("GET", "/api/backup/list")
 def list_backups(request):
     request.require("backup.run")
-    # Opening this screen is exactly the moment somebody wants to know where
-    # their backups go, so it is the moment to make this device and the account
-    # agree about it, rather than only at sign in.
-    backup.sync_google_link(request.system, _cloud_session(request, required=False))
+    # Nothing here talks to the network. This screen used to make this device
+    # and the account agree about Google before it would draw, which meant
+    # opening it sat blank for several seconds while somebody's server was
+    # asked. That check has its own address now and the screen asks for it
+    # afterwards, so the backups appear at once and the Google line fills in
+    # when it is known.
     settings = backup.google_settings(request.system)
     return {
         "backups": backup.list_backups(),
@@ -1193,6 +1195,25 @@ def list_backups(request):
         },
         "folder": backup.export_folder(),
     }
+
+
+@route("POST", "/api/backup/check-google")
+def check_google_link(request):
+    """
+    Make this device and the account agree about Google, in the background.
+
+    Kept apart from the backup list on purpose. It reaches the network, and
+    nothing a person is waiting to look at should have to wait for that.
+    """
+    request.require("backup.run")
+    try:
+        backup.sync_google_link(request.system, _cloud_session(request, required=False))
+    except Exception:                                               # noqa: BLE001
+        pass
+    settings = backup.google_settings(request.system)
+    return {"connected": settings is not None,
+            "account": backup.google_account(request.system) if settings else "",
+            "folder_name": settings["folder_name"] if settings else ""}
 
 
 @route("POST", "/api/backup/create")
