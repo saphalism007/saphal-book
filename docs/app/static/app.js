@@ -1317,6 +1317,17 @@ var App = (function () {
             + "this computer and the copy uploads itself the next time the machine is online. "
             + "There is no account to connect here, no key that expires, and nothing to pay for. "
             + "The books stay on this machine and only the backup file travels." }),
+          // Google Drive is not a folder on this machine. It goes straight up,
+          // so it is shown as what it is rather than pretended to be a path.
+          data.google && data.google.connected
+            ? el("div", { style: "margin:.5rem 0 .8rem" }, [
+                el("span.pill.good", { text: "Google Drive connected" }),
+                el("span", { style: "margin-left:.5rem;font-size:.8rem;color:var(--ink-faint)",
+                             text: "Every backup is sent straight to Google, into "
+                                   + (data.google.folder || "Saphal Book backups")
+                                   + ". Nothing is kept on this computer for it." })
+              ])
+            : null,
           rows.length
             ? UI.table(["Folder", ""], rows)
             : el("p.card-note", { text: "No extra folder set yet." }),

@@ -1385,6 +1385,7 @@ def backup_destinations(request):
     request.require("backup.run")
     running = backup._running_programs()
     folders = backup.get_destinations(request.system)
+    google = backup.google_settings(request.system)
     return {
         # Each folder says whether anything is actually carrying it to the
         # internet. A folder belonging to a cloud service whose program has been
@@ -1393,6 +1394,8 @@ def backup_destinations(request):
         "folders": [dict(backup.sync_state(f, running), path=f) for f in folders],
         "suggestions": [dict(s, **backup.sync_state(s["path"], running))
                         for s in backup.likely_cloud_folders()],
+        "google": {"connected": google is not None,
+                   "folder": google["folder"] if google else ""},
         "data_folder": db.DATA_DIR,
         "backup_folder": db.BACKUP_DIR,
     }

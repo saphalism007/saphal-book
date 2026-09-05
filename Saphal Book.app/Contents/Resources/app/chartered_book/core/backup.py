@@ -81,6 +81,14 @@ def create_backup(note="", kind="manual"):
             system.execute("CREATE TABLE IF NOT EXISTS app_settings "
                            "(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
             info["copies"] = copy_to_destinations(target, get_destinations(system))
+            # And straight up to Google Drive, where one is connected. The
+            # folders above are copies onto this machine that something else
+            # carries away; this one goes to Google itself, with nothing on the
+            # machine in between to go wrong.
+            sent = send_to_google(system, target)
+            if sent is not None:
+                info["copies"].append({"folder": "Google Drive", "ok": sent["ok"],
+                                       "message": sent.get("message", "Uploaded.")})
             system.close()
     except Exception as exc:
         info["copies"] = [{"folder": "", "ok": False, "message": str(exc)}]
@@ -273,6 +281,46 @@ def set_destinations(system_conn, folders):
         "INSERT INTO app_settings (key, value) VALUES ('backup_destinations', ?) "
         "ON CONFLICT(key) DO UPDATE SET value = excluded.value", ("\n".join(cleaned),))
     return cleaned, problems
+
+
+def google_settings(system_conn):
+    """The permission Google gave, if the owner has connected a Drive."""
+    held = {row["key"]: row["value"] for row in system_conn.execute(
+        "SELECT key, value FROM app_settings WHERE key LIKE 'gdrive_%'")}
+    if not held.get("gdrive_refresh_token"):
+        return None
+    return {"client_id": held.get("gdrive_client_id", ""),
+            "client_secret": held.get("gdrive_client_secret", ""),
+            "refresh_token": held["gdrive_refresh_token"],
+            "folder": held.get("gdrive_folder") or "Saphal Book backups",
+            "keep": int(held.get("gdrive_keep") or 20)}
+
+
+def send_to_google(system_conn, zip_path):
+    """
+    Put one backup into Google Drive, directly.
+
+    Not through the Google Drive application, which keeps a copy of the whole of
+    somebody's Drive on their machine and reconciles it in both directions. One
+    file goes up and nothing comes down. The permission is the narrow one, so
+    this can see the backups it put there and nothing else in the Drive.
+    """
+    from . import gdrive
+    settings = google_settings(system_conn)
+    if settings is None:
+        return None
+    try:
+        token = gdrive.access_token(settings["client_id"], settings["client_secret"],
+                                    settings["refresh_token"])
+        folder = gdrive.ensure_folder(token, settings["folder"])
+        sent = gdrive.upload(token, zip_path, folder)
+        removed = gdrive.tidy(token, folder, settings["keep"])
+        return {"ok": True, "name": sent.get("name"), "removed": removed,
+                "where": "Google Drive"}
+    except Exception as exc:                                        # noqa: BLE001
+        # A backup that reached the disk is still a backup. Never let the upload
+        # failing take the whole thing down with it.
+        return {"ok": False, "message": str(exc), "where": "Google Drive"}
 
 
 def copy_to_destinations(zip_path, folders):

@@ -18,7 +18,7 @@
 		</data>
 		<key>Resources/app/chartered_book/BUILD.txt</key>
 		<data>
-		ezT9piFD1acv2P1EjpBCR7IBIds=
+		Pnkkne4suKivl2a7RBBLaB1uBpw=
 		</data>
 		<key>Resources/app/chartered_book/__init__.py</key>
 		<data>
@@ -38,7 +38,7 @@
 		</data>
 		<key>Resources/app/chartered_book/core/backup.py</key>
 		<data>
-		LeOflPAdFWhKPqkx/QUKxvlyNg8=
+		VGg1udB5lNY5F2VczOnm7vOM0ek=
 		</data>
 		<key>Resources/app/chartered_book/core/build.py</key>
 		<data>
@@ -59,6 +59,10 @@
 		<key>Resources/app/chartered_book/core/db.py</key>
 		<data>
 		8VnUBo9sHPjQvP3K75ZEzHNHrBg=
+		</data>
+		<key>Resources/app/chartered_book/core/gdrive.py</key>
+		<data>
+		ew6xuYblO3eZYsjNpA9L/gjLqLg=
 		</data>
 		<key>Resources/app/chartered_book/core/money.py</key>
 		<data>
@@ -158,7 +162,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/api.py</key>
 		<data>
-		ZHh+lKwN7AXGNUFbu2NwDUZTr0I=
+		GslNuLPz0zQo9JNHU1pF6/SJI1o=
 		</data>
 		<key>Resources/app/chartered_book/web/embedded.py</key>
 		<data>
@@ -170,7 +174,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/static/app.js</key>
 		<data>
-		DW9az79pL435gDuqetJ99OpEW5Q=
+		GkGCFgtFr8JpHlhlM1J1/Idb8ec=
 		</data>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
 		<data>
@@ -300,6 +304,10 @@
 		<data>
 		xMh555AHtnh+J9c9hDD2/paWgIw=
 		</data>
+		<key>Resources/app/tools/connect_google_drive.py</key>
+		<data>
+		OBOGnY9WB6N3SB5uZ1WWsfTzZOY=
+		</data>
 		<key>Resources/app/tools/demo_data.py</key>
 		<data>
 		sn/x8xAWTW73p9O3viDsqZfQXx0=
@@ -341,7 +349,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			Rd1QBO2t2xRyVJH8hDemg7FpYtN2SEDD3WOVbemGYzA=
+			yDKNAnDQ0wlXiBx0stcEnH6PNf6LXN4cUzBx/EDd91Q=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/__init__.py</key>
@@ -376,7 +384,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			EFgSEoxO23+Ge0r9o1zYn/W+/CUAc5DYjEMh2tsodmc=
+			F9fah2Qq5UgQsnxBXRc/mm066ChP1o7aOLPzCXnXGTE=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/core/build.py</key>
@@ -412,6 +420,13 @@
 			<key>hash2</key>
 			<data>
 			TZs5t1PE2V0E52BmM6Pxd6Zi785FAFTmLWjz5tmfnfM=
+			</data>
+		</dict>
+		<key>Resources/app/chartered_book/core/gdrive.py</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			Pqw5qiXUgMX+b2K9KwcZhwgTqIfeGAkKqQp2Y1lbdq4=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/core/money.py</key>
@@ -579,7 +594,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			4Xz8PAwzNaqWbt0+jBa14DtgPTFtiI8Je4ZvDbbBrrg=
+			hCDRP0moK43fBU0nik8r1Qp3ULacIF15QNLKEogA0/Q=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/embedded.py</key>
@@ -600,7 +615,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			5RPcWzL1Bu/RABxYItx27mNvGhhuikkWlitXq44vKZk=
+			EmlRfS3/IBFXpBvj28QZzhNqZmvbH8fFLjifyqP6k0U=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
@@ -825,6 +840,13 @@
 			<key>hash2</key>
 			<data>
 			H4qtWDDK1vFEnzS5G2r0bVqCx7p8lcuAMwN1+231ID8=
+			</data>
+		</dict>
+		<key>Resources/app/tools/connect_google_drive.py</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			B3Op/1Xgba15pGqk5l+DLPJYsfhYztsiXf+VSW1Hlv0=
 			</data>
 		</dict>
 		<key>Resources/app/tools/demo_data.py</key>
