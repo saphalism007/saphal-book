@@ -1242,226 +1242,101 @@ var App = (function () {
     ]);
   }
 
+  /* Backup and restore.
+
+     Two things happen here and nothing else. A copy of the books goes to the
+     owner's Google Drive, and a copy comes back. Everything that used to sit on
+     this screen about folders on the disk, second copies and carrying files
+     between machines has gone: it was four ways of doing one job, and choosing
+     between them was work nobody asked for. */
+
   register("backup", function (page) {
-    var listBox = el("div");
-    var folderBox = el("div");
+    return load();
 
-    function loadFolders() {
-      return api("/api/backup/destinations").then(function (data) {
-        UI.clear(folderBox);
+    function load() {
+      return api("/api/backup/list").then(draw);
+    }
 
-        folderBox.appendChild(el("div.card", {}, [
-          el("div.card-head", {}, [el("h2", { text: "Where everything is kept" })]),
-          pathRow("The books themselves", data.data_folder,
-            "One file for each company. This is the folder to copy if you ever move to another computer."),
-          pathRow("Backups", data.backup_folder,
-            "Every backup is a single zip file holding all companies at that moment.")
-        ]));
+    function draw(data) {
+      UI.clear(page);
+      page.appendChild(where(data));
+      page.appendChild(taken(data));
+    }
 
-        var rows = data.folders.map(function (entry) {
-          var folder = entry.path;
-          return el("tr", {}, [
-            el("td", {}, [
-              el("div", { text: folder,
-                          style: "font-family:var(--num);font-size:.78rem" }),
-              entry.syncing === false
-                ? el("div", { style: "color:var(--bad);font-size:.76rem;margin-top:.2rem",
-                              text: entry.note })
-                : (entry.syncing === true
-                    ? el("div", { style: "color:var(--good);font-size:.76rem;margin-top:.2rem",
-                                  text: entry.service + " is running, so these reach the "
-                                        + "internet." })
-                    : null)
-            ]),
-            el("td.no-print", {}, [
-              el("button.link-button", { text: "Remove", onclick: function () {
-                // One click used to be enough, and the thing it switches off is
-                // the only copy of the books that would survive this computer.
-                // Worth asking twice.
-                UI.confirmAction("Stop copying backups there",
-                  "Backups will no longer be copied to:\n\n" + folder
-                  + "\n\nThe copies already in that folder stay where they are. "
-                  + "New ones will only be kept on this computer, so nothing would "
-                  + "survive this machine being lost or its disk failing.",
-                  function () {
-                    var kept = data.folders.map(function (e) { return e.path; })
-                      .filter(function (f) { return f !== folder; });
-                    return saveFolders(kept);
-                  }, "Stop copying there");
-              }})
+    function where(data) {
+      var g = data.google || {};
+      return el("div.card", {}, [
+        el("div.card-head", {}, [
+          el("h2", { text: "Backing up to" }),
+          el("button.primary", { text: "Back up now", onclick: function () { backUp(data); } })
+        ]),
+        g.connected
+          ? el("div", {}, [
+              el("div", { style: "font-size:1.02rem;font-weight:600", text: g.account
+                          || "Google Drive" }),
+              el("div", { style: "color:var(--ink-faint);font-size:.85rem;margin-top:.15rem",
+                          text: g.folder_name || "Saphal Book backups" })
             ])
-          ]);
-        });
-
-        var suggestions = el("div.row", { style: "margin-top:.6rem" });
-        var alreadySet = data.folders.map(function (e) { return e.path; });
-        data.suggestions.forEach(function (option) {
-          if (alreadySet.indexOf(option.path) >= 0) { return; }
-          suggestions.appendChild(el("button.secondary", {
-            text: "Also copy to " + option.label
-                  + (option.syncing === false ? "  (not running)" : ""),
-            title: option.path,
-            onclick: function () { saveFolders(alreadySet.concat([option.path])); }
-          }));
-        });
-
-        var manual = el("input", { type: "text",
-          placeholder: "/Users/you/Google Drive/Saphal Book backups" });
-
-        folderBox.appendChild(el("div.card", {}, [
-          el("div.card-head", {}, [el("h2", { text: "Keep a second copy somewhere else" })]),
-          el("p.card-note", { text: "A backup sitting on the same disk protects you from a "
-            + "mistake, not from the disk failing. Name another folder and every backup is copied "
-            + "there as well, the moment it is taken." }),
-          el("p.card-note", { text: "Point it at a Google Drive, OneDrive or Dropbox folder on "
-            + "this computer and the copy uploads itself the next time the machine is online. "
-            + "There is no account to connect here, no key that expires, and nothing to pay for. "
-            + "The books stay on this machine and only the backup file travels." }),
-          // Google Drive is not a folder on this machine. It goes straight up,
-          // so it is shown as what it is rather than pretended to be a path.
-          data.google && data.google.connected
-            ? el("div", { style: "margin:.5rem 0 .8rem" }, [
-                el("span.pill.good", { text: "Google Drive connected" }),
-                el("span", { style: "margin-left:.5rem;font-size:.8rem;color:var(--ink-faint)",
-                             text: "Every backup is sent straight to Google, into "
-                                   + (data.google.folder || "Saphal Book backups")
-                                   + ". Nothing is kept on this computer for it." })
-              ])
-            : null,
-          rows.length
-            ? UI.table(["Folder", ""], rows)
-            : el("p.card-note", { text: "No extra folder set yet." }),
-          suggestions.childNodes.length
-            ? el("div", {}, [el("div.section-title", { text: "Found on this computer" }), suggestions])
-            : null,
-          el("div.row", { style: "margin-top:.7rem" }, [
-            el("div.field", { style: "flex:1 1 320px;margin:0" }, [
-              el("label", { text: "Or type the full path to any folder" }), manual
-            ]),
-            el("button.secondary", { text: "Add this folder", onclick: function () {
-              if (!manual.value.trim()) { return; }
-              saveFolders(data.folders.concat([manual.value.trim()]));
-            }})
-          ])
-        ]));
-      });
-    }
-
-    function saveFolders(folders) {
-      return api("/api/backup/destinations", { body: { folders: folders } })
-        .then(function (result) {
-          if (result.problems && result.problems.length) {
-            UI.flash(result.problems.join("  "), "bad");
-          } else {
-            UI.flash("Saved. Backups will be copied there from now on.", "good");
-          }
-          loadFolders();
-        })
-        .catch(function (error) { UI.flash(error.message, "bad"); });
-    }
-
-    function pathRow(label, path, note) {
-      return el("div", { style: "margin-bottom:.7rem" }, [
-        el("div.tile-label", { text: label }),
-        el("div", { text: path, style: "font-family:var(--num);font-size:.78rem;"
-          + "word-break:break-all;margin:.15rem 0 .1rem" }),
-        el("div.card-note", { text: note })
+          : el("p.card-note", { text: "No Google account is connected yet, so backups are "
+              + "only kept on this computer." })
       ]);
     }
 
-    function loadList() {
-      return api("/api/backup/list").then(function (data) {
-        var rows = data.rows.map(function (item) {
-          return el("tr", {}, [
-            el("td", { text: item.taken_bs }),
-            el("td.muted", { text: item.taken_ad, style: "font-size:.78rem" }),
-            el("td", {}, [el("span.pill" + (item.kind === "manual" ? ".good" : ""),
-              { text: item.kind })]),
-            el("td.num", { text: item.size_text }),
-            el("td.muted", { text: item.filename, style: "font-size:.74rem" }),
-            el("td.no-print", {}, [
-              el("button.link-button", { text: "Save to a file", onclick: function () {
-                UI.flash("Preparing the file.", "good");
-                api("/api/backup/download", { query: { name: item.filename } })
-                  .then(function (result) {
-                    UI.downloadFile(result.filename, result.content, "application/zip");
-                    UI.flash("Saved " + result.filename + ". Move it to the other device and "
-                             + "bring it in there.", "good");
-                  })
-                  .catch(function (error) { UI.flash(error.message, "bad"); });
-              }}),
-              el("span", { text: "   " }),
-              el("button.link-button", { text: "Restore", onclick: function () {
-                UI.confirmAction("Restore this backup",
-                  "Everything currently in the books will be replaced by the contents of "
-                  + item.filename + ", taken on " + item.taken_bs + ". A safety copy of the "
-                  + "present state is taken first, so this can itself be undone. Continue?",
-                  function () {
-                    return api("/api/backup/restore", { body: { filename: item.filename } })
-                      .then(function (result) {
-                        UI.flash(result.message, "warn");
-                        setTimeout(function () { location.reload(); }, 2500);
-                      });
-                  }, "Restore now");
-              }})
-            ])
-          ]);
-        });
-
-        UI.clear(listBox).appendChild(el("div.card", {}, [
-          el("div.card-head", {}, [
-            el("h2", { text: "Backups taken" }),
-            el("button.secondary.no-print", { text: "Remove old backups", onclick: function () {
-              var automatic = (data.backups || []).filter(function (b) {
-                return b.kind !== "manual";
-              }).length;
-              UI.confirmAction("Remove old backups",
-                "This clears out every backup taken automatically, keeping the newest "
-                + "three and every backup you took by hand." + (automatic > 3
-                  ? "  That is " + (automatic - 3) + " of them." : "")
-                + "  The books themselves are not touched.",
-                function () {
-                  return api("/api/backup/prune", { body: {} }).then(function (result) {
-                    UI.flash("Removed " + result.removed + " old backup"
-                             + (result.removed === 1 ? "" : "s") + ".", "good");
-                    loadList();
-                  });
-                }, "Remove them");
-            }}),
-            el("button.primary", { text: "Take a backup now", onclick: function () {
-              UI.promptText("Take a backup", "A note, so you can find this one later",
-                function (note) {
-                  return api("/api/backup/create", { body: { note: note } })
-                    .then(function (result) {
-                      var copies = (result.backup.copies || []).filter(function (c) { return c.ok; });
-                      UI.flash("Backed up" + (copies.length
-                        ? " and copied to " + copies.length + " other folder"
-                          + (copies.length === 1 ? "" : "s") : "") + ".", "good");
-                      loadList();
-                    });
-                }, { submitLabel: "Take the backup" });
-            }})
-          ]),
-          el("p.card-note", { text: "One is taken automatically each time the software starts "
-            + "and again when it closes. The last thirty automatic ones are kept, and every "
-            + "backup you take by hand is kept for good." }),
-          el("div.row", { style: "margin-top:.2rem" }, [
-            el("button.secondary", { text: "Bring books in from another device",
-              onclick: function () { bringBooksIn(loadList); } })
-          ]),
-          el("p.card-note", { text: "Two devices that cannot reach each other still share "
-            + "books this way. Take a backup on the first, save it to a file, carry the file "
-            + "across, and bring it in here. Bringing it in only stores it. Nothing changes "
-            + "until you press Restore on it." }),
-          UI.table(["Taken (BS)", "Taken (AD)", "Kind", { label: "Size", num: true }, "File", ""],
-            rows, null, { tall: true, emptyText: "No backups yet. Take one now." })
-        ]));
+    function taken(data) {
+      var rows = (data.backups || []).map(function (item) {
+        return el("tr", {}, [
+          el("td", { text: item.taken_bs }),
+          el("td", { text: (item.taken_ad || "").slice(11, 16),
+                     style: "color:var(--ink-faint)" }),
+          el("td.num", { text: item.size_text }),
+          el("td.no-print", {}, [
+            el("button.link-button", { text: "Restore", onclick: function () {
+              restore(item);
+            } })
+          ])
+        ]);
       });
+      return el("div.card", {}, [
+        el("div.card-head", {}, [el("h2", { text: "Backups" })]),
+        UI.table(["Date", "Time", { label: "Size", num: true }, ""], rows, null,
+                 { tall: true, emptyText: "No backups yet." })
+      ]);
     }
 
-    page.appendChild(folderBox);
-    page.appendChild(listBox);
-    return Promise.all([loadFolders(), loadList()]);
+    function backUp(data) {
+      var g = data.google || {};
+      UI.confirmAction("Back up now",
+        g.connected
+          ? "A copy of every company goes to " + g.account + ", into "
+            + (g.folder_name || "Saphal Book backups") + "."
+          : "A copy of every company is saved on this computer.",
+        function () {
+          return api("/api/backup/create", { body: { note: "Taken by hand" } })
+            .then(function (result) {
+              var up = (result.backup.copies || []).filter(function (c) {
+                return c.ok && c.folder === "Google Drive";
+              }).length;
+              UI.flash(up ? "Backed up, and sent to Google Drive."
+                          : "Backed up on this computer.", "good");
+              return load();
+            });
+        }, "Back it up");
+    }
+
+    function restore(item) {
+      UI.confirmAction("Restore this backup",
+        "The books go back to how they were on " + item.taken_bs
+        + " at " + (item.taken_ad || "").slice(11, 16) + ".  Anything entered since "
+        + "then is gone.  What is here now is saved first, so this can itself be "
+        + "undone.",
+        function () {
+          return api("/api/backup/restore", { body: { filename: item.filename } })
+            .then(function () {
+              UI.flash("Restored. Reopening the books.", "good");
+              setTimeout(function () { location.reload(); }, 900);
+            });
+        }, "Restore it");
+    }
   });
 
   /* Audit trail */

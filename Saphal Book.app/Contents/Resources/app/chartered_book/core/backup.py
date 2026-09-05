@@ -292,8 +292,28 @@ def google_settings(system_conn):
     return {"client_id": held.get("gdrive_client_id", ""),
             "client_secret": held.get("gdrive_client_secret", ""),
             "refresh_token": held["gdrive_refresh_token"],
-            "folder": held.get("gdrive_folder") or "Saphal Book backups",
+            # The folder the owner chose, by the name Google files it under. A
+            # name is not enough: this software can only see folders it made
+            # itself, so it would never find somebody's own folder by looking.
+            "folder_id": held.get("gdrive_folder_id", ""),
+            "folder_name": held.get("gdrive_folder_name") or "Saphal Book backups",
+            "account": held.get("gdrive_account", ""),
             "keep": int(held.get("gdrive_keep") or 20)}
+
+
+def google_account(system_conn):
+    """Which Google account the backups go to, asked of Google rather than assumed."""
+    from . import gdrive
+    settings = google_settings(system_conn)
+    if settings is None:
+        return ""
+    try:
+        token = gdrive.access_token(settings["client_id"], settings["client_secret"],
+                                    settings["refresh_token"])
+        who = gdrive._call(token, "https://www.googleapis.com/drive/v3/about?fields=user")
+        return who.get("user", {}).get("emailAddress", "")
+    except Exception:                                               # noqa: BLE001
+        return settings.get("account", "")
 
 
 def send_to_google(system_conn, zip_path):
@@ -312,7 +332,8 @@ def send_to_google(system_conn, zip_path):
     try:
         token = gdrive.access_token(settings["client_id"], settings["client_secret"],
                                     settings["refresh_token"])
-        folder = gdrive.ensure_folder(token, settings["folder"])
+        folder = settings["folder_id"] or gdrive.ensure_folder(
+            token, settings["folder_name"])
         sent = gdrive.upload(token, zip_path, folder)
         removed = gdrive.tidy(token, folder, settings["keep"])
         return {"ok": True, "name": sent.get("name"), "removed": removed,

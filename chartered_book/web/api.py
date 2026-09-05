@@ -1105,7 +1105,17 @@ def amount_words(request):
 @route("GET", "/api/backup/list")
 def list_backups(request):
     request.require("backup.run")
-    return {"rows": backup.list_backups(), "folder": backup.export_folder()}
+    settings = backup.google_settings(request.system)
+    return {
+        "backups": backup.list_backups(),
+        "rows": backup.list_backups(),
+        "google": {
+            "connected": settings is not None,
+            "account": backup.google_account(request.system) if settings else "",
+            "folder_name": settings["folder_name"] if settings else "",
+        },
+        "folder": backup.export_folder(),
+    }
 
 
 @route("POST", "/api/backup/create")
