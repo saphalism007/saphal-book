@@ -30,10 +30,20 @@ def _safe_copy(source_path, target_path):
         source.close()
 
 
-# How many days of backups to hold, here and in Drive. Enough to fall back
-# on if today's turns out to contain the mistake, and few enough that the
-# folder never becomes a list nobody reads.
-KEEP_DAYS = 3
+# How many backups to hold, in every folder they go to.
+#
+# One, asked for and meant: more than one file is a list, a list is a decision,
+# and a decision at the moment somebody has lost their books is the last thing
+# they need. There is one file, it is called the same thing every day, and it
+# is always the latest.
+#
+# What that costs is worth saying plainly, because it is the reason most
+# software does not do this. If the books are damaged and a backup is taken
+# afterwards, the damaged copy replaces the good one and there is nothing to go
+# back to. What stands against that is that the books also sit on the account,
+# on this device, and in whatever cloud folder is set, and those do not all
+# change at the same moment.
+KEEP_DAYS = 1
 
 
 def create_backup(note="", kind="manual"):
@@ -41,19 +51,26 @@ def create_backup(note="", kind="manual"):
     db.ensure_dirs()
     stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     bs = nd.format_bs(nd.today_bs(), "numeric")
-    # One file a day, not one a press.
+    # One file, not one a press.
     #
     # The name used to carry the time, so pressing backup four times in an
-    # afternoon left four files that differ by nothing anybody would want, and a
-    # folder that only grows is a folder nobody opens. The name carries the day
-    # only, so today's backup replaces today's backup.
-    #
-    # Not one file in total, though it was asked for that way. A backup taken
-    # after a mistake would then be the only backup there is, and the mistake
-    # would be the only thing kept. Three days are held: today, and two to fall
-    # back on.
+    # afternoon left four files that differ by nothing anybody would want. The
+    # name carries the day only, and one day is kept, so there is one file and
+    # it is always the latest.
     name = "saphal_book_%s.zip" % datetime.datetime.now().strftime("%Y%m%d")
     target = os.path.join(db.BACKUP_DIR, name)
+
+    # The copy taken just before a restore is a different thing, and it must not
+    # share a name with the daily one. With a single file a day it would be
+    # written straight over the backup being restored, while that backup was
+    # open and being read from, which would destroy the only copy at the exact
+    # moment somebody was relying on it. It gets a folder of its own, so the
+    # backup folder still holds exactly one file and nothing can collide.
+    if kind == "presafety":
+        folder = os.path.join(db.BACKUP_DIR, "before restoring")
+        os.makedirs(folder, exist_ok=True)
+        name = "saphal_book_before_restore.zip"
+        target = os.path.join(folder, name)
     staging = os.path.join(db.BACKUP_DIR, "_staging_%s" % stamp)
     os.makedirs(staging, exist_ok=True)
     try:
@@ -89,9 +106,10 @@ def create_backup(note="", kind="manual"):
         shutil.rmtree(staging, ignore_errors=True)
 
     # Every backup, not only the automatic ones. There is one file a day now,
-    # so a backup taken by hand is today's backup rather than an extra one, and
-    # the old days go the same way whoever asked for them.
-    prune_automatic()
+    # so a backup taken by hand is today's backup rather than an extra one. The
+    # copy taken before a restore lives elsewhere and is left alone.
+    if kind != "presafety":
+        prune_automatic()
     info = describe(target)
     try:
         system = db.connect(db.SYSTEM_DB) if os.path.exists(db.SYSTEM_DB) else None
