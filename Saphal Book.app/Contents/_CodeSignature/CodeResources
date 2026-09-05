@@ -18,7 +18,7 @@
 		</data>
 		<key>Resources/app/chartered_book/BUILD.txt</key>
 		<data>
-		ZqXjbbT+HVk9IPtDM3JLzKpP70k=
+		AM2D37rZ01i7z7VMEqMLqeOh3+E=
 		</data>
 		<key>Resources/app/chartered_book/__init__.py</key>
 		<data>
@@ -94,7 +94,7 @@
 		</data>
 		<key>Resources/app/chartered_book/modules/audit_review.py</key>
 		<data>
-		+jHcJse7xqC/qguEA//liliDLGA=
+		VzRC0ulG4vjR1HTohaWwyMxkTZo=
 		</data>
 		<key>Resources/app/chartered_book/modules/banking.py</key>
 		<data>
@@ -106,7 +106,7 @@
 		</data>
 		<key>Resources/app/chartered_book/modules/guidance.py</key>
 		<data>
-		jTsgk3IeEiZPP+S25eCya59c30I=
+		6Zmt2OD7wXDEjnTW4+XNhZBLn8M=
 		</data>
 		<key>Resources/app/chartered_book/modules/income_tax.py</key>
 		<data>
@@ -304,6 +304,10 @@
 		<data>
 		jadMJ2ALowPhvJsMWj3eo7oQtEE=
 		</data>
+		<key>Resources/app/tests/test_statute.py</key>
+		<data>
+		cXGjrbm4BCoyay8jzZ2FJnZatKs=
+		</data>
 		<key>Resources/app/tests/test_sync.py</key>
 		<data>
 		u9g9xHATBxYyapZp+VAgdQX4soQ=
@@ -369,7 +373,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			oVBcXuzWJRwugUd3wSo1FYzFlKM8Jc+Tsx7URGSVtHo=
+			BK0h/0Od5bmRlZs+v4KuVZG0pjIZaekj7q2lW89ziy8=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/__init__.py</key>
@@ -502,7 +506,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			0VKHgnEqq0wa4vMW/l8+w/SvwU+5KchPsrK/mZTi0WU=
+			Stg+fAsKSCSxNpGUzFC7g4WbbyKlNUjcEIk4TvSIKgo=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/modules/banking.py</key>
@@ -523,7 +527,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			z7+nn44eshkTmWpQt3sa5930t9Eed1DCtEZJxMqfoNQ=
+			YBnx3bb+Vwxm7GYcuKGVfmPAp/vr1cUTontoCB6VBJk=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/modules/income_tax.py</key>
@@ -860,6 +864,13 @@
 			<key>hash2</key>
 			<data>
 			NoHPjCs/qA4thg9wQeSPpRvdgWVspS2JvYy6wIOE3+0=
+			</data>
+		</dict>
+		<key>Resources/app/tests/test_statute.py</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			oGmpFuJ4KK1VpfoIrkCpQixd1ZJFdqvt8Zs9xSTilJQ=
 			</data>
 		</dict>
 		<key>Resources/app/tests/test_sync.py</key>

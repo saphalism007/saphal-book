@@ -51,12 +51,19 @@ def review(conn, from_ad, to_ad, compare=None):
 
     for check in (_check_integrity, _check_classification, _check_completeness,
                   _check_tax, _check_parties, _check_stock,
-                  _check_behaviour, _check_analytics):
+                  _check_behaviour, _check_analytics, _check_statute):
         try:
             findings.extend(check(conn, context) or [])
-        except Exception as exc:
-            findings.append(_finding(INFO, "Review", "A check could not be run",
-                                     "%s: %s" % (check.__name__, exc)))
+        except Exception as exc:                                    # noqa: BLE001
+            # A check that cannot run leaves a hole in the review, and a hole
+            # in a review is not a small thing: it looks exactly like a clean
+            # result. This used to be filed quietly as a note. It is raised
+            # properly now, and it says which check it was.
+            findings.append(_finding(
+                MEDIUM, "Review", "A check could not be run",
+                "%s stopped with: %s. The rest of the review ran, but this part of it "
+                "did not, so treat the result as incomplete until it is looked at."
+                % (check.__name__.lstrip("_").replace("_", " "), exc)))
 
     order = {HIGH: 0, MEDIUM: 1, LOW: 2, INFO: 3}
     findings.sort(key=lambda f: (order.get(f["severity"], 9), -abs(f["amount"])))
@@ -559,6 +566,146 @@ def _check_analytics(conn, ctx):
                 "The margin has gone from %.1f percent to %.1f percent. A swing of that size "
                 "needs an explanation: a change in the mix, in pricing, or an error in stock."
                 % (last_margin / 100.0, this_margin / 100.0), "", 0))
+
+    return out
+
+
+# What the statutes require, read against the books
+
+
+def _balance_of(conn, ctx, code):
+    """
+    The closing balance on one ledger, debit positive, or None where there is
+    no such ledger. Signed, because whether a balance is on the wrong side is
+    the whole question in most of the checks below.
+    """
+    account = masters.account_by_code(conn, code)
+    if account is None:
+        return None
+    return ctx["balances"].get(account["id"], 0)
+
+
+def _check_statute(conn, ctx):
+    """
+    The Companies Act, 2063 and its neighbours, applied to these books.
+
+    Reference material tells somebody what the law says. This says whether these
+    books comply with it, which is the part that is actually work. Only things
+    that can be seen in the accounts are checked, and nothing is asserted about
+    what cannot be seen: the software does not know whether an auditor has been
+    appointed, so it does not pretend to.
+
+    Which rules apply depends on what the entity is. A sole proprietor is not
+    governed by the Companies Act at all, and telling one that it has breached
+    section 105 would be worse than saying nothing.
+    """
+    out = []
+    company = ctx["company"]
+    if company is None:
+        return out
+
+    kind = company["entity_type"] or ""
+    is_company = kind in ("private_limited", "public_limited")
+    to_ad = ctx["to_ad"]
+
+    # Section 109. The board prepares the annual statements and has them audited
+    # within six months of the year end. Once that has passed with the year
+    # still open, it is late, and the penalty grows with the delay.
+    try:
+        year_end = datetime.date.fromisoformat(to_ad)
+        today = datetime.date.today()
+        months_since = (today.year - year_end.year) * 12 + (today.month - year_end.month)
+        if is_company and months_since > 6:
+            out.append(_finding(
+                HIGH, "Companies Act", "The statements for this year are late",
+                "The year ended %s, which was about %d months ago. The board has six "
+                "months from the year end to prepare the annual financial statements and "
+                "have them audited, and the audited statements then go to the Office of "
+                "the Company Registrar with the annual return."
+                % (nd.format_bs(nd.ad_to_bs(to_ad), "long"), months_since),
+                "Companies Act, 2063, sections 78, 80 and 109"))
+        elif is_company and months_since >= 5:
+            out.append(_finding(
+                MEDIUM, "Companies Act", "The six month deadline is close",
+                "The year ended %s. The audited statements and the annual return are due "
+                "with the Registrar within six months of that."
+                % nd.format_bs(nd.ad_to_bs(to_ad), "long"),
+                "Companies Act, 2063, sections 78 and 80"))
+    except (ValueError, TypeError, nd.DateRangeError):
+        pass
+
+    # Section 105. A company may not lend to its own director. The ledger for
+    # what a director has put in is a liability; a debit balance on it means the
+    # money went the other way.
+    director = _balance_of(conn, ctx, "2113")
+    if is_company and director is not None and director > 0:
+        out.append(_finding(
+            HIGH, "Companies Act", "The company appears to have lent to a director",
+            "Loan from Directors and Partners is carrying a debit balance of %s, which "
+            "means the company is owed by the director rather than owing to one. A "
+            "company may not give a loan to its own director, and if this is instead an "
+            "expense paid personally or a drawing, it belongs in the ledger for that."
+            % money.format_money(director),
+            "Companies Act, 2063, sections 105 and 106", director))
+
+    # Section 182. A dividend comes out of profit that is actually distributable,
+    # not out of capital and not out of a loss.
+    retained = _balance_of(conn, ctx, "3201")
+    if is_company and retained is not None and retained > 0:
+        out.append(_finding(
+            HIGH, "Companies Act", "Accumulated losses are being carried",
+            "Retained Earnings stands at %s on the debit side, so the company has "
+            "accumulated losses. No dividend may be declared while that is so, and if the "
+            "losses have eaten into the capital the directors have their own duties on "
+            "top of that." % money.format_money(retained),
+            "Companies Act, 2063, sections 182 and 184", retained))
+
+    # Capital eaten into. Under NAS 01 this is a going concern matter, and the
+    # statements have to say so rather than leave it to be inferred.
+    if is_company:
+        capital = -(_balance_of(conn, ctx, "3103") or 0)
+        losses = _balance_of(conn, ctx, "3201") or 0
+        if capital > 0 and losses > 0 and losses >= capital // 2:
+            out.append(_finding(
+                HIGH, "Going concern", "Half the share capital or more has been lost",
+                "Share capital of %s against accumulated losses of %s. Where a company "
+                "has lost half its capital the directors have to call a meeting and put "
+                "it to the shareholders, and the financial statements have to disclose "
+                "the material uncertainty over going concern."
+                % (money.format_money(capital), money.format_money(losses)),
+                "Companies Act, 2063; NAS 01 paragraphs 25 and 26", losses))
+
+    # A proprietor taking out more than the business is worth. Not a breach of
+    # anything, but it is the thing that turns into a tax question.
+    if not is_company:
+        drawings = _balance_of(conn, ctx, "3301") or 0
+        capital = -(_balance_of(conn, ctx, "3101") or 0)
+        if drawings > 0 and capital > 0 and drawings > capital:
+            out.append(_finding(
+                MEDIUM, "Proprietor", "Drawings exceed the capital introduced",
+                "Drawings of %s against capital of %s. The proprietor has taken out more "
+                "than was put in, so the business is being funded by its creditors. It is "
+                "also the first thing an assessing officer asks about."
+                % (money.format_money(drawings), money.format_money(capital)),
+                "Income Tax Act, 2058, section 21", drawings))
+
+    # Section 108. The books have to be kept for at least five years, and this
+    # only checks that the software holds what it claims to.
+    begins = company["books_begin_ad"]
+    if is_company and begins:
+        try:
+            years = (datetime.date.fromisoformat(to_ad)
+                     - datetime.date.fromisoformat(begins)).days / 365.25
+            if years < 5:
+                out.append(_finding(
+                    INFO, "Companies Act", "Records before these books still have to be kept",
+                    "These books begin on %s, which is under five years back. Whatever was "
+                    "used before that has to be retained as well: the Act asks for five "
+                    "years from the end of the year the entries belong to."
+                    % nd.format_bs(nd.ad_to_bs(begins), "long"),
+                    "Companies Act, 2063, section 108"))
+        except (ValueError, TypeError, nd.DateRangeError):
+            pass
 
     return out
 

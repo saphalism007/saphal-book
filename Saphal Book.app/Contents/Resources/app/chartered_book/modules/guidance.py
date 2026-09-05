@@ -197,6 +197,87 @@ SECTIONS = [
                      "the Registrar prescribes, but the requirement to keep proper books and "
                      "to be audited is not removed.",
              "reference": "Companies Act, 2063"},
+            {"heading": "Appointing the auditor",
+             "body": "The first auditor is appointed by the board. After that the general "
+                     "meeting appoints, and fixes the remuneration, and the appointment runs "
+                     "until the next annual general meeting. An auditor who is not "
+                     "reappointed, or who is removed, is entitled to be heard first.",
+             "reference": "Companies Act, 2063, sections 110, 111 and 113"},
+            {"heading": "What the auditor has to report on",
+             "body": "More than the opinion. Whether the information and explanations asked "
+                     "for were obtained, whether the books have been kept as the Act "
+                     "requires, whether the statements agree with those books and give a "
+                     "true and fair view, whether the business was conducted "
+                     "satisfactorily, and whether the board or any employee has acted "
+                     "contrary to law or caused loss to the company. That last one has no "
+                     "equivalent in the international form of report and is easy to leave "
+                     "out.",
+             "reference": "Companies Act, 2063, section 115"},
+            {"heading": "Directors' report",
+             "body": "Goes to the annual general meeting alongside the audited statements "
+                     "and covers the year under review, the state of the business, changes "
+                     "in the board, what has happened since the year end and what the "
+                     "directors have to say about the auditor's remarks.",
+             "reference": "Companies Act, 2063, section 109"},
+            {"heading": "Dividend",
+             "body": "Declared out of profit available for distribution, not out of capital "
+                     "and not while accumulated losses stand. Tax deducted at source on "
+                     "dividend is a final tax for a natural person.",
+             "reference": "Companies Act, 2063, section 182; Income Tax Act, 2058, section 88"},
+            {"heading": "Loans to directors",
+             "body": "A company may not lend to its own director, nor give a guarantee or "
+                     "security for a loan taken by one. If a director's account is in debit "
+                     "it is worth establishing what it really is before it is signed off.",
+             "reference": "Companies Act, 2063, sections 105 and 106"},
+            {"heading": "Losing half the capital",
+             "body": "Where accumulated losses have taken half the share capital or more, "
+                     "the directors have to put it to the shareholders. It is also a going "
+                     "concern matter for the statements, not only a company law one.",
+             "reference": "Companies Act, 2063; NAS 01"},
+        ],
+    },
+    {
+        "key": "auditact",
+        "title": "Audit Act, 2048",
+        "summary": "Who the Auditor General audits, and what that audit covers.",
+        "items": [
+            {"heading": "What it governs",
+             "body": "The audit of the public purse. It is a different regime from the "
+                     "Companies Act: the auditor is the Auditor General rather than a firm "
+                     "appointed by the shareholders, and the audit answers to the "
+                     "legislature rather than to the owners.",
+             "reference": "Constitution of Nepal, Part 22; Audit Act, 2048"},
+            {"heading": "Who is audited",
+             "body": "Government offices, the courts, constitutional bodies, the army and "
+                     "the police, and corporate bodies fully owned by the Government of "
+                     "Nepal. Where a body is substantially but not fully owned, the auditor "
+                     "is appointed in consultation with the Auditor General.",
+             "reference": "Audit Act, 2048"},
+            {"heading": "What the audit covers",
+             "body": "Wider than an opinion on the statements. Regularity, meaning whether "
+                     "the money was spent with authority and within the appropriation, and "
+                     "economy, efficiency and effectiveness, meaning whether it achieved "
+                     "anything. Propriety runs through all of it.",
+             "reference": "Audit Act, 2048"},
+            {"heading": "How the report is made",
+             "body": "The Auditor General reports annually to the President, who causes it "
+                     "to be laid before the Federal Parliament. Irregularities that are not "
+                     "cleared are carried in that report and pursued through the Public "
+                     "Accounts Committee.",
+             "reference": "Constitution of Nepal, article 294"},
+            {"heading": "Where a firm comes into it",
+             "body": "The Auditor General may engage licensed auditors to carry out or "
+                     "assist with an audit, under the Auditor General's direction and "
+                     "standards. The engagement does not make the firm the statutory "
+                     "auditor: the report remains the Auditor General's.",
+             "reference": "Audit Act, 2048"},
+            {"heading": "Standards applied",
+             "body": "Public sector audit in Nepal follows the Auditor General's own "
+                     "directives and the international public sector standards, which are "
+                     "not the same as the Nepal Standards on Auditing used for a company "
+                     "audit. Do not carry a company audit file across to one of these "
+                     "without checking what changes.",
+             "reference": "Audit Act, 2048; ISSAI"},
         ],
     },
     {
