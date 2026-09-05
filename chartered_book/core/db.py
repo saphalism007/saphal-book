@@ -352,6 +352,22 @@ SYSTEM_MIGRATIONS.append((2, "carrying books between devices", """
 """))
 
 
+SYSTEM_MIGRATIONS.append((3, "knowing when a set of books has changed", """
+
+    -- A fingerprint of the books as they were the last time this device and the
+    -- server agreed. Comparing it against the books now is how the software
+    -- knows whether anything has been entered since, without keeping a list of
+    -- what was entered.
+    --
+    -- This is what makes syncing automatic rather than something to remember.
+    -- Changed here and not there means send. Changed there and not here means
+    -- fetch. Changed in both places means stop and say so, because no rule can
+    -- merge two days of separate entries and picking one silently would lose
+    -- somebody's work.
+    ALTER TABLE cloud_books ADD COLUMN last_hash TEXT NOT NULL DEFAULT '';
+"""))
+
+
 def open_system():
     """Open, and if needed create, the system database."""
     ensure_dirs()

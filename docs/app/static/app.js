@@ -430,6 +430,8 @@ var App = (function () {
         : "The copy of the software this app is running";
     }
 
+    Sync.start();
+
     var nav = UI.clear(qs("#nav"));
     buildMenu().forEach(function (group) {
       var block = el("div.nav-group", {}, [el("div.nav-group-title", { text: group.title })]);
@@ -584,6 +586,64 @@ var App = (function () {
       }}
     ]);
   }
+
+  /* Keeping level with the server without being asked.
+
+     Runs when somebody signs in, a little after anything is entered, when the
+     window is brought back to the front, and slowly in the background. It
+     stays silent when there is nothing to do, which is almost always, and
+     speaks up only when it has moved something or cannot decide. */
+
+  var Sync = (function () {
+    var timer = null, settle = null, running = false, last = 0;
+
+    function run(why) {
+      if (running || !state.user) { return Promise.resolve(); }
+      running = true;
+      return api("/api/cloud/auto", { body: {} })
+        .then(function (result) {
+          last = Date.now();
+          if (!result || !result.ran || result.quiet) { return; }
+          var moved = (result.sent || []).length + (result.fetched || []).length;
+          if (moved) {
+            var parts = [];
+            if ((result.sent || []).length) { parts.push("sent " + result.sent.join(", ")); }
+            if ((result.fetched || []).length) {
+              parts.push("brought down " + result.fetched.join(", "));
+            }
+            UI.flash("Synced: " + parts.join(", ") + ".", "good");
+            // Books that arrived change what is on the screen underneath.
+            if ((result.fetched || []).length) { refresh(); }
+          }
+          (result.conflicts || []).forEach(function (row) {
+            UI.flash(row.name + ": " + row.why, "warn");
+          });
+        })
+        .catch(function () { /* offline, or not signed in. Nothing to say. */ })
+        .then(function () { running = false; });
+    }
+
+    /* Something was entered. Wait for the typing to stop before sending, so a
+       run of ten invoices is one upload and not ten. */
+    function touched() {
+      if (settle) { clearTimeout(settle); }
+      settle = setTimeout(function () { run("entered"); }, 8000);
+    }
+
+    function start() {
+      if (timer) { return; }
+      timer = setInterval(function () { run("timer"); }, 120000);
+      window.addEventListener("focus", function () {
+        if (Date.now() - last > 30000) { run("focus"); }
+      });
+      document.addEventListener("visibilitychange", function () {
+        if (!document.hidden && Date.now() - last > 30000) { run("visible"); }
+      });
+      run("start");
+    }
+
+    return { run: run, touched: touched, start: start };
+  }());
 
   /* Routing */
 
@@ -1483,7 +1543,9 @@ var App = (function () {
           .then(function () {
             password.value = "";
             UI.flash(making ? "Account opened." : "Signed in.", "good");
-            return reload();
+            // Fetch whatever is waiting and send whatever is not up there yet,
+            // straight away, so signing in is the only thing anybody has to do.
+            return Sync.run("signed in").then(reload);
           })
           .catch(function (error) {
             note.textContent = "";
@@ -1819,6 +1881,7 @@ var App = (function () {
   });
 
   return {
+    Sync: Sync,
     start: start, go: go, register: register, state: state, refresh: refresh,
     loadLookups: loadLookups, openCompanyForm: openCompanyForm,
     openCompanyChooser: openCompanyChooser, canInstall: canInstall, runInstall: runInstall,

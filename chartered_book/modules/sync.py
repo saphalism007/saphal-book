@@ -195,8 +195,8 @@ def send_up(system, session, slug):
     row = system.execute("SELECT name FROM companies WHERE slug = ?", (slug,)).fetchone()
     version = session.push(slug, data, expected, device=device_name(),
                            name=row["name"] if row else slug)
-    _remember(system, slug, version=version,
-              last_sent_at=db.now_stamp(), last_device=device_name())
+    _remember(system, slug, version=version, last_sent_at=db.now_stamp(),
+              last_device=device_name(), last_hash=fingerprint(slug))
     return {"slug": slug, "version": version, "size": len(data)}
 
 
@@ -228,8 +228,12 @@ def _install(system, slug, data, version, device):
     if name:
         system.execute("UPDATE companies SET name = ? WHERE slug = ?", (name, slug))
     system.commit()
+    # Taken from the books now on the disk, not from the bytes that arrived. A
+    # snapshot is a rebuild of the database rather than a copy of the file, so
+    # the two never match, and storing the wrong one would leave every fetched
+    # set of books looking as though it had been edited the instant it landed.
     _remember(system, slug, version=version, last_brought_at=db.now_stamp(),
-              last_device=device or "")
+              last_device=device or "", last_hash=fingerprint(slug))
     return {"slug": slug, "name": name, "version": version, "size": len(data),
             "previous_copy_kept_at": kept}
 
@@ -275,3 +279,113 @@ def bring_down(system, session, slug, expect_name=""):
     if got is None:
         raise SyncError("The server has no books called that under your account.")
     return _install(system, slug, got["data"], got["version"], got.get("device", ""))
+
+
+# Doing it without being asked
+
+
+def fingerprint(slug):
+    """
+    A short summary of a set of books as they stand.
+
+    Taken from a proper snapshot rather than the file, so a write in progress
+    cannot make the books look changed when they are not.
+    """
+    import hashlib
+    return hashlib.sha256(_snapshot(slug)).hexdigest()[:32]
+
+
+def _decide(system, session, slug):
+    """
+    What, if anything, should happen to one set of books.
+
+    Four answers and no others. Changed here only, send it. Changed there only,
+    fetch it. Changed in both places, stop: no rule can merge two days of
+    separate entries, and choosing one without asking would throw the other
+    away. Changed nowhere, leave it alone.
+    """
+    state = _state(system, slug)
+    if not os.path.exists(db.company_db_path(slug)):
+        return "nothing", state
+    here = fingerprint(slug)
+    there = session.remote_version(slug)["version"]
+    agreed = state["version"]
+
+    # Nothing has ever been sent.
+    if agreed == 0 and there == 0:
+        return "send", state
+
+    # Sent once, but no longer on the server. Somebody cleared it, and the books
+    # here are all there is. Put them back rather than leaving them stranded.
+    if there == 0:
+        return "send", state
+
+    # Books synced before this device kept a fingerprint, which is every set of
+    # books that existed when this was added. Nothing can be said about whether
+    # they changed since. Where the server is still where it was left, the
+    # sensible reading is that nothing has happened: take the books as they
+    # stand now as the point the two agree from. Where it has moved, there is a
+    # real question and it gets asked.
+    if not state["last_hash"]:
+        if there == agreed:
+            _remember(system, slug, last_hash=here)
+            return "nothing", state
+        return "conflict", state
+
+    changed_here = here != state["last_hash"]
+    changed_there = there != agreed
+
+    if changed_here and changed_there:
+        return "conflict", state
+    if changed_here:
+        return "send", state
+    if changed_there:
+        return "fetch", state
+    return "nothing", state
+
+
+def auto(system, session):
+    """
+    Keep every set of books level with the server, without being asked.
+
+    Run when somebody signs in, every so often afterwards, and once the dust has
+    settled after something is entered. It never overwrites work: where both
+    sides have moved it does nothing and says so, and the two buttons are still
+    there for whoever has to decide.
+    """
+    if not session or not session.signed_in():
+        return {"ran": False, "why": "not signed in"}
+
+    from ..core import cloud
+    sent, fetched, conflicts = [], [], []
+
+    try:
+        new_ones = bring_new(system, session)
+        fetched.extend(book["name"] or book["slug"] for book in new_ones["brought"])
+    except Exception as exc:                                        # noqa: BLE001
+        conflicts.append({"name": "books waiting on the server", "why": str(exc)})
+
+    for row in system.execute("SELECT slug, name FROM companies ORDER BY id").fetchall():
+        slug, name = row["slug"], row["name"]
+        try:
+            what, _ = _decide(system, session, slug)
+            if what == "send":
+                send_up(system, session, slug)
+                sent.append(name)
+            elif what == "fetch":
+                bring_down(system, session, slug)
+                fetched.append(name)
+            elif what == "conflict":
+                held = session.remote_version(slug)
+                conflicts.append({
+                    "slug": slug, "name": name,
+                    "why": "Entries have been made here and on %s since these last agreed. "
+                           "Decide which copy to keep."
+                           % (held.get("device") or "another device")})
+        except cloud.Conflict as exc:
+            conflicts.append({"slug": slug, "name": name, "why": str(exc)})
+        except (cloud.CloudError, SyncError) as exc:
+            conflicts.append({"slug": slug, "name": name, "why": str(exc)})
+
+    return {"ran": True, "sent": sent, "fetched": fetched, "conflicts": conflicts,
+            "quiet": not sent and not fetched and not conflicts}

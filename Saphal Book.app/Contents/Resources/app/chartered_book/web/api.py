@@ -1665,6 +1665,23 @@ def cloud_bring_new(request):
         raise ApiError(str(exc))
 
 
+@route("POST", "/api/cloud/auto")
+def cloud_auto(request):
+    """
+    Keep everything level with the server without being asked.
+
+    Called when somebody signs in, every so often afterwards, and once things
+    have gone quiet after an entry. Answers plainly when there is nothing to do,
+    so the screen can stay silent rather than announcing itself.
+    """
+    from ..modules import sync
+    request.require_user()
+    session = _cloud_session(request, required=False)
+    if session is None:
+        return {"ran": False, "why": "not signed in"}
+    return sync.auto(request.system, session)
+
+
 @route("POST", "/api/cloud/bring")
 def cloud_bring(request):
     """Replace this device's copy with the one on the server."""

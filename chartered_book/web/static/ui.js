@@ -49,6 +49,20 @@ var UI = (function () {
 
   /* Requests */
 
+  /* Anything written to the books should reach the other devices shortly
+     afterwards, without anybody pressing a button. Catching it here, at the one
+     place every write passes through, is the only way to be sure nothing is
+     missed. Reading, and the syncing itself, must not count, or it would chase
+     its own tail. */
+
+  var QUIET = /\/api\/(cloud|reports|dashboard|next-number|gate-help|network|lookups|companies\/list)/;
+
+  function wroteSomething(path, method) {
+    if (method !== "POST" && method !== "PUT" && method !== "DELETE") { return; }
+    if (QUIET.test(path)) { return; }
+    if (window.App && App.Sync && App.Sync.touched) { App.Sync.touched(); }
+  }
+
   function api(path, options) {
     options = options || {};
 
@@ -73,7 +87,10 @@ var UI = (function () {
         Object.keys(extra).forEach(function (k) { query[k] = extra[k]; });
         Object.keys(options.query).forEach(function (k) { query[k] = options.query[k]; });
       }
-      return window.CB.call(method, address, query, options.body);
+      return window.CB.call(method, address, query, options.body).then(function (answer) {
+        wroteSomething(address, method);
+        return answer;
+      });
     }
 
     var config = {
@@ -103,6 +120,7 @@ var UI = (function () {
           error.status = response.status;
           throw error;
         }
+        wroteSomething(path, config.method);
         return data;
       });
     });
