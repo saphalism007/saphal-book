@@ -333,13 +333,16 @@ var App = (function () {
             UI.flash("Signed in on this machine. The account could not be reached, so "
                      + "nothing will travel to your other devices until it can.", "warn");
           }
-          // A device seeing these books for the first time gets them on the way
-          // in, so say what arrived rather than leaving it to be noticed.
-          var got = result && result.brought_down;
-          if (got && got.count) {
-            UI.flash(got.count === 1
-              ? "Brought down " + got.names[0] + "."
-              : "Brought down " + got.count + " sets of books.", "good");
+          // Whatever is waiting on the account is fetched after the door is
+          // open, not before it. Signing in should never wait on a download.
+          if (result && result.account) {
+            api("/api/cloud/fetch-waiting", { body: {} }).then(function (got) {
+              if (!got || !got.count) { return; }
+              UI.flash(got.count === 1
+                ? "Brought down " + got.names[0] + "."
+                : "Brought down " + got.count + " sets of books.", "good");
+              return refresh();
+            }).catch(function () { /* offline. The books here still open. */ });
           }
           return refresh();
         })

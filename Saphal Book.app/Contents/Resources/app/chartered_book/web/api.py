@@ -283,6 +283,29 @@ def _try_account(request, username, password, making_account):
             "user_id": session.user_id or ""}
 
 
+@route("POST", "/api/cloud/fetch-waiting")
+def fetch_waiting(request):
+    """
+    Bring down anything on the account this device has never seen.
+
+    Called by the screen right after signing in, rather than by the sign in
+    itself, so that pressing Sign in opens the door immediately and the books
+    arrive behind it.
+    """
+    request.require_user()
+    session = _cloud_session(request, required=False)
+    if session is None:
+        return {"count": 0, "names": []}
+    got = _bring_down_what_is_waiting(request, session)
+    if got.get("count"):
+        companies = company_module.list_companies(request.system)
+        if len(companies) == 1 and request.session:
+            auth.set_session_company(request.system, request.session["token"],
+                                     companies[0]["id"])
+            request.system.commit()
+    return got
+
+
 def _bring_down_what_is_waiting(request, session):
     """
     Fetch anything on the account this device has never seen, without being asked.
@@ -387,24 +410,21 @@ def login(request):
     company_id = companies[0]["id"] if len(companies) == 1 else None
     token = auth.start_session(request.system, user["id"], company_id)
     _finish_account(request, note, token)
-
-    # A device that has just been given the name gets the books that go with it,
-    # here and now, rather than being shown an empty screen and a button.
-    fetched = None
-    if note and note.get("reached"):
-        fetched = _bring_down_what_is_waiting(request, note["session"])
-        if fetched["count"]:
-            companies = company_module.list_companies(request.system)
-            if len(companies) == 1:
-                auth.set_session_company(request.system, token, companies[0]["id"])
-            request.system.commit()
-
     request.set_cookie = token
+
+    # Signing in does not wait for the books.
+    #
+    # It used to fetch whatever was waiting on the account before it would let
+    # anybody in, which on a device seeing these books for the first time meant
+    # downloading every company before the screen would move. That is minutes on
+    # a slow line, spent staring at a button that has already been pressed.
+    #
+    # The door opens now, and the screen asks for what is waiting straight
+    # afterwards and says what arrived.
     return {"ok": True, "username": user["username"], "role": user["role"],
             "must_change": user["must_change"],
             "account": bool(note and note.get("reached")),
-            "account_note": "" if not note else note.get("why", ""),
-            "brought_down": fetched or {"count": 0}}
+            "account_note": "" if not note else note.get("why", "")}
 
 
 @route("POST", "/api/register")
