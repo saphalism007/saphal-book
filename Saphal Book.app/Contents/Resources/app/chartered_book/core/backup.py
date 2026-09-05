@@ -543,6 +543,33 @@ def publish_google_link(system_conn, session):
     return details["gdrive_account"]
 
 
+def sync_google_link(system_conn, session):
+    """
+    Make this device's Google connection and the account's agree.
+
+    It used to only ever be pulled down, and only at the moment somebody signed
+    in. That left two ways to end up with a tablet saying no Google account is
+    connected while the shop machine was backing up to Drive quite happily: the
+    machine that had the connection never sent it up, or the tablet had signed
+    in on some earlier day and never asked again.
+
+    So it goes both ways now, and it is safe to call as often as it is useful.
+    Whichever side has the connection gives it to the other, and where both
+    have one, the one on this device is left alone.
+    """
+    if session is None or not session.signed_in():
+        return None
+    if google_settings(system_conn) is not None:
+        try:
+            return publish_google_link(system_conn, session)
+        except Exception:                                           # noqa: BLE001
+            return None
+    try:
+        return adopt_google_link(system_conn, session)
+    except Exception:                                               # noqa: BLE001
+        return None
+
+
 def adopt_google_link(system_conn, session):
     """
     Take the Google connection this person set up elsewhere.

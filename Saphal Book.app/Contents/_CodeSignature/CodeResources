@@ -18,7 +18,7 @@
 		</data>
 		<key>Resources/app/chartered_book/BUILD.txt</key>
 		<data>
-		ivLv8tfrhotcdwY+phyaUyK1Paw=
+		ZK/jX3FbvFOgVcCpKZc2T6fWEQE=
 		</data>
 		<key>Resources/app/chartered_book/__init__.py</key>
 		<data>
@@ -38,7 +38,7 @@
 		</data>
 		<key>Resources/app/chartered_book/core/backup.py</key>
 		<data>
-		g8oyjW0DUaGypNln+l23mJ8tdNs=
+		li+RxF/vZNLJj406C2nDF/tCoTU=
 		</data>
 		<key>Resources/app/chartered_book/core/build.py</key>
 		<data>
@@ -74,7 +74,7 @@
 		</data>
 		<key>Resources/app/chartered_book/core/schema.py</key>
 		<data>
-		eqiJzpt6EHeJ1+6Xcj7pL0q/FMs=
+		E20FAdXjAN39iUEWezOn/VbRrFk=
 		</data>
 		<key>Resources/app/chartered_book/core/spreadsheet.py</key>
 		<data>
@@ -102,11 +102,15 @@
 		</data>
 		<key>Resources/app/chartered_book/modules/company.py</key>
 		<data>
-		7sZ5WFm4sDvfhP0bOKk7ywuWABs=
+		ndLIlQrHgd7QIRm4J4XcX3vPBkI=
 		</data>
 		<key>Resources/app/chartered_book/modules/guidance.py</key>
 		<data>
 		jTsgk3IeEiZPP+S25eCya59c30I=
+		</data>
+		<key>Resources/app/chartered_book/modules/income_tax.py</key>
+		<data>
+		pDHxNon2yr8IxottcdoNTCU3jTU=
 		</data>
 		<key>Resources/app/chartered_book/modules/inventory.py</key>
 		<data>
@@ -162,7 +166,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/api.py</key>
 		<data>
-		fPOfmklYD1cBzqoRrKBvWfI+IBk=
+		3b5hCptKAU6pmTSHVer2c+P3f5A=
 		</data>
 		<key>Resources/app/chartered_book/web/embedded.py</key>
 		<data>
@@ -174,7 +178,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/static/app.js</key>
 		<data>
-		I/yC3EQYzhvcBu9vKr9iObuj99I=
+		PzkVmW0wtJqCM0VMij7oNkS6FMo=
 		</data>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
 		<data>
@@ -216,6 +220,10 @@
 		<data>
 		26sHD0+riQ/DungoZwxy1uJ6HN4=
 		</data>
+		<key>Resources/app/chartered_book/web/static/incometax.js</key>
+		<data>
+		1Z+C0rCGr0WXeUU1vrouIhDMpNU=
+		</data>
 		<key>Resources/app/chartered_book/web/static/manifest.json</key>
 		<data>
 		r8GXNkkYt8nuJp5MkB9OvIMdTYI=
@@ -238,11 +246,11 @@
 		</data>
 		<key>Resources/app/chartered_book/web/static/style.css</key>
 		<data>
-		e7o4ls2UnnQcqe+L9DQJOWOolBY=
+		q0JGQh3BgQpAOwGKHFum5qzTZxY=
 		</data>
 		<key>Resources/app/chartered_book/web/static/sw.js</key>
 		<data>
-		sc6pyvBsdVF4XjrOdpOeVyNR5Wk=
+		JkteM7Xc8SJSQyD+47H4/aqNajw=
 		</data>
 		<key>Resources/app/chartered_book/web/static/ui.js</key>
 		<data>
@@ -254,7 +262,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/templates/index.html</key>
 		<data>
-		Qf72iv7NZbIFgTFXcwNA9fFDMPs=
+		YNioSOrHuX2T8NY7wHO2N4nywV8=
 		</data>
 		<key>Resources/app/start.py</key>
 		<data>
@@ -271,6 +279,10 @@
 		<key>Resources/app/tests/test_discounts.py</key>
 		<data>
 		JBoaTYvbrr5xxG3Mnn5YSX+ycoc=
+		</data>
+		<key>Resources/app/tests/test_income_tax.py</key>
+		<data>
+		Q+YYDCGZi+n29HUoq9Ud/XE3vvU=
 		</data>
 		<key>Resources/app/tests/test_inventory.py</key>
 		<data>
@@ -330,7 +342,7 @@
 		</data>
 		<key>Resources/app/tools/make_web_app.py</key>
 		<data>
-		cLwGfrcYOFsEfa55ENJjTOwSqYA=
+		BMatES6gY0o7xqTEl8RxkdssPeU=
 		</data>
 	</dict>
 	<key>files2</key>
@@ -353,7 +365,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			hSSU6LfVm7X2ZLHbVPKHFohkAudEKgyXgbnCcA8td2U=
+			ChIxAe3UPKB5+RwRCxDjVbphaOo/lapt8GH/D2cJ9VU=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/__init__.py</key>
@@ -388,7 +400,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			zUeHjZNxwMgNgddi8gSFPBSK+/hMtVM5EJ2tLGCKIxk=
+			IG9N4rK2gK0x8KhrhFGwiq+uQBi4VstAT5jtJe86CH4=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/core/build.py</key>
@@ -451,7 +463,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			OkeGIk01hzo6OpTQnW1z/UscDuyNwYSHnpJCXD7xFU0=
+			rutglqOk2GlknyAjlOu0LwU1RaL0BnKPbhwTFrq2Gjc=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/core/spreadsheet.py</key>
@@ -500,7 +512,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			rVeuKcfPBQbjNQKu6vRo2fENAFbfTxZFZQwyvq39TPM=
+			nnyxbOjd1OEj2kCgOV9jEmgDKk1N4ZnoCzlgyWUf5As=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/modules/guidance.py</key>
@@ -508,6 +520,13 @@
 			<key>hash2</key>
 			<data>
 			z7+nn44eshkTmWpQt3sa5930t9Eed1DCtEZJxMqfoNQ=
+			</data>
+		</dict>
+		<key>Resources/app/chartered_book/modules/income_tax.py</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			ya+81Cg07+5rwUeQBUMwDtzdSRAvHnbTx1xneiB1BU4=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/modules/inventory.py</key>
@@ -598,7 +617,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			iy7hUwupuBKFZ0sioCdlmJwxdcC331b+jXhyv1BNr9A=
+			F3FnoWj+uBlaFuQJV7ev5U+lqcWngqkLABoLuuLW6wg=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/embedded.py</key>
@@ -619,7 +638,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			9AhFETyh8GxGjHdIc1Y23vZYD6Nv7Z+GJUYpcPY69Ao=
+			ezxXZUud60w7Fg03MA5+6gqcY3x6ZzupmWrraRfesIM=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
@@ -692,6 +711,13 @@
 			gVH5AI11ETlK/0zcyZ/XQ4jGjEleZUCyXXm6mhqK804=
 			</data>
 		</dict>
+		<key>Resources/app/chartered_book/web/static/incometax.js</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			4i6A7CIrftyMi4W/EdLTLUOpQOvNtDMCkz8mXhB6hxE=
+			</data>
+		</dict>
 		<key>Resources/app/chartered_book/web/static/manifest.json</key>
 		<dict>
 			<key>hash2</key>
@@ -731,14 +757,14 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			XTJfT7JfCcLX6WWpA+acubuT2cuY20VvkLi+1TfnYt0=
+			3l1g0nDNC/MPH/pwq1FspJgT7mS1EMAGhpJBVE/DNJ0=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/sw.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			2hSH5TxjlEM1s0VQwBW2ZwpdMR05yeFhIry6V9DYIvI=
+			lOQpVuGBoexhWxdA4mSMAARICEjWN+y1bg0JfPpiao4=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/ui.js</key>
@@ -759,7 +785,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			Z4QMpezjdO+XS+pSsObB+u1sBskPHm+wi7m+278ytns=
+			ZBCOlppwuDXKxx31rxGton+dUNrSXl1aEsnNFH7I18U=
 			</data>
 		</dict>
 		<key>Resources/app/start.py</key>
@@ -788,6 +814,13 @@
 			<key>hash2</key>
 			<data>
 			Schafh7QAW5sb9GKFM6redysGPG3vIIJSU881WeYp2Q=
+			</data>
+		</dict>
+		<key>Resources/app/tests/test_income_tax.py</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			mx227btTelE9ye+0gglWaRbP4xo+E6u4KdHoGssFmH4=
 			</data>
 		</dict>
 		<key>Resources/app/tests/test_inventory.py</key>
@@ -892,7 +925,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			rhyP/yQ+7iRr/p82OIHlZ9YTacKNkShumob0Ot9S4sw=
+			JTE3L2jL+pd8TitJm41U3hCGv/lUp6FHRi2MC7GProE=
 			</data>
 		</dict>
 	</dict>

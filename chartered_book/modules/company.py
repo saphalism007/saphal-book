@@ -29,6 +29,61 @@ ENTITY_TYPES = {
 }
 
 
+# What the Income Tax Act, 2058 does not allow, marked once so nobody has to
+# remember it every year. A fine is never deductible; depreciation in the books
+# is always replaced by the pool figure under Schedule 2; a donation is capped
+# by section 12 and so is added back and let out again at the allowed amount.
+#
+# These are starting points, not rulings. Every one of them shows on the
+# computation as its own line, with the ledger it came from, so whoever signs
+# the return can see it and change it.
+TAX_TREATMENTS = {
+    # The books' own depreciation, added back so Schedule 2 can replace it.
+    "7201": ("depreciation", "Replaced by the pool figure under Schedule 2"),
+    "7202": ("depreciation", "Replaced by the pool figure under Schedule 2"),
+    "7203": ("depreciation", "Replaced by the pool figure under Schedule 2"),
+    "7204": ("depreciation", "Replaced by the pool figure under Schedule 2"),
+    "7205": ("depreciation", "Replaced by the pool figure under Schedule 2"),
+    "7206": ("depreciation", "Replaced by the pool figure under Schedule 2"),
+    "7207": ("depreciation", "Replaced by the pool figure under Schedule 2"),
+    "7208": ("depreciation", "Replaced by the pool figure under Schedule 2"),
+    "7209": ("depreciation", "Replaced by the pool figure under Schedule 2"),
+
+    # Never deductible.
+    "7303": ("disallowed", "A fine or a penalty is not deductible, section 21(1)(c)"),
+
+    # Deductible only up to the section 12 limit, so added back and let out
+    # again at the allowed figure further down the computation.
+    "6226": ("disallowed", "Capped by section 12, the allowed part comes off below"),
+
+    # A provision is not an expense until it is incurred, section 24.
+    "6307": ("disallowed", "A provision is not deductible until the debt is proved bad"),
+
+    # Belongs to an earlier year, not to this one.
+    "7302": ("disallowed", "Belongs to an earlier income year, section 22"),
+}
+
+
+def apply_tax_treatments(conn):
+    """
+    Mark the ledgers the Act treats differently, where nothing has been said yet.
+
+    Only touches accounts still carrying the default, so a decision made by the
+    owner is never quietly overwritten by an upgrade.
+    """
+    changed = 0
+    for code, (treatment, note) in TAX_TREATMENTS.items():
+        row = conn.execute(
+            "SELECT id, tax_treatment FROM accounts WHERE code = ?", (code,)).fetchone()
+        if row is None or row["tax_treatment"] != "allowed" or treatment == "allowed":
+            continue
+        conn.execute(
+            "UPDATE accounts SET tax_treatment = ?, tax_note = ? WHERE id = ?",
+            (treatment, note, row["id"]))
+        changed += 1
+    return changed
+
+
 def open_company(slug):
     """Open an existing company book, applying any pending schema upgrade."""
     path = db.company_db_path(slug)
@@ -37,6 +92,7 @@ def open_company(slug):
     conn = db.connect(path)
     db.apply_migrations(conn, schema.COMPANY_MIGRATIONS, "company")
     sync_chart(conn)
+    apply_tax_treatments(conn)
     _first_stock_rebuild(conn)
     _align_opening_stock(conn)
     return conn

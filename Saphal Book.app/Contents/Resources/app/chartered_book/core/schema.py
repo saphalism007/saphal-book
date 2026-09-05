@@ -526,3 +526,55 @@ COMPANY_MIGRATIONS.append((7, "keep stock on the perpetual system", """
     -- Cleared once the rebuild below has run, so it runs once and not again.
     ALTER TABLE company ADD COLUMN stock_rebuild_pending INTEGER NOT NULL DEFAULT 1;
 """))
+
+COMPANY_MIGRATIONS.append((9, "income tax computation", """
+
+    -- How each expense is treated when the profit in the books is turned into
+    -- the income the Income Tax Act, 2058 taxes.
+    --
+    -- Most expenses are allowed in full and need nothing said about them, which
+    -- is why the default is 'allowed' and why nobody has to touch this to get a
+    -- sensible answer. The ones that matter are the ones an assessing officer
+    -- reaches for first: fines, donations beyond the limit, personal drawings
+    -- dressed as expenses, provisions for something that has not happened yet.
+    --
+    --   allowed     deducted in full, the ordinary case
+    --   disallowed  added back in full, section 21 and its neighbours
+    --   partial     added back to the extent given in allowed_bp
+    --   depreciation the books' own charge, added back so that Schedule 2 can
+    --               replace it with the pool figure
+    --   donation    added back, then let out again up to the section 12 limit,
+    --               which cannot be worked out until the assessable income is
+    --               known
+    ALTER TABLE accounts ADD COLUMN tax_treatment TEXT NOT NULL DEFAULT 'allowed';
+    ALTER TABLE accounts ADD COLUMN tax_allowed_bp INTEGER NOT NULL DEFAULT 10000;
+    ALTER TABLE accounts ADD COLUMN tax_note TEXT NOT NULL DEFAULT '';
+
+    -- The rates for one income year.
+    --
+    -- These are not written into the software. Nepal sets them afresh in the
+    -- Finance Act every Jestha, and a program that had last year's rates baked
+    -- into it would be confidently wrong every single year. They are kept here,
+    -- against the year they belong to, so they can be corrected the morning the
+    -- Finance Act is published without waiting for anybody.
+    CREATE TABLE tax_rates (
+        start_bs_year   INTEGER NOT NULL,
+        applies_to      TEXT NOT NULL,      -- individual, couple, entity
+        band_from       INTEGER NOT NULL,   -- paisa, 0 for the first band
+        band_to         INTEGER,            -- paisa, null for the top band
+        rate_bp         INTEGER NOT NULL,
+        note            TEXT NOT NULL DEFAULT '',
+        PRIMARY KEY (start_bs_year, applies_to, band_from)
+    );
+
+    -- What has already been paid towards this year's tax, so the computation
+    -- can end where a person actually wants it to end: what is left to pay.
+    CREATE TABLE tax_year_settings (
+        start_bs_year       INTEGER PRIMARY KEY,
+        assessed_as         TEXT NOT NULL DEFAULT '',
+        special_industry    INTEGER NOT NULL DEFAULT 0,
+        advance_tax_paid    INTEGER NOT NULL DEFAULT 0,
+        brought_forward_loss INTEGER NOT NULL DEFAULT 0,
+        note                TEXT NOT NULL DEFAULT ''
+    );
+"""))

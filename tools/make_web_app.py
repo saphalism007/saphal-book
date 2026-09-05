@@ -68,7 +68,7 @@ def shell_html(stamp="1"):
     """
     scripts = ["nepali.js", "ui.js", "app.js", "masters.js", "vouchers.js",
                "drill.js", "reports.js", "statements.js", "banking.js",
-               "assets.js", "audit.js"]
+               "assets.js", "incometax.js", "audit.js"]
     tags = "\n".join('<script src="static/%s?v=%s"></script>' % (s, stamp)
                      for s in scripts)
     source = open(os.path.join(PKG, "web", "templates", "index.html"), encoding="utf-8").read()
@@ -116,9 +116,9 @@ def shell_html(stamp="1"):
     <p>Bookkeeping and accounts for Nepal</p>
     <div class="bar"><span id="startbar"></span></div>
     <div class="step" id="startstep">Starting</div>
-    <div class="slow">The first time takes a few seconds while the accounting
-      engine loads, and needs the internet. After that it is kept on the device
-      and opens quickly. Your books never leave this device.</div>
+    <div class="slow">The first time needs the internet while the accounting
+      engine is fetched and put away. After that it opens from the device.
+      Your books never leave this device.</div>
   </div>
 </div>
 
@@ -239,6 +239,41 @@ window.CB = (function () {
     });
   }
 
+  // Keep the engine on the device.
+  //
+  // The service worker will store whatever passes through it, but on the first
+  // visit it is not yet in charge of the page, so the parts fetched during that
+  // first run would go unstored and the next launch would fetch them all over
+  // again. This puts them away deliberately, once, as soon as the books are
+  // open, so the second launch is the fast one rather than the third.
+  //
+  // It is done quietly. If it fails the software still works, it is just slow
+  // to start, which is what it was before.
+  async function warmEngine() {
+    if (!window.caches) { return; }
+    try {
+      var wanted = ["pyodide.js", "pyodide.asm.js", "pyodide.asm.wasm",
+                    "pyodide-lock.json", "python_stdlib.zip"];
+      try {
+        var lock = await (await fetch("__PYODIDE__pyodide-lock.json")).json();
+        var packages = (lock && lock.packages) || {};
+        Object.keys(packages).forEach(function (name) {
+          if (packages[name] && packages[name].file_name
+              && (name === "sqlite3" || name === "sqlite3-static-libs")) {
+            wanted.push(packages[name].file_name);
+          }
+        });
+      } catch (ignored) { /* the core files are the ones that matter */ }
+
+      var cache = await caches.open("saphal-book-engine");
+      for (var i = 0; i < wanted.length; i += 1) {
+        var url = "__PYODIDE__" + wanted[i];
+        if (await cache.match(url)) { continue; }
+        try { await cache.add(url); } catch (ignored) { /* skip it */ }
+      }
+    } catch (ignored) { /* nothing here is worth interrupting the books for */ }
+  }
+
   async function start() {
     try {
       step("Fetching the accounting engine", 0.1);
@@ -287,6 +322,7 @@ window.CB = (function () {
       ready = true;
       window.CB.ready = true;
       step("Ready", 1);
+      warmEngine();
       var screen = document.getElementById("starting");
       if (screen) { screen.style.display = "none"; }
       document.dispatchEvent(new Event("saphal-book-ready"));
@@ -341,18 +377,27 @@ def worker_js(stamp="1"):
     published, the file on the server was right, and the tablet went on showing
     the old one. Nothing short of clearing site data would have shifted it.
 
-    Only the files served from here are stored. Pyodide comes from its own
-    address and is left to the browser's ordinary cache, so this is not a
-    promise that everything works with no connection at all, only that it does
-    not have to be fetched again every time.
+    The accounting engine is kept here too, and that is the part that matters
+    on a tablet. It comes from a different address, so it used to be left to
+    the browser's ordinary cache, and on an iPad that cache is small and is
+    emptied whenever the system wants the room. The result was a loading screen
+    of the same length every single time, under a message promising it would be
+    quick after the first go.
+
+    So anything fetched from the engine's address is answered out of this store
+    first and only asked for over the network when it is not there. It is put
+    there on the first run and it stays, because a service worker cache is not
+    thrown away the way an ordinary one is.
     """
-    return ("""var VERSION = "saphal-book-web-%s";""" % stamp) + """
+    return ("""var VERSION = "saphal-book-web-%s";
+var ENGINE = "%s";""" % (stamp, PYODIDE)) + """
+var ENGINE_STORE = "saphal-book-engine";
 var SHELL = ["./", "index.html", "boot.js", "manifest.webmanifest",
   "chartered_book.zip",
   "static/style.css", "static/nepali.js", "static/ui.js", "static/app.js",
   "static/masters.js", "static/vouchers.js", "static/drill.js",
   "static/reports.js", "static/statements.js", "static/banking.js",
-  "static/assets.js", "static/audit.js",
+  "static/assets.js", "static/incometax.js", "static/audit.js",
   "static/icons/icon-192.png", "static/icons/icon-512.png"];
 
 self.addEventListener("install", function (event) {
@@ -366,14 +411,36 @@ self.addEventListener("install", function (event) {
 self.addEventListener("activate", function (event) {
   event.waitUntil(caches.keys().then(function (names) {
     return Promise.all(names.map(function (name) {
-      return name === VERSION ? null : caches.delete(name);
+      if (name === VERSION || name === ENGINE_STORE) { return null; }
+      return caches.delete(name);
     }));
   }).then(function () { return self.clients.claim(); }));
 });
 
+// The engine never changes for a given build of it, so once it is here it is
+// answered from here. This is what turns the second launch from thirty seconds
+// into one.
+function fromEngineStore(request) {
+  return caches.open(ENGINE_STORE).then(function (cache) {
+    return cache.match(request).then(function (hit) {
+      if (hit) { return hit; }
+      return fetch(request).then(function (response) {
+        if (response && (response.status === 200 || response.type === "opaque")) {
+          cache.put(request, response.clone());
+        }
+        return response;
+      });
+    });
+  });
+}
+
 self.addEventListener("fetch", function (event) {
   var request = event.request;
   if (request.method !== "GET") { return; }
+  if (request.url.indexOf(ENGINE) === 0) {
+    event.respondWith(fromEngineStore(request));
+    return;
+  }
   if (new URL(request.url).origin !== self.location.origin) { return; }
   event.respondWith(
     fetch(request).then(function (response) {

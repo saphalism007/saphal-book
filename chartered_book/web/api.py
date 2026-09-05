@@ -1105,6 +1105,10 @@ def amount_words(request):
 @route("GET", "/api/backup/list")
 def list_backups(request):
     request.require("backup.run")
+    # Opening this screen is exactly the moment somebody wants to know where
+    # their backups go, so it is the moment to make this device and the account
+    # agree about it, rather than only at sign in.
+    backup.sync_google_link(request.system, _cloud_session(request, required=False))
     settings = backup.google_settings(request.system)
     return {
         "backups": backup.list_backups(),
@@ -1645,9 +1649,8 @@ def _cloud_open(request, username, password, making_account):
     # The Google connection belongs to the person, not to the machine. Signing
     # in brings it with them, so a tablet backs up to the same Drive as the
     # shop machine without being walked through Google again.
-    adopted = None
     try:
-        adopted = backup.adopt_google_link(request.system, session)
+        adopted = backup.sync_google_link(request.system, session)
     except Exception:                                               # noqa: BLE001
         adopted = None
     return {"ok": True, "username": session.username, "google_adopted": adopted}
@@ -2067,6 +2070,122 @@ def deferred_tax(request):
         return sched.deferred_tax(conn, year, compare)
     except nd.DateRangeError as exc:
         raise ApiError(str(exc))
+
+
+# The income tax computation
+
+
+@route("GET", "/api/income-tax")
+def income_tax_statement(request):
+    """The statement that turns the profit in the books into the tax on it."""
+    from ..modules import income_tax
+    conn = request.company()
+    try:
+        return income_tax.computation(conn, _fiscal_bs_year(request, conn))
+    except nd.DateRangeError as exc:
+        raise ApiError(str(exc))
+
+
+@route("GET", "/api/income-tax/settings")
+def income_tax_settings(request):
+    """The rates for the year, what has been paid, and how each ledger is treated."""
+    from ..modules import income_tax
+    conn = request.company()
+    year = _fiscal_bs_year(request, conn)
+    row = conn.execute("SELECT * FROM tax_year_settings WHERE start_bs_year = ?",
+                       (year,)).fetchone()
+    who = income_tax.rate_set_for(conn, year)
+    bands, seeded = income_tax.rates(conn, year, who)
+    ledgers = [dict(r) for r in conn.execute(
+        """SELECT a.id, a.code, a.name, a.tax_treatment, a.tax_allowed_bp, a.tax_note
+           FROM accounts a JOIN account_groups g ON g.id = a.group_id
+           WHERE g.statement = 'PL' AND a.tax_treatment != 'allowed'
+           ORDER BY a.code""")]
+    return {
+        "start_bs_year": year,
+        "assessed_as": who,
+        "assessed_as_label": income_tax.RATE_SETS.get(who, who),
+        "rate_sets": [{"key": key, "label": label}
+                      for key, label in income_tax.RATE_SETS.items()],
+        "treatments": [{"key": key, "label": label}
+                       for key, label in income_tax.TREATMENTS.items()],
+        "bands": bands,
+        "rates_were_seeded": seeded,
+        "special_industry": bool(row["special_industry"]) if row else False,
+        "advance_tax_paid": row["advance_tax_paid"] if row else 0,
+        "brought_forward_loss": row["brought_forward_loss"] if row else 0,
+        "note": row["note"] if row else "",
+        "ledgers": ledgers,
+    }
+
+
+@route("POST", "/api/income-tax/settings")
+def save_income_tax_settings(request):
+    """Record how the year is assessed and what has already been paid."""
+    from ..modules import income_tax
+    request.require("post_voucher")
+    conn = request.company()
+    year = _fiscal_bs_year(request, conn)
+    fields = {}
+    for key in ("assessed_as", "special_industry", "advance_tax_paid",
+                "brought_forward_loss", "note"):
+        if key in request.body:
+            fields[key] = request.arg(key)
+    income_tax.set_year(conn, request.username(), year, **fields)
+    conn.commit()
+    return {"ok": True}
+
+
+@route("POST", "/api/income-tax/rates")
+def save_income_tax_rates(request):
+    """Write the bands for one year, as published in the Finance Act."""
+    from ..modules import income_tax
+    request.require("post_voucher")
+    conn = request.company()
+    year = _fiscal_bs_year(request, conn)
+    applies_to = request.arg("applies_to") or income_tax.rate_set_for(conn, year)
+    bands = request.arg("bands") or []
+    if not isinstance(bands, list):
+        raise ApiError("The bands have to come as a list.")
+    try:
+        income_tax.save_rates(conn, request.username(), year, applies_to, bands)
+    except income_tax.TaxError as exc:
+        raise ApiError(str(exc))
+    conn.commit()
+    return {"ok": True}
+
+
+@route("POST", "/api/income-tax/treatment")
+def save_income_tax_treatment(request):
+    """Say how one ledger is treated when the profit is turned into income."""
+    from ..modules import income_tax
+    request.require("post_voucher")
+    conn = request.company()
+    account_id = request.int_arg("account_id")
+    if not account_id:
+        raise ApiError("Which ledger?")
+    try:
+        income_tax.set_treatment(
+            conn, request.username(), account_id,
+            request.arg("treatment") or "allowed",
+            money.rate_to_bp(request.arg("allowed_bp") or 100),
+            (request.arg("note") or "").strip())
+    except income_tax.TaxError as exc:
+        raise ApiError(str(exc))
+    conn.commit()
+    return {"ok": True}
+
+
+@route("GET", "/api/income-tax/ledgers")
+def income_tax_ledgers(request):
+    """Every profit and loss ledger, so a treatment can be set against any of them."""
+    conn = request.company()
+    return {"rows": [dict(r) for r in conn.execute(
+        """SELECT a.id, a.code, a.name, a.tax_treatment, a.tax_allowed_bp, a.tax_note,
+                  g.name AS group_name
+           FROM accounts a JOIN account_groups g ON g.id = a.group_id
+           WHERE g.statement = 'PL' AND a.active = 1
+           ORDER BY a.code""")]}
 
 
 @route("GET", "/api/schedules/financial-instruments")

@@ -96,6 +96,41 @@ window.CB = (function () {
     });
   }
 
+  // Keep the engine on the device.
+  //
+  // The service worker will store whatever passes through it, but on the first
+  // visit it is not yet in charge of the page, so the parts fetched during that
+  // first run would go unstored and the next launch would fetch them all over
+  // again. This puts them away deliberately, once, as soon as the books are
+  // open, so the second launch is the fast one rather than the third.
+  //
+  // It is done quietly. If it fails the software still works, it is just slow
+  // to start, which is what it was before.
+  async function warmEngine() {
+    if (!window.caches) { return; }
+    try {
+      var wanted = ["pyodide.js", "pyodide.asm.js", "pyodide.asm.wasm",
+                    "pyodide-lock.json", "python_stdlib.zip"];
+      try {
+        var lock = await (await fetch("https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide-lock.json")).json();
+        var packages = (lock && lock.packages) || {};
+        Object.keys(packages).forEach(function (name) {
+          if (packages[name] && packages[name].file_name
+              && (name === "sqlite3" || name === "sqlite3-static-libs")) {
+            wanted.push(packages[name].file_name);
+          }
+        });
+      } catch (ignored) { /* the core files are the ones that matter */ }
+
+      var cache = await caches.open("saphal-book-engine");
+      for (var i = 0; i < wanted.length; i += 1) {
+        var url = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/" + wanted[i];
+        if (await cache.match(url)) { continue; }
+        try { await cache.add(url); } catch (ignored) { /* skip it */ }
+      }
+    } catch (ignored) { /* nothing here is worth interrupting the books for */ }
+  }
+
   async function start() {
     try {
       step("Fetching the accounting engine", 0.1);
@@ -125,7 +160,7 @@ window.CB = (function () {
       });
 
       step("Unpacking Saphal Book", 0.75);
-      var response = await fetch("chartered_book.zip?v=f4080a2360d0",
+      var response = await fetch("chartered_book.zip?v=caec6bb49571",
                                  { cache: "no-cache" });
       if (!response.ok) { throw new Error("the engine file is missing"); }
       var buffer = await response.arrayBuffer();
@@ -144,6 +179,7 @@ window.CB = (function () {
       ready = true;
       window.CB.ready = true;
       step("Ready", 1);
+      warmEngine();
       var screen = document.getElementById("starting");
       if (screen) { screen.style.display = "none"; }
       document.dispatchEvent(new Event("saphal-book-ready"));

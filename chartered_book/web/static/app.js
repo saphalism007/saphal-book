@@ -72,7 +72,8 @@ var App = (function () {
     var statements = [
       { key: "statements", label: "Financial statements" },
       { key: "profit-loss", label: "Profit and loss, quick" },
-      { key: "balance-sheet", label: "Balance sheet, quick" }
+      { key: "balance-sheet", label: "Balance sheet, quick" },
+      { key: "income-tax", label: "Income tax" }
     ];
 
     var auditTools = [
@@ -360,31 +361,6 @@ var App = (function () {
         .catch(function (error) { UI.flash(error.message, "bad"); });
     });
     qs("#user-chip").addEventListener("click", openUserMenu);
-    qs("#btn-backup-quick").addEventListener("click", function () {
-      // It used to go the moment it was pressed, so pressing it a few times
-      // while wondering whether anything had happened left a pile of identical
-      // copies to sort out afterwards. It says what it is about to do now, and
-      // says when the last one was, which is usually the real question.
-      api("/api/backup/list").then(function (data) {
-        var last = (data.backups || [])[0];
-        UI.confirmAction("Take a backup now",
-          "This writes a copy of every company as one file."
-          + (last ? "  The last backup was taken " + UI.bs(last.taken_ad, "short")
-                    + " at " + (last.taken_at || "").slice(11, 16) + "."
-                  : "  There are no backups yet.")
-          + "  One is taken automatically each time Saphal Book starts and closes, "
-          + "so this is only needed before something you would rather be able to undo.",
-          function () {
-            UI.flash("Taking a backup", "warn");
-            return api("/api/backup/create",
-                       { body: { note: "Taken by hand from the sidebar" } })
-              .then(function (data) {
-                UI.flash("Backed up to " + data.backup.filename, "good");
-              });
-          }, "Take it");
-      }).catch(function (error) { UI.flash(error.message, "bad"); });
-    });
-
     document.addEventListener("keydown", function (event) {
       if (event.key === "Escape") { UI.closeModal(); UI.hidePicker(); }
       if (event.key === "F2") { event.preventDefault(); UI.toggleCalculator(); }
@@ -1285,30 +1261,78 @@ var App = (function () {
                                     + "backs up here too." })
                 : null
             ])
-          : el("p.card-note", { text: "No Google account is connected yet, so backups are "
-              + "only kept on this computer." })
+          : el("div", {}, [
+              el("div", { style: "font-size:1.02rem;font-weight:600",
+                          text: "This device only" }),
+              el("div", { style: "color:var(--ink-faint);font-size:.85rem;margin-top:.15rem",
+                          text: data.folder || "" }),
+              el("p.card-note", { text: "No Google account is connected here yet. Connect "
+                + "one on the computer where Saphal Book is installed and sign in to your "
+                + "account on this device, and it will follow you here." })
+            ])
       ]);
     }
 
     function taken(data) {
-      var rows = (data.backups || []).map(function (item) {
-        return el("tr", {}, [
-          el("td", { text: item.taken_bs }),
-          el("td", { text: (item.taken_ad || "").slice(11, 16),
-                     style: "color:var(--ink-faint)" }),
-          el("td.num", { text: item.size_text }),
-          el("td.no-print", {}, [
-            el("button.link-button", { text: "Restore", onclick: function () {
-              restore(item);
-            } })
-          ])
+      // The latest one is the answer to the only question anybody asks here.
+      // The rest were a log nobody read, so they are behind a link.
+      var all = data.backups || [];
+      var latest = all[0];
+      var older = all.slice(1);
+      var box = el("div.card");
+
+      box.appendChild(el("div.card-head", {}, [el("h2", { text: "Last backup" })]));
+      if (!latest) {
+        box.appendChild(el("p.card-note", { text: "Nothing has been backed up yet. "
+          + "Press Back up now above." }));
+        return box;
+      }
+
+      box.appendChild(el("div.row", { style: "align-items:center" }, [
+        el("div", { style: "flex:1 1 auto" }, [
+          el("div", { style: "font-size:1.02rem;font-weight:600",
+                      text: latest.taken_bs + " at " + (latest.taken_ad || "").slice(11, 16) }),
+          el("div", { style: "color:var(--ink-faint);font-size:.85rem;margin-top:.15rem",
+                      text: latest.size_text })
+        ]),
+        el("button.secondary", { text: "Restore this", onclick: function () {
+          restore(latest);
+        }})
+      ]));
+
+      if (older.length) {
+        var list = el("div", { style: "display:none;margin-top:.6rem" }, [
+          UI.table(["Date", "Time", { label: "Size", num: true }, ""],
+            older.map(function (item) {
+              return el("tr", {}, [
+                el("td", { text: item.taken_bs }),
+                el("td", { text: (item.taken_ad || "").slice(11, 16),
+                           style: "color:var(--ink-faint)" }),
+                el("td.num", { text: item.size_text }),
+                el("td.no-print", {}, [
+                  el("button.link-button", { text: "Restore", onclick: function () {
+                    restore(item);
+                  }})
+                ])
+              ]);
+            }), null, { tall: true })
         ]);
-      });
-      return el("div.card", {}, [
-        el("div.card-head", {}, [el("h2", { text: "Backups" })]),
-        UI.table(["Date", "Time", { label: "Size", num: true }, ""], rows, null,
-                 { tall: true, emptyText: "No backups yet." })
-      ]);
+        var toggle = el("button.link-button", {
+          text: "Show the " + older.length + " older " + (older.length === 1 ? "one" : "ones"),
+          style: "margin-top:.5rem",
+          onclick: function () {
+            var open = list.style.display !== "none";
+            list.style.display = open ? "none" : "block";
+            toggle.textContent = open
+              ? "Show the " + older.length + " older "
+                + (older.length === 1 ? "one" : "ones")
+              : "Hide the older ones";
+          }
+        });
+        box.appendChild(toggle);
+        box.appendChild(list);
+      }
+      return box;
     }
 
     function backUp(data) {
