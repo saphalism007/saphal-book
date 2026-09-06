@@ -18,7 +18,7 @@
 		</data>
 		<key>Resources/app/chartered_book/BUILD.txt</key>
 		<data>
-		diUY3lRYZSijKGmTJ0qmgiduJyE=
+		uretHvD1VQ1k4Xv6HHyPgAlJwEU=
 		</data>
 		<key>Resources/app/chartered_book/__init__.py</key>
 		<data>
@@ -38,7 +38,7 @@
 		</data>
 		<key>Resources/app/chartered_book/core/backup.py</key>
 		<data>
-		KqLRacXjlPdffUiLIOFDkcrHWEI=
+		DqHBq3h98sf9mBGLTXgLFYpOqSo=
 		</data>
 		<key>Resources/app/chartered_book/core/build.py</key>
 		<data>
@@ -62,7 +62,7 @@
 		</data>
 		<key>Resources/app/chartered_book/core/gdrive.py</key>
 		<data>
-		fkVR+DfTpqgcBw/JXqU87ZbRT/8=
+		XWY97B3r9S+uwrnXjYnYFV8nXZw=
 		</data>
 		<key>Resources/app/chartered_book/core/mailer.py</key>
 		<data>
@@ -336,6 +336,10 @@
 		<data>
 		gvxL+ZHp4b05sa0OjnlcfN71gRA=
 		</data>
+		<key>Resources/app/tests/test_backup_history.py</key>
+		<data>
+		l/Rw0jXx37pQDXy40HNzhn8GBv0=
+		</data>
 		<key>Resources/app/tests/test_discounts.py</key>
 		<data>
 		JBoaTYvbrr5xxG3Mnn5YSX+ycoc=
@@ -461,7 +465,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			khQLzzssH61yNpD1q7t4LCDQb7VYpRQaiCs/mP3NZ0Y=
+			4k3/Vo5eH3JU1TQnoqXXqlSUs5r0QD27I3AMfJRy0aM=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/__init__.py</key>
@@ -496,7 +500,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			zvM/2ShFDySqowWj9hKKEOGDRhBE3VneMaCUgge4Sog=
+			UUBwuX8+e6jukTaLM21Npw3eQuNPq5JgjoAu5y66uP4=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/core/build.py</key>
@@ -538,7 +542,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			Ww7yQEezVNK9CQQtWNGPbpMVHMieHBsZbpVXN9RJ3kc=
+			cLMoLd6+d75m+ibfc2haEZdq1bruzknRso3LeGcaC/w=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/core/mailer.py</key>
@@ -1008,6 +1012,13 @@
 			<key>hash2</key>
 			<data>
 			iob9lw6JhvdtcX4UZb/ngH0j8ZePZcWBAqGZhJZRNXc=
+			</data>
+		</dict>
+		<key>Resources/app/tests/test_backup_history.py</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			aExQH++Rl+2AgXjrKJdVOsQ96VmykmS18DkfZkQoE9M=
 			</data>
 		</dict>
 		<key>Resources/app/tests/test_discounts.py</key>

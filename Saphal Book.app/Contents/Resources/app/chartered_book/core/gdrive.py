@@ -207,17 +207,23 @@ def upload(token, path, folder_id=None, name=None):
     return answer or {}
 
 
-def tidy(token, folder_id, keep=3):
+def tidy(token, folder_id, keep=30):
     """
-    Keep the newest few backups in Drive and remove the rest.
+    Keep the newest backups in Drive and remove the rest.
 
-    Three, not twenty. Clicking backup twice in a day used to leave two files
-    that differ by nothing anybody would want, and a folder that grows for ever
-    is a folder nobody looks in. Three is what is left: today, and two days to
-    fall back on if today's turns out to hold a mistake.
+    Clicking backup twice in a day is dealt with by the upload, which replaces
+    that day's file rather than adding another. What this removes is old days,
+    and it keeps a month of them.
 
-    Only files this software put there are visible to it, so nothing else in the
-    Drive can be caught by this.
+    This is deliberately generous, because the thing it is guarding against is
+    a mistake that is not noticed the same afternoon. A wrong opening balance
+    or a deleted party can sit there for a fortnight before anybody sees it,
+    and a backup history that only goes back to yesterday is no use at all
+    then. A month of these is under 4 MB.
+
+    Only files this software put there are visible to it, because the access
+    asked for is drive.file, which is per file. Nothing else in the Drive can
+    be seen by this, let alone caught by it.
     """
     found = _call(token, FILES_URL + "?" + urllib.parse.urlencode({
         "q": "'%s' in parents and trashed = false" % folder_id,

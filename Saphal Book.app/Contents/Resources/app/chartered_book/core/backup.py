@@ -37,13 +37,27 @@ def _safe_copy(source_path, target_path):
 # they need. There is one file, it is called the same thing every day, and it
 # is always the latest.
 #
-# What that costs is worth saying plainly, because it is the reason most
-# software does not do this. If the books are damaged and a backup is taken
-# afterwards, the damaged copy replaces the good one and there is nothing to go
-# back to. What stands against that is that the books also sit on the account,
-# on this device, and in whatever cloud folder is set, and those do not all
-# change at the same moment.
-KEEP_DAYS = 1
+# How many are kept, and why it is not one.
+#
+# It was one, everywhere, and that was wrong. The argument for it was that the
+# books also sit on the account and in the cloud folder, so one copy in each
+# place was enough. That argument does not survive being looked at: a backup run
+# writes to all of those in the same moment, so a damaged set of books replaces
+# the good copy in every one of them at once and there is nothing at all to go
+# back to. Three places holding the same bad copy is not three chances.
+#
+# So there is real history now. A day's backup still replaces that same day's,
+# because ten runs in one afternoon are not ten different days. What is kept is
+# a run of days.
+#
+# It costs nothing worth counting. A set of books here is about 116 KB, so a
+# month on Drive is under 4 MB.
+KEEP_LOCAL = 7
+KEEP_ON_DRIVE = 30
+
+# The old name, kept because other code says KEEP_DAYS and means the local
+# folder. It is the number of files, not days, that both of these count.
+KEEP_DAYS = KEEP_LOCAL
 
 
 def create_backup(note="", kind="manual"):
@@ -388,7 +402,10 @@ def send_to_google(system_conn, zip_path):
         folder = settings["folder_id"] or gdrive.ensure_folder(
             token, settings["folder_name"])
         sent = gdrive.upload(token, zip_path, folder)
-        removed = gdrive.tidy(token, folder, KEEP_DAYS)
+        # Drive, not the local folder, and it keeps its own longer run. This
+        # said KEEP_DAYS, which was one, so every backup but the newest was
+        # deleted from Drive and there was no history there at all.
+        removed = gdrive.tidy(token, folder, KEEP_ON_DRIVE)
         return {"ok": True, "name": sent.get("name"), "removed": removed,
                 "where": "Google Drive"}
     except Exception as exc:                                        # noqa: BLE001
