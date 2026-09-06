@@ -82,7 +82,24 @@ var UI = (function () {
      costs nothing at all. */
 
   var SLOW_MS = 220;
-  var lastTook = {};
+
+  /* Addresses that go to somebody else's server and are therefore slow the
+     first time as well as every time. Measured, not guessed: a backup taken in
+     the browser version uploads to Google Drive over a blocking request, and
+     that took just under six seconds. Waiting for it to be slow once before
+     admitting it is slow leaves the first press looking like a dead button. */
+  var lastTook = {
+    "/api/backup/create": 6000,
+    "/api/backup/restore": 6000,
+    "/api/backup/check-google": 900,
+    "/api/cloud/auto": 900,
+    "/api/cloud/send": 3000,
+    "/api/cloud/bring": 3000,
+    "/api/cloud/compare": 3000,
+    "/api/cloud/fetch-waiting": 3000,
+    "/api/cloud/sign-in": 900,
+    "/api/cloud/sign-up": 900
+  };
   var busyDepth = 0;
   var busyBar = null;
 

@@ -1891,21 +1891,26 @@ def where_things_are(request):
                        "exists": exists, "can_open": opens and not _WEB})
 
     if _WEB:
-        # There is no folder here to name. Inside a browser the books live in
-        # storage the browser keeps for this address, and printing the path the
-        # engine uses for it, /books/books, tells nobody anything and is not
-        # somewhere anybody can go. Say what is true instead.
+        # There is no folder on this device to name, and the path the engine
+        # uses inside the browser, /books/books, is not one: it is not
+        # somewhere anybody can go, and printing it was worse than printing
+        # nothing because it looked like an answer.
+        #
+        # What is said instead is checked rather than assumed. The books are
+        # held in storage the browser keeps for this address, and a backup is
+        # written there and sent straight to Drive. Nothing is downloaded.
         places.append({
             "what": "The books themselves",
-            "where": "Kept by this browser, on this device",
-            "note": "There is no folder to open. The books belong to this address "
-                    "and this device, and nothing else can read them.",
+            "where": "Held by this browser, for this address, on this device",
+            "note": "Storage the browser keeps and does not share. There is no folder "
+                    "on the device to open. On the Mac copy they are files in "
+                    "Library/Application Support/Saphal Book/books.",
             "exists": True, "can_open": False})
         places.append({
             "what": "Backups on this device",
-            "where": "Saved to your downloads when you press Backup now",
-            "note": "A browser cannot write into a folder on its own, so the backup "
-                    "is handed to you to save.",
+            "where": "Held by this browser, then sent to Google Drive",
+            "note": "One file, replaced each time. Google Drive below is the copy "
+                    "you can reach from anywhere.",
             "exists": True, "can_open": False})
     else:
         add("The books themselves", core_db.BOOKS_DIR,

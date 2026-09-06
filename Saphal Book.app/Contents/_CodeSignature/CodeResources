@@ -18,7 +18,7 @@
 		</data>
 		<key>Resources/app/chartered_book/BUILD.txt</key>
 		<data>
-		0qiaK7GLKyYO0KacR5zYzi0uIfM=
+		gEdSM1Ob2U7SyO3120bFspM+z2s=
 		</data>
 		<key>Resources/app/chartered_book/__init__.py</key>
 		<data>
@@ -170,7 +170,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/api.py</key>
 		<data>
-		IglL+DnILEEn3OyK4LdEjOSQvcE=
+		XNjCDue5/EqypJAOOhTpmcBnRX4=
 		</data>
 		<key>Resources/app/chartered_book/web/embedded.py</key>
 		<data>
@@ -258,7 +258,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/static/ui.js</key>
 		<data>
-		fSk6LGYvUaePLxxUNfR3uZMcn2s=
+		grPaoBHU1S+HfMj2WVsKVWxLap0=
 		</data>
 		<key>Resources/app/chartered_book/web/static/vouchers.js</key>
 		<data>
@@ -377,7 +377,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			GeSLQqVTGMaX+VA/afJGXpjwbz3T/jibeqnc5kxNGSY=
+			j8TK2cAYAz7okGfCIb3uqhO+WhMCseuizWmBk/vN51M=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/__init__.py</key>
@@ -636,7 +636,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			5M/Kzy1hrlAL1qytJwMTqlaYXxykvYCHcqbn0HwRP3s=
+			WDop6nSpPY81fmwanON/oU80dlWQ3U02gzyD8kOWzMs=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/embedded.py</key>
@@ -790,7 +790,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			MljH6gWlwa4sA/8IgCE0ejNt1G3wbsZWcNmmj+4GSXs=
+			jnxVVKa7Wv4oY+Pok9cdSEF0f8ETumbi1Dr9wm+g0No=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/vouchers.js</key>
