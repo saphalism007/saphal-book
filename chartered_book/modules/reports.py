@@ -515,8 +515,48 @@ def vat_register(conn, side, from_ad, to_ad):
         entries.append(entry)
 
     entries.sort(key=lambda e: (e["date_ad"], e["number"]))
+
+    # The purchase book the Inland Revenue Department asks for splits taxable
+    # purchases into capital and everything else, because tax on a capital
+    # purchase is claimed differently. Which a bill was is not something anybody
+    # should have to say twice: it is already in the entry, in whether the
+    # purchase landed on a fixed asset ledger.
+    if side == "purchase" and entries:
+        capital = _capital_vouchers(conn, [e["voucher_id"] for e in entries])
+        totals["capital_taxable"] = 0
+        totals["capital_vat"] = 0
+        totals["other_taxable"] = 0
+        totals["other_vat"] = 0
+        for entry in entries:
+            is_capital = entry["voucher_id"] in capital
+            entry["capital"] = is_capital
+            where = "capital" if is_capital else "other"
+            totals[where + "_taxable"] += entry["taxable"]
+            totals[where + "_vat"] += entry["vat"]
+
     return {"side": side, "from_ad": from_ad, "to_ad": to_ad,
             "rows": entries, "totals": totals}
+
+
+# The groups a purchase has to land in to count as capital. Property, plant and
+# equipment, investment property, and anything being built towards them.
+CAPITAL_GROUPS = ("1110", "1180", "1130")
+
+
+def _capital_vouchers(conn, voucher_ids):
+    """Which of these vouchers put something on a fixed asset ledger."""
+    if not voucher_ids:
+        return set()
+    marks = ", ".join("?" for _ in voucher_ids)
+    groups = ", ".join("?" for _ in CAPITAL_GROUPS)
+    rows = conn.execute(
+        """SELECT DISTINCT e.voucher_id
+           FROM voucher_entries e
+           JOIN accounts a ON a.id = e.account_id
+           JOIN account_groups g ON g.id = a.group_id
+           WHERE e.voucher_id IN (%s) AND g.code IN (%s) AND e.dr_paisa > 0"""
+        % (marks, groups), list(voucher_ids) + list(CAPITAL_GROUPS)).fetchall()
+    return {row[0] for row in rows}
 
 
 def vat_return(conn, bs_year, bs_month):

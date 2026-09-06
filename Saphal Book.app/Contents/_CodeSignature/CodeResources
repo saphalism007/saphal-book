@@ -18,7 +18,7 @@
 		</data>
 		<key>Resources/app/chartered_book/BUILD.txt</key>
 		<data>
-		D3DwzvuwQnqSAiU+KYqPm87SjXc=
+		ao/ljbpt7eF2zQD4ZdhGTngD3EU=
 		</data>
 		<key>Resources/app/chartered_book/__init__.py</key>
 		<data>
@@ -142,7 +142,7 @@
 		</data>
 		<key>Resources/app/chartered_book/modules/reports.py</key>
 		<data>
-		r80JP+THqs2W6sznziur3fkilXc=
+		SxfCmGG19m77geifNdDE+TItkjY=
 		</data>
 		<key>Resources/app/chartered_book/modules/schedules.py</key>
 		<data>
@@ -174,7 +174,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/api.py</key>
 		<data>
-		Bre6W9182d5+mVwZQp8NFgkhL0Q=
+		Vz80ANtEa+amP/4svvw7QQv50TY=
 		</data>
 		<key>Resources/app/chartered_book/web/embedded.py</key>
 		<data>
@@ -186,11 +186,11 @@
 		</data>
 		<key>Resources/app/chartered_book/web/static/analysis.js</key>
 		<data>
-		OaAMOeZLoTkNzx9Tpz72/1T5QZY=
+		1AtfCYDqYLZOIikP179br/7ZaTw=
 		</data>
 		<key>Resources/app/chartered_book/web/static/app.js</key>
 		<data>
-		yRrMyVz1v6tbdoqa/eBorDzxkwY=
+		ywsh6AqrSY3kY/KUDKVZJRHDBV8=
 		</data>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
 		<data>
@@ -389,7 +389,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			cfYrY0UKAdSvJaUtMIb0AgtWOH3Xo7jz4/fDRwp67RE=
+			/2RyLROB7ZWGKDlgMOHakOO9/ZHPt7vgE3+H3pxdS+c=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/__init__.py</key>
@@ -606,7 +606,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			XQWwWRm2Ps1z/N7++CWJDSFOfMqFr/sc5JXT9ypuN3Q=
+			6J4njxL2nLB/DRulQ5vQkawZYsQfazbjWK+Y6YvDfoI=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/modules/schedules.py</key>
@@ -655,7 +655,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			W0tWtSzwm1Ie19U+bM/MiTV5EHKIy+3Zs1iMglgD82g=
+			wiWozWv1W9VfwUhbTEn9Y0+ervmQBXuvuhlZAZUuZpw=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/embedded.py</key>
@@ -676,14 +676,14 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			rSnKhpHFFr3N05+yXBZzW1W035BznPSlqyjJ3M3qQl8=
+			DnmKsNr5+uTuRf1ZQ0xwmYJ+IqkxFeasIT0GkLGmNKo=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/app.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			UCcor85yYpOZngD8Mls+IgQ7qOR37eWQF9NycyZIHWA=
+			X3jE60W7B5XOgnI/9t7V51fXiF7LixFS2c4kF2vdHpQ=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>

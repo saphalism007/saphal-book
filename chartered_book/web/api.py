@@ -2614,6 +2614,21 @@ def party_statement(request):
 # Audit tools
 
 
+@route("GET", "/api/reports/vat-register")
+def vat_register_report(request):
+    """
+    The sales book and the purchase book, in the layout the Inland Revenue
+    Department asks for. These are the statutory registers under the Value
+    Added Tax Rules, 2053, and the ones an inspection asks to see first.
+    """
+    conn = request.company()
+    from_ad, to_ad = _dates(request, conn)
+    side = request.arg("side") or "sales"
+    if side not in ("sales", "purchase"):
+        raise ApiError("Ask for the sales book or the purchase book.")
+    return reports.vat_register(conn, side, from_ad, to_ad)
+
+
 @route("GET", "/api/reports/by-party")
 def report_by_party(request):
     """What each customer bought, or what was bought from each supplier."""

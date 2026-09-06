@@ -77,7 +77,11 @@ var App = (function () {
     reports.push({ key: "ageing", label: "Ageing" });
     reports.push({ key: "statement", label: "Statement of account" });
     reports.push({ key: "reconcile", label: "Bank reconciliation" });
-    if (vat) { reports.push({ key: "vat", label: "VAT return" }); }
+    if (vat) {
+      reports.push({ key: "vat", label: "VAT return" });
+      reports.push({ key: "sales-book", label: "Sales book" });
+      reports.push({ key: "purchase-book", label: "Purchase book" });
+    }
 
     var statements = [
       { key: "statements", label: "Financial statements" },

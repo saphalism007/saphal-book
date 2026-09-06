@@ -240,6 +240,104 @@ var Analysis = (function () {
     return load();
   });
 
+  /* The statutory registers.
+
+     Not a management report. The sales book and the purchase book are what the
+     Value Added Tax Rules, 2053 require to be kept, and what an inspection asks
+     for first, so the columns are the ones on the prescribed form rather than
+     the ones that would look tidiest. */
+
+  function registerScreen(side, title, subtitle) {
+    return function (page) {
+      var box = el("div");
+      var bar = Reports.periodBar(load);
+
+      function load() {
+        return api("/api/reports/vat-register", { query: {
+          side: side, from_ad: bar.from.getIso(), to_ad: bar.to.getIso()
+        }}).then(draw);
+      }
+
+      function draw(data) {
+        UI.clear(box);
+        box.appendChild(head(title, bar));
+        box.appendChild(el("p.card-note", { style: "text-align:center;margin-top:-.3rem",
+                                            text: subtitle }));
+
+        var isPurchase = side === "purchase";
+        var headers = ["Date", "Bill no.", isPurchase ? "Supplier" : "Buyer", "PAN",
+                       { label: "Total", num: true },
+                       { label: "Exempt", num: true },
+                       { label: "Taxable", num: true },
+                       { label: "VAT", num: true }];
+        if (isPurchase) {
+          headers = headers.concat([
+            { label: "Capital taxable", num: true },
+            { label: "Capital VAT", num: true }
+          ]);
+        }
+
+        var rows = data.rows.map(function (row) {
+          var cells = [
+            el("td", { text: UI.bs(row.date_ad, "short") }),
+            el("td", {}, [
+              el("div", { text: row.number }),
+              row.voucher_type.indexOf("return") >= 0 || row.voucher_type.indexOf("note") >= 0
+                ? el("div.muted", { style: "font-size:.72rem", text: "return or note" })
+                : null
+            ]),
+            el("td", { text: row.party_name }),
+            el("td", { text: row.party_pan || "" }),
+            el("td.num", { text: UI.rs(row.total) }),
+            el("td.num", { text: UI.rs(row.exempt, { blankZero: true }) }),
+            el("td.num", { text: UI.rs(row.taxable) }),
+            el("td.num", { text: UI.rs(row.vat) })
+          ];
+          if (isPurchase) {
+            cells.push(el("td.num", { text: row.capital ? UI.rs(row.taxable) : "" }));
+            cells.push(el("td.num", { text: row.capital ? UI.rs(row.vat) : "" }));
+          }
+          return el("tr", {}, cells);
+        });
+
+        var foot = [
+          el("td", { text: "Total" }), el("td"), el("td"), el("td"),
+          el("td.num", { text: UI.rs(data.totals.total) }),
+          el("td.num", { text: UI.rs(data.totals.exempt) }),
+          el("td.num", { text: UI.rs(data.totals.taxable) }),
+          el("td.num", { text: UI.rs(data.totals.vat) })
+        ];
+        if (isPurchase) {
+          foot.push(el("td.num", { text: UI.rs(data.totals.capital_taxable || 0) }));
+          foot.push(el("td.num", { text: UI.rs(data.totals.capital_vat || 0) }));
+        }
+
+        box.appendChild(UI.table(headers, rows, [el("tr.grand-row", {}, foot)],
+                                 { emptyText: "Nothing in this period." }));
+
+        if (isPurchase) {
+          box.appendChild(el("p.card-note", { text: "A purchase counts as capital where "
+            + "it landed on a fixed asset ledger, which the entry already says. Nothing "
+            + "has to be marked twice." }));
+        }
+
+        box.appendChild(el("div.row.no-print", { style: "margin-top:.7rem" }, [
+          UI.exportButton(box, title),
+          el("button.secondary", { text: "Print", onclick: UI.printPage })
+        ]));
+      }
+
+      page.appendChild(bar);
+      page.appendChild(box);
+      return load();
+    };
+  }
+
+  App.register("sales-book", registerScreen("sales", "Sales book",
+    "Bikri Khata, the register the Value Added Tax Rules, 2053 require"));
+  App.register("purchase-book", registerScreen("purchase", "Purchase book",
+    "Kharid Khata, the register the Value Added Tax Rules, 2053 require"));
+
   App.register("sales-by-customer", partyScreen("sales", "Sales by customer"));
   App.register("sales-by-item", itemScreen("sales", "Sales by item"));
   App.register("purchase-by-supplier", partyScreen("purchase", "Purchases by supplier"));
