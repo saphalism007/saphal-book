@@ -233,7 +233,12 @@ def tidy(token, folder_id, keep=30):
     removed = 0
     for old in files[keep:]:
         try:
-            _call(token, FILES_URL + "/" + old["id"], "DELETE")
+            # Into the bin, not destroyed. A DELETE here is permanent and
+            # immediate, and there is no good reason for this to be the one
+            # thing in Saphal Book that cannot be undone. Trashed, it sits in
+            # Drive's bin for thirty days and can be put back by hand.
+            _call(token, FILES_URL + "/" + old["id"] + "?fields=id", "PATCH",
+                  {"trashed": True})
             removed += 1
         except DriveError:
             pass

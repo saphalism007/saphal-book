@@ -50,7 +50,7 @@ async function start(device) {
     });
 
     step("Unpacking Saphal Book", 0.75);
-    var response = await fetch("chartered_book.zip?v=8ca5ae40b2ae", { cache: "no-cache" });
+    var response = await fetch("chartered_book.zip?v=b8cfda4f32b5", { cache: "no-cache" });
     if (!response.ok) { throw new Error("the engine file is missing"); }
     await pyodide.unpackArchive(await response.arrayBuffer(), "zip");
 
