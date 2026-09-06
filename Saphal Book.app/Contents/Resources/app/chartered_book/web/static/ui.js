@@ -929,6 +929,12 @@ var UI = (function () {
   function table(headers, bodyRows, footRows, options) {
     options = options || {};
     var head = el("thead", {}, [el("tr", {}, headers.map(function (h) {
+      // A header can be a word, or it can be something to click, which is how
+      // the select all box gets to sit above its own column.
+      if (h && h.node) {
+        return el("th.no-print", { style: h.width ? "width:" + h.width : null },
+                  [h.node]);
+      }
       return el("th" + (h.num ? ".num" : h.mid ? ".mid" : ""), {
         text: h.label === undefined ? h : h.label,
         style: h.width ? "width:" + h.width : null
@@ -1066,6 +1072,112 @@ var UI = (function () {
 
   function printPage() { window.print(); }
 
+
+  /* Doing one thing to several rows at once.
+
+     A shop that has entered twelve bills the wrong way round does not want to
+     open twelve vouchers to cancel them, and an accountant checking a month
+     does not want to print them one at a time. So a list can be given a column
+     of boxes and a bar that appears when anything is ticked.
+
+     Nothing here decides what the action does. The screen says that, and each
+     row still goes through the ordinary endpoint one at a time, so a bulk
+     cancel is twelve recorded cancellations and not one silent sweep. The
+     audit trail comes out the same as if they had been done by hand, which is
+     the only version of this worth having in a set of books. */
+
+  function multiSelect(options) {
+    options = options || {};
+    var chosen = [];          // kept in the order they were ticked
+    var boxes = {};           // id -> the checkbox, so select all can reach them
+    var everyId = [];
+    var headBox = el("input", { type: "checkbox", title: "Select all" });
+    var bar = el("div.bulk-bar.hidden");
+    var count = el("span.bulk-count");
+    var buttons = el("div.bulk-buttons");
+    var clearButton = el("button.link", { text: "Clear", onclick: function () {
+      reset();
+    }});
+    bar.appendChild(count);
+    bar.appendChild(buttons);
+    bar.appendChild(clearButton);
+
+    function has(id) { return chosen.indexOf(id) !== -1; }
+
+    function paint() {
+      var n = chosen.length;
+      bar.classList.toggle("hidden", n === 0);
+      count.textContent = n === 1 ? "1 selected" : n + " selected";
+      headBox.checked = n > 0 && n === everyId.length;
+      headBox.indeterminate = n > 0 && n < everyId.length;
+      if (options.onChange) { options.onChange(chosen.slice()); }
+    }
+
+    function set(id, on) {
+      var at = chosen.indexOf(id);
+      if (on && at === -1) { chosen.push(id); }
+      if (!on && at !== -1) { chosen.splice(at, 1); }
+      if (boxes[id]) { boxes[id].checked = on; }
+    }
+
+    function reset() {
+      chosen = [];
+      Object.keys(boxes).forEach(function (id) { boxes[id].checked = false; });
+      paint();
+    }
+
+    // Called before the rows are built, so a redraw does not leave the bar
+    // counting rows that are no longer on the screen.
+    function begin() {
+      boxes = {};
+      everyId = [];
+    }
+
+    // The cell that goes at the front of a row. The click is stopped here
+    // because these lists open a voucher when the row is clicked, and ticking
+    // a box is not asking for that.
+    function cell(id) {
+      var box = el("input", { type: "checkbox" });
+      box.checked = has(id);
+      boxes[id] = box;
+      everyId.push(id);
+      box.addEventListener("click", function (event) { event.stopPropagation(); });
+      box.addEventListener("change", function () { set(id, box.checked); paint(); });
+      var td = el("td.no-print", {}, [box]);
+      td.addEventListener("click", function (event) { event.stopPropagation(); });
+      return td;
+    }
+
+    // Anything ticked that is no longer on the screen is dropped, so the bar
+    // never offers to act on a row nobody can see.
+    function settle() {
+      chosen = chosen.filter(function (id) { return everyId.indexOf(id) !== -1; });
+      paint();
+    }
+
+    headBox.addEventListener("change", function () {
+      var on = headBox.checked;
+      everyId.forEach(function (id) { set(id, on); });
+      paint();
+    });
+
+    function action(label, run, kind) {
+      buttons.appendChild(el("button." + (kind || "secondary"), {
+        text: label,
+        onclick: function () { run(chosen.slice()); }
+      }));
+      return api_self;
+    }
+
+    var api_self = {
+      header: { node: headBox, width: "2.2rem" },
+      begin: begin, cell: cell, settle: settle, reset: reset,
+      action: action, bar: bar,
+      chosen: function () { return chosen.slice(); }
+    };
+    return api_self;
+  }
+
   return {
     copyText: copyText, exportToExcel: exportToExcel, downloadFile: download,
     exportButton: exportButton,
@@ -1076,7 +1188,7 @@ var UI = (function () {
     dateField: dateField, amountInput: amountInput, evaluate: evaluate,
     setupCalculator: setupCalculator, toggleCalculator: toggleCalculator,
     rememberAmountField: rememberAmountField,
-    showBusy: showBusy, rs: rs, money: money, bs: bs, both: both, field: field, select: select, table: table,
+    showBusy: showBusy, rs: rs, money: money, bs: bs, both: both, field: field, select: select, table: table, multiSelect: multiSelect,
     setLang: setLang, getLang: getLang, printPage: printPage, trimNumber: trimNumber,
     getTheme: getTheme, setTheme: setTheme, applyTheme: applyTheme,
     watchSystemTheme: watchSystemTheme, installGuards: installGuards, errorLog: errorLog,

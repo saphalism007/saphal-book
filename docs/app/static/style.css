@@ -1222,3 +1222,32 @@ tr.is-cleared:hover td { background: var(--good-soft); }
   border: 1px solid var(--line); border-radius: var(--radius-sm, 7px);
   background: var(--paper); color: var(--ink); resize: vertical;
 }
+
+/* The bar that appears when rows are ticked.
+
+   It sits at the bottom of the window rather than at the top of the list,
+   because on a long day book the rows being ticked are usually nowhere near
+   the top, and a bar that has scrolled out of sight is a bar nobody presses.
+   It clears the safe area on an iPad so it is not sitting under the home bar. */
+.bulk-bar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  padding: .55rem .7rem .55rem .95rem;
+  border-radius: 12px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 28px rgba(16, 32, 48, .22);
+  max-width: calc(100vw - 2rem);
+  flex-wrap: wrap;
+}
+.bulk-count { font-size: .82rem; font-weight: 600; white-space: nowrap; }
+.bulk-buttons { display: flex; gap: .4rem; flex-wrap: wrap; }
+.bulk-buttons button { padding: .38rem .7rem; font-size: .8rem; }
+.bulk-bar .link { font-size: .78rem; }
+@media print { .bulk-bar { display: none !important; } }

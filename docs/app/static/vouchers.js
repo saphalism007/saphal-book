@@ -821,6 +821,9 @@ var Vouchers = (function () {
       })), "");
     var showCancelled = el("input", { type: "checkbox" });
     var listBox = el("div");
+    var picked = UI.multiSelect();
+    // What is on the screen, so the bar can act on rows without asking again.
+    var onScreen = {};
 
     function load() {
       return api("/api/daybook", { query: {
@@ -828,11 +831,15 @@ var Vouchers = (function () {
         voucher_type: typeFilter.value, include_cancelled: showCancelled.checked ? "1" : ""
       }}).then(function (data) {
         var total = 0;
+        picked.begin();
+        onScreen = {};
         var rows = data.rows.map(function (row) {
           if (row.status !== "cancelled") { total += row.total_paisa; }
+          onScreen[row.id] = row;
           return el("tr.clickable" + (row.status === "cancelled" ? ".cancelled" : ""), {
             onclick: function () { view(row.id); }
           }, [
+            picked.cell(row.id),
             el("td", { text: UI.bs(row.date_ad, "short") }),
             el("td", { text: row.date_ad, style: "font-size:.76rem;color:var(--ink-faint)" }),
             el("td", { text: row.type_name }),
@@ -845,15 +852,121 @@ var Vouchers = (function () {
           ]);
         });
         UI.clear(listBox).appendChild(UI.table(
-          ["Date (BS)", "Date (AD)", "Type", "Number", "Party", "Narration",
-           { label: "Amount", num: true }, ""],
+          [picked.header, "Date (BS)", "Date (AD)", "Type", "Number", "Party",
+           "Narration", { label: "Amount", num: true }, ""],
           rows,
           rows.length ? [el("tr", {}, [
-            el("td", { colspan: "6", text: "Total of " + rows.length + " vouchers" }),
+            el("td", { colspan: "7", text: "Total of " + rows.length + " vouchers" }),
             el("td.num", { text: UI.rs(total) }), el("td")
           ])] : null,
           { tall: true, emptyText: "No vouchers in this period." }));
+        picked.settle();
       });
+    }
+
+    /* What the bar offers.
+
+       Print takes the ticked rows on their own, so a month of receipts can go
+       to the printer without the rest of the day book around them.
+
+       Cancel is the one that matters. Each voucher goes through the ordinary
+       cancel one at a time, so twelve cancellations are recorded as twelve,
+       with the same reason on each, and anything the books refuse is refused
+       for its own reason and reported by number rather than swallowed. */
+
+    function chosenRows() {
+      return picked.chosen().map(function (id) { return onScreen[id]; })
+        .filter(function (row) { return !!row; });
+    }
+
+    picked.action("Print these", function () {
+      if (!picked.chosen().length) { return; }
+      printChosen();
+    });
+
+    picked.action("Cancel these", function () {
+      var rows = chosenRows().filter(function (row) { return row.status !== "cancelled"; });
+      if (!rows.length) {
+        UI.flash("Those are cancelled already.", "warn");
+        return;
+      }
+      UI.promptText("Cancel " + rows.length + " voucher"
+        + (rows.length === 1 ? "" : "s"),
+        "Why they are being cancelled",
+        function (reason) {
+          if (!reason) {
+            UI.flash("Say why they are being cancelled.", "warn");
+            return false;
+          }
+          return cancelEach(rows, reason);
+        }, {
+          // Not "Cancel". The button beside it is the one that means go back,
+          // and two buttons reading Cancel is how somebody cancels a month of
+          // sales by accident.
+          submitLabel: "Mark them cancelled",
+          hint: "Every one of these keeps its number and stays in the books, "
+                + "marked cancelled, so the trail is unbroken. The same reason "
+                + "goes on each of them."
+        });
+    }, "danger");
+
+    function cancelEach(rows, reason) {
+      var done = 0, refused = [];
+      // One at a time and in order, so a refusal part way through leaves the
+      // books in a state somebody can read, rather than half a batch.
+      var run = rows.reduce(function (chain, row) {
+        return chain.then(function () {
+          return api("/api/vouchers/" + row.id + "/cancel", { body: { reason: reason } })
+            .then(function () { done += 1; })
+            .catch(function (error) {
+              refused.push(row.number + ": " + error.message);
+            });
+        });
+      }, Promise.resolve());
+
+      return run.then(function () {
+        picked.reset();
+        return load();
+      }).then(function () {
+        if (!refused.length) {
+          UI.flash(done + " cancelled.", "good");
+          return;   // and the panel that asked for the reason closes itself
+        }
+        // Dialogs are a stack, and the one that asked for the reason is still
+        // on it. Putting the report up first and letting that panel close
+        // itself afterwards takes the report off again, which is how this
+        // silently showed nothing the first time. So take the question off,
+        // put the report on, and say do not close, or the report goes too.
+        UI.closeModal();
+        UI.modal("Cancelled " + done + " of " + (done + refused.length),
+          el("div", {}, [
+            el("p", { text: "These would not cancel, and nothing was changed "
+                            + "about them." }),
+            el("ul", {}, refused.map(function (line) {
+              return el("li", { text: line });
+            }))
+          ]), [{ label: "Close" }]);
+        return false;
+      });
+    }
+
+    // Hide the rows that were not ticked, print, then put the list back
+    // exactly as it was. The total in the foot is hidden too, because it adds
+    // up the whole period and would be wrong above a page of four rows.
+    function printChosen() {
+      var hidden = [];
+      function hide(node) { node.classList.add("no-print"); hidden.push(node); }
+
+      Array.prototype.forEach.call(
+        listBox.querySelectorAll("tbody tr"), function (tr) {
+          var box = tr.querySelector("input[type=checkbox]");
+          if (box && !box.checked) { hide(tr); }
+        });
+      Array.prototype.forEach.call(
+        listBox.querySelectorAll("tfoot tr"), hide);
+
+      UI.printPage();
+      hidden.forEach(function (node) { node.classList.remove("no-print"); });
     }
 
     [typeFilter, showCancelled].forEach(function (node) { node.addEventListener("change", load); });
@@ -876,6 +989,7 @@ var Vouchers = (function () {
       ]),
       listBox
     ]));
+    page.appendChild(picked.bar);
     return load();
   });
 
