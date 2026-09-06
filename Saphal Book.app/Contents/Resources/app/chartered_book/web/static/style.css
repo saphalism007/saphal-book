@@ -1115,3 +1115,41 @@ tr.is-cleared:hover td { background: var(--good-soft); }
 .paper-name { font-weight: 600; font-size: .88rem; }
 .paper-what .muted { font-size: .76rem; }
 @media print { .papers { display: none; } }
+
+/* Finding one thing.
+
+   Sits next to the page title because that is where the eye already is when
+   somebody stops and thinks "where is that invoice". The results hang under
+   it rather than taking over the screen, so the page behind stays put. */
+/* The title keeps its room. The search takes what is left and no more: a
+   heading cut down to "Dash..." to make space for a box is a bad trade. */
+.topbar-left > h1 { flex: 0 0 auto; white-space: nowrap; }
+.finder { position: relative; flex: 0 1 22rem; min-width: 0; margin-left: 1rem; }
+.finder input {
+  width: 100%; padding: .34rem .6rem; font-size: .82rem;
+  border: 1px solid var(--line); border-radius: var(--radius-sm, 7px);
+  background: var(--paper); color: var(--ink);
+}
+.finder input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.finder-results {
+  position: absolute; z-index: 60; top: calc(100% + .3rem); left: 0; right: 0;
+  max-height: 60vh; overflow-y: auto;
+  background: var(--paper); border: 1px solid var(--line);
+  border-radius: var(--radius, 10px); box-shadow: 0 10px 30px rgba(0,0,0,.16);
+  padding: .3rem 0;
+}
+.finder-group {
+  padding: .35rem .7rem .2rem; font-size: .68rem; letter-spacing: .05em;
+  text-transform: uppercase; color: var(--ink-faint); font-weight: 600;
+}
+.finder-row {
+  padding: .34rem .7rem; cursor: pointer; display: grid;
+  grid-template-columns: 1fr auto; column-gap: .6rem; align-items: baseline;
+}
+.finder-row:hover, .finder-row.on { background: var(--raised); }
+.finder-main { font-size: .85rem; font-weight: 550; display: flex; gap: .4rem; align-items: baseline; }
+.finder-detail { grid-column: 1; font-size: .74rem; color: var(--ink-faint); }
+.finder-amount { grid-row: 1; grid-column: 2; font-variant-numeric: tabular-nums; font-size: .82rem; }
+.finder-note { padding: .5rem .7rem; font-size: .8rem; color: var(--ink-faint); }
+@media (max-width: 700px) { .finder { display: none; } }
+@media print { .finder { display: none; } }

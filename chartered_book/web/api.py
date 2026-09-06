@@ -2614,6 +2614,20 @@ def party_statement(request):
 # Audit tools
 
 
+@route("GET", "/api/find")
+def find_anything(request):
+    """
+    One search across the things worth finding.
+
+    Knowing that an invoice lives on the day book and a customer on the records
+    screen is knowledge about the software rather than about the books, and
+    nobody should need it to find something they can name.
+    """
+    from ..modules import finder
+    conn = request.company()
+    return finder.search(conn, request.arg("q") or "")
+
+
 # The paper behind the entry
 
 

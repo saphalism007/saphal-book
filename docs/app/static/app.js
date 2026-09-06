@@ -386,6 +386,7 @@ var App = (function () {
         .catch(function (error) { UI.flash(error.message, "bad"); });
     });
     qs("#user-chip").addEventListener("click", openUserMenu);
+    wireFinder();
     document.addEventListener("keydown", function (event) {
       if (event.key === "Escape") { UI.closeModal(); UI.hidePicker(); }
       if (event.key === "F2") { event.preventDefault(); UI.toggleCalculator(); }
@@ -746,6 +747,114 @@ var App = (function () {
 
     return { run: run, touched: touched, start: start, forget: forget };
   }());
+
+  /* Finding one thing, without knowing which screen it is on.
+
+     Somebody looking for SI0042, or for Sharma Nirman, or for the ledger they
+     call rates and taxes, types it and is taken there. Knowing that an invoice
+     lives on the day book and a customer on the records screen is knowledge
+     about the software rather than about the books.
+
+     The search waits for typing to stop rather than firing on every key,
+     because on a tablet each one crosses to the engine and back, and eight of
+     those for a word nobody has finished spelling is work done for nothing. */
+
+  function wireFinder() {
+    var box = qs("#finder");
+    var results = qs("#finder-results");
+    if (!box || !results) { return; }
+    var settle = null;
+    var picked = -1;
+    var rows = [];
+
+    function hide() { results.classList.add("hidden"); picked = -1; rows = []; }
+
+    function draw(found) {
+      UI.clear(results);
+      rows = [];
+      if (found.note && !found.count) {
+        results.appendChild(el("div.finder-note", { text: found.note }));
+        results.classList.remove("hidden");
+        return;
+      }
+      (found.groups || []).forEach(function (group) {
+        results.appendChild(el("div.finder-group", { text: group.title }));
+        group.rows.forEach(function (row) {
+          var line = el("div.finder-row", {}, [
+            el("div.finder-main", {}, [
+              el("span", { text: row.label }),
+              row.cancelled ? el("span.pill.warn", { text: "cancelled" }) : null
+            ]),
+            el("div.finder-detail", { text: row.detail || "" }),
+            row.amount ? el("div.finder-amount", { text: UI.rs(row.amount) }) : null
+          ]);
+          line.addEventListener("mousedown", function (event) {
+            event.preventDefault();
+            open(row);
+          });
+          rows.push({ node: line, row: row });
+          results.appendChild(line);
+        });
+      });
+      results.classList.remove("hidden");
+    }
+
+    function highlight(step) {
+      if (!rows.length) { return; }
+      if (picked >= 0) { rows[picked].node.classList.remove("on"); }
+      picked = (picked + step + rows.length) % rows.length;
+      rows[picked].node.classList.add("on");
+      rows[picked].node.scrollIntoView({ block: "nearest" });
+    }
+
+    function open(row) {
+      hide();
+      box.value = "";
+      box.blur();
+      // Each of these already has a way in from elsewhere in the software, so
+      // the search uses those rather than inventing a second one that would
+      // then have to be kept in step.
+      if (row.opens === "voucher") { return Vouchers.view(row.id); }
+      if (row.opens === "ledger") { return Reports.openLedger(row.id); }
+      if (row.opens === "item") { return Reports.openItemMovement(row.id); }
+      if (row.opens === "party") {
+        App.state.pendingStatement = row.id;
+        return go("statement");
+      }
+    }
+
+    box.addEventListener("input", function () {
+      if (settle) { clearTimeout(settle); }
+      var text = box.value.trim();
+      if (text.length < 2) { return hide(); }
+      settle = setTimeout(function () {
+        api("/api/find", { query: { q: text } })
+          .then(draw)
+          .catch(function () { hide(); });
+      }, 220);
+    });
+
+    box.addEventListener("keydown", function (event) {
+      if (event.key === "ArrowDown") { event.preventDefault(); return highlight(1); }
+      if (event.key === "ArrowUp") { event.preventDefault(); return highlight(-1); }
+      if (event.key === "Escape") { return hide(); }
+      if (event.key === "Enter" && picked >= 0) {
+        event.preventDefault();
+        open(rows[picked].row);
+      }
+    });
+
+    box.addEventListener("blur", function () { setTimeout(hide, 150); });
+
+    // Ctrl or Command and K, which is where everybody's hands already go.
+    document.addEventListener("keydown", function (event) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        box.focus();
+        box.select();
+      }
+    });
+  }
 
   /* Finishing for the day.
 
