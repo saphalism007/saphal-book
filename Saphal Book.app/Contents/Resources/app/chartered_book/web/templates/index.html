@@ -47,6 +47,15 @@
         <span data-i18n="username">Username</span>
         <input type="text" id="login-username" autocomplete="username" autocapitalize="none" required>
       </label>
+      <label class="hidden-when-login">
+        <span>Email</span>
+        <input type="email" id="setup-email" autocomplete="email" autocapitalize="none"
+               placeholder="the address your Google Drive uses">
+      </label>
+      <label class="hidden-when-login">
+        <span>Mobile</span>
+        <input type="tel" id="setup-mobile" autocomplete="tel" placeholder="98…">
+      </label>
       <label>
         <span data-i18n="password">Password</span>
         <input type="password" id="login-password" autocomplete="current-password" required>

@@ -246,7 +246,9 @@ def first_run_setup(request):
     password = request.arg("password") or ""
     full_name = (request.arg("full_name") or "").strip()
     try:
-        user_id = auth.create_user(request.system, username, password, full_name, "owner")
+        user_id = auth.create_user(
+            request.system, username, password, full_name, "owner",
+            email=request.arg("email") or "", mobile=request.arg("mobile") or "")
     except auth.AuthError as exc:
         raise ApiError(str(exc))
     token = auth.start_session(request.system, user_id)
@@ -490,6 +492,33 @@ def logout(request):
     return {"ok": True}
 
 
+@route("GET", "/api/me")
+def my_details(request):
+    """Who is signed in, and how to reach them."""
+    user = request.require_user()
+    row = request.system.execute(
+        "SELECT username, full_name, email, mobile, role FROM users WHERE id = ?",
+        (user["user_id"],)).fetchone()
+    return dict(row) if row else {}
+
+
+@route("POST", "/api/me")
+def save_my_details(request):
+    """
+    Change the address and number against this account.
+
+    The address matters beyond politeness: backups go to Google Drive, and a
+    Drive belongs to a Google account. Somebody who signed up without giving
+    one arrives at the backup screen with nothing to connect.
+    """
+    user = request.require_user()
+    auth.set_details(request.system, user["user_id"],
+                     email=request.arg("email"), mobile=request.arg("mobile"),
+                     full_name=request.arg("full_name"))
+    request.system.commit()
+    return {"ok": True}
+
+
 @route("POST", "/api/change-password")
 def change_password(request):
     user = request.require_user()
@@ -507,7 +536,8 @@ def change_password(request):
 def list_users(request):
     request.require("user.manage")
     return {"rows": rows(request.system.execute(
-        """SELECT id, username, full_name, role, active, created_at, last_login_at
+        """SELECT id, username, full_name, email, mobile, role, active,
+                  created_at, last_login_at
            FROM users ORDER BY username"""))}
 
 
@@ -517,7 +547,9 @@ def create_user(request):
     try:
         user_id = auth.create_user(
             request.system, request.arg("username"), request.arg("password"),
-            request.arg("full_name") or "", request.arg("role") or "operator", must_change=1)
+            request.arg("full_name") or "", request.arg("role") or "operator",
+            must_change=1, email=request.arg("email") or "",
+            mobile=request.arg("mobile") or "")
     except auth.AuthError as exc:
         raise ApiError(str(exc))
     return {"ok": True, "id": user_id}
@@ -533,7 +565,7 @@ def update_user(request, user_id):
         except auth.AuthError as exc:
             raise ApiError(str(exc))
     sets, args = [], []
-    for field in ("full_name", "role", "active"):
+    for field in ("full_name", "role", "active", "email", "mobile"):
         if field in request.body:
             if field == "role" and request.body[field] not in auth.ROLES:
                 raise ApiError("Unknown role.")

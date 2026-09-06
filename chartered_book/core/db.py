@@ -394,3 +394,19 @@ def open_system():
     conn = connect(SYSTEM_DB)
     apply_migrations(conn, SYSTEM_MIGRATIONS, "system")
     return conn
+
+
+SYSTEM_MIGRATIONS.append((5, "how to reach the person who signed up", """
+    -- An address and a number against each person.
+    --
+    -- The address is not decoration. Backups go to Google Drive, and a Drive
+    -- belongs to a Google account, so somebody who signs up without giving one
+    -- reaches the backup screen and finds nothing to connect. That happened to
+    -- a real user, who made a username for their business and then could not
+    -- work out where to put their Gmail.
+    --
+    -- Neither is sent anywhere. They sit in this file on this device, the same
+    -- as everything else here.
+    ALTER TABLE users ADD COLUMN email TEXT NOT NULL DEFAULT '';
+    ALTER TABLE users ADD COLUMN mobile TEXT NOT NULL DEFAULT '';
+"""))

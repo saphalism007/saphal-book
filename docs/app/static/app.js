@@ -231,10 +231,9 @@ var App = (function () {
         if (info.needs_setup) {
           helpPanel.appendChild(el("div", {}, [
             el("strong", { text: "There is no account on this computer yet." }),
-            el("div", { text: "This screen is where you make one. There is no separate sign "
-              + "up. Fill in a name, choose any username and password you like, and press "
-              + "Create and continue. Write the password down, because nothing can recover "
-              + "it." })
+            el("div", { text: "This screen is where you make one. Fill in your name, "
+              + "choose a username and a password, and give the email your Google "
+              + "Drive uses so that backups have somewhere to go. Press Sign up." })
           ]));
           return;
         }
@@ -291,8 +290,25 @@ var App = (function () {
             el("strong", { text: "There is work in these books." }),
             el("div", { text: info.vouchers + " vouchers have been entered across "
               + info.companies + " compan" + (info.companies === 1 ? "y" : "ies")
-              + ". Do not delete anything. Ask whoever set it up for the password." }),
-            el("span.path", { text: info.data_folder })
+              + ". Do not delete anything." })
+          ]));
+          // A forgotten password is not a lost set of books, and saying so is
+          // the whole point of this panel. The books on this machine are not
+          // locked: a password gets somebody past this screen, and there are
+          // two ordinary ways to get a new one.
+          lines.appendChild(el("div", { style: "margin-top:.6rem" }, [
+            el("strong", { text: "Forgotten the password?" }),
+            el("div", { text: "The books are not lost. They are on this computer either "
+              + "way, and there are two ways back in." }),
+            el("ol", {}, [
+              el("li", { text: "If somebody else here has an owner login, they can set "
+                + "you a new password under Setup, Users. That is the quick way." }),
+              el("li", { text: "If nobody can, restore from a backup on another device, "
+                + "or open a fresh login and bring the books down from your account." })
+            ]),
+            el("div", { text: "Changing a password is safe. The books carry on, and they "
+              + "are simply locked again with the new one the next time they go up to "
+              + "your account." })
           ]));
         }
         helpPanel.appendChild(lines);
@@ -309,23 +325,26 @@ var App = (function () {
     var switcher = qs("#gate-switch");
 
     function paintMode() {
-      qs("#gate-title").textContent = making ? "Open an account" : "Sign in";
-      qs("#gate-submit").textContent = making ? "Open it and continue" : "Sign in";
-      switcher.textContent = making
-        ? "I already have an account, sign me in"
-        : "Open a new account";
+      qs("#gate-title").textContent = making ? "Sign up" : "Sign in";
+      qs("#gate-submit").textContent = making ? "Sign up" : "Sign in";
+      switcher.textContent = making ? "Sign in instead" : "Sign up";
       qs("#login-password").setAttribute(
         "autocomplete", making ? "new-password" : "current-password");
       UI.qsa(".hidden-when-login").forEach(function (node) {
         node.classList.toggle("hidden", !making);
       });
-      // Signing in is not the place to explain how any of this works. Somebody
-      // here wants to get into their books. The one line that survives is the
-      // one that costs them something if they do not know it: the password
-      // cannot be reset, because it is also the key the books are locked with.
+      // What this said before was that the password could not be reset, which
+      // frightened people off at the one moment they were deciding whether to
+      // trust the thing, and which is not even true: a password can be changed,
+      // and the books carry on. What is true is narrower, and it is said on the
+      // Cannot get in screen where somebody actually needs it, rather than
+      // here where it only reads as a warning.
+      //
+      // The email is not politeness. Backups go to Google Drive, a Drive
+      // belongs to a Google account, and somebody who signs up without giving
+      // one reaches the backup screen and finds nothing to connect.
       qs("#gate-help").textContent = making
-        ? "Use at least eight characters. This password also unlocks your books "
-          + "and cannot be reset, so write it down."
+        ? "Your email is where backups go, so use the one your Google Drive uses."
         : "";
       qs("#gate-error").textContent = "";
     }
@@ -341,7 +360,11 @@ var App = (function () {
         username: qs("#login-username").value.trim(),
         password: qs("#login-password").value
       };
-      if (making) { body.full_name = qs("#setup-fullname").value.trim(); }
+      if (making) {
+        body.full_name = qs("#setup-fullname").value.trim();
+        body.email = qs("#setup-email").value.trim();
+        body.mobile = qs("#setup-mobile").value.trim();
+      }
       var submit = qs("#gate-submit");
       submit.disabled = true;
       submit.textContent = making ? "Opening…" : "Signing in…";
@@ -1500,6 +1523,14 @@ var App = (function () {
     var username = el("input", { type: "text", value: user ? user.username : "", readonly: !!user });
     var fullName = el("input", { type: "text", value: user ? user.full_name : "" });
     var password = el("input", { type: "password", autocomplete: "new-password" });
+    // The address matters here, not only at sign up. Somebody set up by the
+    // owner needs one of their own before their backups have anywhere to go.
+    var email = el("input", { type: "email", autocomplete: "email",
+                              autocapitalize: "none",
+                              value: user ? (user.email || "") : "" });
+    var mobile = el("input", { type: "tel", autocomplete: "tel",
+                               placeholder: "98\u2026",
+                               value: user ? (user.mobile || "") : "" });
     var role = UI.select(Object.keys({ owner: 1, accountant: 1, operator: 1, viewer: 1 }).map(function (key) {
       return { value: key, label: key.charAt(0).toUpperCase() + key.slice(1) };
     }), user ? user.role : "operator");
@@ -1511,6 +1542,8 @@ var App = (function () {
       UI.field("Full name", fullName),
       UI.field(user ? "New password, leave blank to keep the old one" : "Password", password,
         "At least eight characters."),
+      UI.field("Email", email, "Where their Google Drive backups go."),
+      UI.field("Mobile", mobile),
       UI.field("Role", role),
       user ? UI.field("Can sign in", el("div", {}, [active])) : null
     ]);
@@ -1518,7 +1551,8 @@ var App = (function () {
     UI.modal(user ? "Edit user" : "Add a user", body, [
       { label: "Cancel" },
       { label: "Save", kind: "primary", action: function () {
-        var payload = { full_name: fullName.value.trim(), role: role.value };
+        var payload = { full_name: fullName.value.trim(), role: role.value,
+                        email: email.value.trim(), mobile: mobile.value.trim() };
         if (password.value) { payload.password = password.value; }
         if (user) {
           payload.active = active.checked ? 1 : 0;

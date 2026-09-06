@@ -18,7 +18,7 @@
 		</data>
 		<key>Resources/app/chartered_book/BUILD.txt</key>
 		<data>
-		ScEnWDYocLEQ1Q+9ELX9tHt219M=
+		Dmd9EZNVoiVC9rRbiy2tkpjb+p4=
 		</data>
 		<key>Resources/app/chartered_book/__init__.py</key>
 		<data>
@@ -34,7 +34,7 @@
 		</data>
 		<key>Resources/app/chartered_book/core/auth.py</key>
 		<data>
-		5DG38YOvkupynuv8AX3vXmUKGVs=
+		f5Hq7Lo1Mkw7XaLUUiYbmD2Afc4=
 		</data>
 		<key>Resources/app/chartered_book/core/backup.py</key>
 		<data>
@@ -58,7 +58,7 @@
 		</data>
 		<key>Resources/app/chartered_book/core/db.py</key>
 		<data>
-		kfn+E7fl+FRimN/BHxYovTKv9y8=
+		93wrUBVdY1nwP6Hwcxc/9xnPgu0=
 		</data>
 		<key>Resources/app/chartered_book/core/gdrive.py</key>
 		<data>
@@ -182,7 +182,7 @@
 		</data>
 		<key>Resources/app/chartered_book/modules/sync.py</key>
 		<data>
-		M0Qk6WmDOpADaXnYxo4zl2L/SMM=
+		Vxjn3Qyb7jliNd0OLBU7+RCQEGQ=
 		</data>
 		<key>Resources/app/chartered_book/modules/tb_import.py</key>
 		<data>
@@ -202,7 +202,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/api.py</key>
 		<data>
-		CielbwlAxTWYAZdyrMsrNgUzKig=
+		5d5mzEvkqM2xDb5/S+yyujIDZdQ=
 		</data>
 		<key>Resources/app/chartered_book/web/embedded.py</key>
 		<data>
@@ -218,7 +218,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/static/app.js</key>
 		<data>
-		OH3yAUtzxqBHQXvNrYO2PiH+Msw=
+		hhyTEye2odhpNO1iKudm3kjgsPg=
 		</data>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
 		<data>
@@ -310,7 +310,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/templates/index.html</key>
 		<data>
-		kU+hqr6zcVD8BULgYuybaSKRt7w=
+		A5qTUn10QKv5bk+4GKgUZ1WgxFA=
 		</data>
 		<key>Resources/app/start.py</key>
 		<data>
@@ -323,6 +323,10 @@
 		<key>Resources/app/tests/test_accounting.py</key>
 		<data>
 		iiaGZ7i36j/8hCUaj2KI7W766lc=
+		</data>
+		<key>Resources/app/tests/test_accounts.py</key>
+		<data>
+		z/+D1r+Xc0ClwSR0EAWi6r39kJM=
 		</data>
 		<key>Resources/app/tests/test_discounts.py</key>
 		<data>
@@ -374,7 +378,7 @@
 		</data>
 		<key>Resources/app/tests/test_sync.py</key>
 		<data>
-		u9g9xHATBxYyapZp+VAgdQX4soQ=
+		ff9Cwo5D9vhpVPmeqbH9hLTeZoY=
 		</data>
 		<key>Resources/app/tests/test_tax.py</key>
 		<data>
@@ -414,7 +418,7 @@
 		</data>
 		<key>Resources/app/tools/make_release.py</key>
 		<data>
-		aGTgWT1s3jOTH7MvfBB4uonbyVQ=
+		FYTQ5MiOOJMvoAS3EmYQwUw/fdI=
 		</data>
 		<key>Resources/app/tools/make_web_app.py</key>
 		<data>
@@ -441,7 +445,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			0I2B1I7mN1xiOghvFehyrk0TiVWgFi9axm52QRFTf+0=
+			mMOg66br47k21/sfzLQ3SRHNeuC7tbxE1Ccn9e4guyc=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/__init__.py</key>
@@ -469,7 +473,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			nCq4K25mEnXHsl5P5Gmu6JSoLSJKUIXEKAjrTYQw+Dw=
+			/vl5oJfL6bsO3zJ1/pAqgAmMAh4W94lof6WErKdLeE0=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/core/backup.py</key>
@@ -511,7 +515,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			c5dJVYd0beLH8picJJXvuyVGdiBAt/4Ysp7R2O4jCFM=
+			9Lg6W0e6cFzlgDRLl3Xw1Kjx7NJPv2ZPq+lFnqMfd/k=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/core/gdrive.py</key>
@@ -728,7 +732,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			hdBPRRPImNEeehLb7AufQY7gpLeFLd6vLzBFMVAZZW8=
+			uum0pvUejTlYWO3n9xm7TrR9EmVHyi0HhdK7/McaToY=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/modules/tb_import.py</key>
@@ -756,7 +760,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			4GRTcUqn4rA2aLGmcijDzhpwaacgCbM5MHhJ518PsvM=
+			7X3Musne5QyJItalWkLh8emB6KdFm6cBeHxlVyJF9Hk=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/embedded.py</key>
@@ -784,7 +788,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			cXbYbsvFPdiKd+xfOBA+ICiaG6dtpIavLZ2G+yT65Nk=
+			Z+7wOD8kc0/AynV7QI7vDnXZVUs7AlS0mojBkAfJYGg=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
@@ -945,7 +949,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			dqZkI8+1jt5q1QelXwIMTw4vktWIgwLg2KN4iMUpHz8=
+			dLvMOgMh1WExeMLnjrTYuFYwSqp6Dm1k5E5kVhH5ekY=
 			</data>
 		</dict>
 		<key>Resources/app/start.py</key>
@@ -967,6 +971,13 @@
 			<key>hash2</key>
 			<data>
 			7eqRIRzu509wF+KdJmSgrJbv14ymfy77wX2AHn3wW1c=
+			</data>
+		</dict>
+		<key>Resources/app/tests/test_accounts.py</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			4qbSI6ojl0O9EYiKK5qkyU/Dgo+thX0Atf8nbOLpDCw=
 			</data>
 		</dict>
 		<key>Resources/app/tests/test_discounts.py</key>
@@ -1057,7 +1068,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			ox1J3irQdguTkU+GAuEkU7h3IXeKNwTNW7r2AQWgq2M=
+			0LUXAqyK5enoQbD5a9dhNTPvrLNDPOPA3TmV52pq2YE=
 			</data>
 		</dict>
 		<key>Resources/app/tests/test_tax.py</key>
@@ -1127,7 +1138,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			ndLD6T3NVieTgoIrzfT8sGdzG+ZNcv5sconWEgQCGZw=
+			yxW7VQkoYkWVVV50MNUATqg69LK+HzS0Duib/0ADizE=
 			</data>
 		</dict>
 		<key>Resources/app/tools/make_web_app.py</key>

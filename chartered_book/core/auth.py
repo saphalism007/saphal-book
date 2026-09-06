@@ -139,7 +139,8 @@ def password_problems(password):
     return problems
 
 
-def create_user(conn, username, password, full_name="", role="operator", must_change=0):
+def create_user(conn, username, password, full_name="", role="operator", must_change=0,
+                email="", mobile=""):
     username = str(username).strip()
     if not username:
         raise AuthError("Username cannot be blank.")
@@ -154,9 +155,11 @@ def create_user(conn, username, password, full_name="", role="operator", must_ch
     digest, salt, iters = hash_password(password)
     cur = conn.execute(
         """INSERT INTO users (username, full_name, password_hash, password_salt,
-                              iterations, role, active, must_change, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)""",
-        (username, full_name or username, digest, salt, iters, role, must_change, db.now_stamp()))
+                              iterations, role, active, must_change, created_at,
+                              email, mobile)
+           VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)""",
+        (username, full_name or username, digest, salt, iters, role, must_change,
+         db.now_stamp(), (email or "").strip()[:200], (mobile or "").strip()[:40]))
     return cur.lastrowid
 
 
@@ -168,6 +171,25 @@ def set_password(conn, user_id, password):
     conn.execute("""UPDATE users SET password_hash = ?, password_salt = ?, iterations = ?,
                                      must_change = 0, failed_attempts = 0, locked_until = NULL
                     WHERE id = ?""", (digest, salt, iters, user_id))
+
+
+def set_details(conn, user_id, email=None, mobile=None, full_name=None):
+    """Change how to reach somebody. Nothing here touches their password."""
+    sets, args = [], []
+    if email is not None:
+        sets.append("email = ?")
+        args.append(str(email).strip()[:200])
+    if mobile is not None:
+        sets.append("mobile = ?")
+        args.append(str(mobile).strip()[:40])
+    if full_name is not None:
+        sets.append("full_name = ?")
+        args.append(str(full_name).strip()[:120])
+    if not sets:
+        return False
+    args.append(user_id)
+    conn.execute("UPDATE users SET %s WHERE id = ?" % ", ".join(sets), args)
+    return True
 
 
 def _record_login(conn, username, outcome, note=""):

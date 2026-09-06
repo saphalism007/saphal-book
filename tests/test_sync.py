@@ -96,7 +96,14 @@ class FakeAccount(object):
 
     def fetch_by_id(self, book_id):
         self.fetched.append(book_id)
-        return self.rows.get(book_id)
+        row = self.rows.get(book_id)
+        if row is not None and row.get("stale_password"):
+            # What a copy left behind by an older password looks like: the key
+            # made from today's password will not open it.
+            raise vault.VaultError(
+                "The password is wrong, or this file has been altered since it "
+                "was locked.")
+        return row
 
 
 def main():
@@ -151,6 +158,30 @@ def main():
         "SELECT slug FROM companies WHERE slug LIKE ?", (PREFIX + "%",))}
     check("the unreadable one is not on the device",
           PREFIX + "four" in on_device, False)
+
+    # A copy locked under an older password. Somebody who has changed theirs
+    # leaves one of these behind on the account, and it must be stepped over
+    # rather than allowed to stop the fetch.
+    clean_up()
+    account.fetched = []
+    # Take the unreadable one from the block above off the account, so what is
+    # counted here is the stale password and nothing else.
+    del account.rows[cloud.book_fingerprint(account.master_key, PREFIX + "four")]
+    account.hold(PREFIX + "five", "Sync Test Five", a_set_of_books("Sync Test Five"))
+    account.rows[cloud.book_fingerprint(account.master_key,
+                                        PREFIX + "five")]["stale_password"] = True
+
+    after_reset = sync.bring_new(system, account)
+    check("the three good ones still arrive", after_reset["count"], 3)
+    check("and the one locked under an old password is stepped over",
+          after_reset["skipped_count"], 1)
+    check("with a reason that does not alarm anybody",
+          "older password" in after_reset["skipped"][0]["why"], True)
+
+    on_device = {row["slug"] for row in system.execute(
+        "SELECT slug FROM companies WHERE slug LIKE ?", (PREFIX + "%",))}
+    check("the unopenable one is not on the device",
+          PREFIX + "five" in on_device, False)
 
     clean_up()
 

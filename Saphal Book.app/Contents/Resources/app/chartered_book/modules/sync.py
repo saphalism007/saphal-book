@@ -379,7 +379,7 @@ def bring_new(system, session):
     """
     if not session or not session.signed_in():
         raise SyncError("Sign in to your account first.")
-    from ..core import cloud
+    from ..core import cloud, vault
 
     mine = {cloud.book_fingerprint(session.master_key, row["slug"])
             for row in system.execute("SELECT slug FROM companies")}
@@ -397,6 +397,20 @@ def bring_new(system, session):
             got = session.fetch_by_id(book_id)
         except cloud.CloudError as exc:
             skipped.append({"slug": "", "why": str(exc)})
+            continue
+        except vault.VaultError:
+            # Locked with a key this password does not make. That is what a
+            # copy left behind by an older password looks like, and it is the
+            # ordinary result of somebody changing theirs: the books that
+            # matter were sent up again under the new one, and this is the old
+            # row nobody can open any more.
+            #
+            # It has to be stepped over rather than allowed to stop the loop.
+            # A row that cannot be opened used to end the whole fetch, which is
+            # how a device with four companies waiting ended up with none, and
+            # a password change would have walked straight back into it.
+            skipped.append({"slug": "", "why": "Locked with an older password. "
+                                               "It can be left alone."})
             continue
         if got is None:
             continue
