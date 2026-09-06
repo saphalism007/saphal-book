@@ -140,24 +140,157 @@ __SCRIPTS__
      .replace("__STAMP__", stamp)
 
 
+def engine_js(stamp="1"):
+    """
+    The accounting engine, on a thread of its own.
+
+    It used to run on the same thread that draws the screen, which is the
+    ordinary way to do this and the reason the software froze. Python compiled
+    to WebAssembly has no sockets, so every request it makes to a server has to
+    be the blocking kind, and blocking on the drawing thread stops the page
+    dead: no click lands and nothing repaints until the answer comes back. A
+    backup uploading to Google Drive was measured at just under six seconds with
+    the page frozen for all of it.
+
+    Here the blocking is harmless. This thread has nothing to draw, so it can
+    wait as long as it likes while the screen carries on.
+
+    Everything it needs from the browser proper is handed to it at the start,
+    because a worker cannot reach the window: what to call this device, and the
+    sign in token, which lives in storage the worker cannot see and therefore
+    travels with each call.
+    """
+    return """/* The accounting engine, on a thread of its own. See engine_js in
+   tools/make_web_app.py for why. */
+
+var PYODIDE = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
+var BOOKS = "/books";
+var pyodide = null;
+var dispatch = null;
+
+function step(text, portion) {
+  self.postMessage({ kind: "step", text: text, portion: portion });
+}
+
+function save() {
+  return new Promise(function (resolve) {
+    try { pyodide.FS.syncfs(false, function () { resolve(); }); }
+    catch (error) { resolve(); }
+  });
+}
+
+async function warmEngine() {
+  // Keep the engine on the device so the second start needs no internet.
+  try {
+    var cache = await caches.open("saphal-book-engine-v1");
+    var wanted = ["pyodide.js", "pyodide.asm.js", "pyodide.asm.wasm",
+                  "python_stdlib.zip", "pyodide-lock.json"];
+    for (var i = 0; i < wanted.length; i += 1) {
+      var url = PYODIDE + wanted[i];
+      if (await cache.match(url)) { continue; }
+      try { await cache.add(url); } catch (ignored) { /* skip it */ }
+    }
+  } catch (ignored) { /* nothing here is worth interrupting the books for */ }
+}
+
+async function start(device) {
+  try {
+    step("Fetching the accounting engine", 0.1);
+    importScripts(PYODIDE + "pyodide.js");
+
+    step("Starting Python", 0.35);
+    pyodide = await loadPyodide({ indexURL: PYODIDE });
+
+    step("Loading the database", 0.5);
+    await pyodide.loadPackage("sqlite3");
+
+    step("Opening your books", 0.6);
+    pyodide.FS.mkdirTree(BOOKS);
+    pyodide.FS.mount(pyodide.FS.filesystems.IDBFS, {}, BOOKS);
+    await new Promise(function (resolve) {
+      pyodide.FS.syncfs(true, function () { resolve(); });
+    });
+
+    step("Unpacking Saphal Book", 0.75);
+    var response = await fetch("chartered_book.zip?v=__STAMP__", { cache: "no-cache" });
+    if (!response.ok) { throw new Error("the engine file is missing"); }
+    await pyodide.unpackArchive(await response.arrayBuffer(), "zip");
+
+    step("Setting it up", 0.9);
+    pyodide.runPython(
+      "import os, sys\\n" +
+      "os.environ['CHARTERED_BOOK_DATA'] = '" + BOOKS + "'\\n" +
+      "os.environ['SAPHAL_DEVICE'] = " + JSON.stringify(device || "") + "\\n" +
+      "sys.path.insert(0, '/')\\n" +
+      "from chartered_book.web import embedded\\n"
+    );
+    dispatch = pyodide.runPython("embedded.dispatch");
+    await save();
+
+    step("Ready", 1);
+    self.postMessage({ kind: "ready" });
+    warmEngine();
+  } catch (error) {
+    self.postMessage({ kind: "failed",
+                       detail: String((error && error.message) || error || "") });
+  }
+}
+
+self.onmessage = async function (event) {
+  var msg = event.data || {};
+
+  if (msg.kind === "start") { return start(msg.device); }
+
+  if (msg.kind === "call") {
+    var answer;
+    try {
+      answer = dispatch(msg.method || "GET", msg.path,
+                        JSON.stringify(msg.query || {}),
+                        JSON.stringify(msg.body || {}),
+                        msg.token || "");
+    } catch (error) {
+      return self.postMessage({ id: msg.id, kind: "answer", failed: true,
+                                error: String((error && error.message) || error) });
+    }
+    // A write goes back into the browser's storage before the screen is told
+    // it worked, so a tab closed a moment later has not lost it.
+    var writing = msg.method && msg.method.toUpperCase() !== "GET";
+    if (writing) { await save(); }
+    return self.postMessage({ id: msg.id, kind: "answer", answer: answer });
+  }
+
+  if (msg.kind === "python") {
+    // Kept so a problem can be looked into rather than guessed at.
+    try {
+      self.postMessage({ id: msg.id, kind: "answer",
+                         answer: JSON.stringify({ result: String(pyodide.runPython(msg.code)) }) });
+    } catch (error) {
+      self.postMessage({ id: msg.id, kind: "answer", failed: true,
+                         error: String((error && error.message) || error) });
+    }
+  }
+};
+""".replace("__STAMP__", stamp)
+
+
 def boot_js(stamp="1"):
     return """/* Bringing the books up inside a browser.
 
-   Loads Pyodide, which is Python compiled to run in a browser, unpacks the
-   Saphal Book engine into it, and points the books at a folder that the
-   browser keeps between visits.
+   The accounting engine is Python compiled to WebAssembly, and it runs on a
+   thread of its own rather than the one that draws the screen. That is the
+   whole point of this file: what is left here is a thin messenger between the
+   screens and that thread, so nothing the engine does can stop the page.
 
-   From then on the screens talk to Python directly instead of over HTTP. The
-   engine is the same one that runs on a computer, so nothing about the
+   The engine is the same one that runs on a computer, so nothing about the
    accounting changes. */
 
 window.CB = (function () {
   "use strict";
 
-  var pyodide = null;
-  var dispatch = null;
+  var worker = null;
   var ready = false;
-  var BOOKS = "/books";
+  var nextId = 1;
+  var waiting = {};
   var TOKEN_KEY = "cb_token";
 
   function step(text, portion) {
@@ -187,15 +320,6 @@ window.CB = (function () {
     try { console.error("[Saphal Book]", message, detail); } catch (ignored) {}
   }
 
-  function save() {
-    // Write whatever changed back into the browser's own storage.
-    return new Promise(function (resolve) {
-      try {
-        pyodide.FS.syncfs(false, function () { resolve(); });
-      } catch (error) { resolve(); }
-    });
-  }
-
   function token() {
     try { return localStorage.getItem(TOKEN_KEY) || ""; } catch (e) { return ""; }
   }
@@ -207,46 +331,14 @@ window.CB = (function () {
     } catch (e) { /* private browsing, the session lasts the visit */ }
   }
 
-  /* The one call the screens make. Same shape as a request to the server. */
-  function call(method, path, query, body) {
-    if (!ready) { return Promise.reject(new Error("The books are still starting.")); }
-    var answer;
-    try {
-      answer = dispatch(method || "GET", path,
-                        JSON.stringify(query || {}),
-                        JSON.stringify(body || {}),
-                        token());
-    } catch (error) {
-      return Promise.reject(new Error(String(error && error.message || error)));
-    }
-    var parsed;
-    try { parsed = JSON.parse(answer); }
-    catch (error) { return Promise.reject(new Error("The books gave an unreadable answer.")); }
+  /* What to call this device.
 
-    if (parsed.token) { setToken(parsed.token); }
-    if (parsed.clear_token) { setToken(""); }
-
-    var writing = method && method.toUpperCase() !== "GET";
-    var settle = writing ? save() : Promise.resolve();
-
-    return settle.then(function () {
-      if (parsed.status >= 400) {
-        var error = new Error((parsed.payload && parsed.payload.error) || "That did not work.");
-        error.status = parsed.status;
-        throw error;
-      }
-      return parsed.payload;
-    });
-  }
-
-  // What to call this device.
-  //
-  // Inside the engine every browser in the world calls itself emscripten, so
-  // two devices signed in to the same account were both named "emscripten,
-  // Emscripten" and a person being asked which copy to keep was offered the
-  // same answer twice. The browser knows better than the engine does, so it
-  // says. Whatever is chosen here is only a starting point: it can be renamed,
-  // and a name somebody typed always wins.
+     Worked out here rather than in the engine, twice over. Inside the engine
+     every browser in the world calls itself emscripten, so two devices signed
+     in to the same account were both named the same thing and a person being
+     asked which copy to keep was offered the same answer twice. And the two
+     things that say whether this is an installed app rather than a tab are on
+     the window, which the engine's thread cannot reach. */
   function deviceName() {
     var ua = navigator.userAgent || "";
     var where = "this browser";
@@ -260,125 +352,104 @@ window.CB = (function () {
     else if (/Linux/.test(ua)) { where = "Linux"; }
 
     var browser = "";
-    if (/Edg\//.test(ua)) { browser = "Edge"; }
-    else if (/OPR\//.test(ua)) { browser = "Opera"; }
-    else if (/Firefox\//.test(ua)) { browser = "Firefox"; }
-    else if (/Chrome\//.test(ua)) { browser = "Chrome"; }
-    else if (/Safari\//.test(ua)) { browser = "Safari"; }
+    if (/Edg\\//.test(ua)) { browser = "Edge"; }
+    else if (/OPR\\//.test(ua)) { browser = "Opera"; }
+    else if (/Firefox\\//.test(ua)) { browser = "Firefox"; }
+    else if (/Chrome\\//.test(ua)) { browser = "Chrome"; }
+    else if (/Safari\\//.test(ua)) { browser = "Safari"; }
 
-    // A page kept with the other apps is not "Safari on iPad", it is the app.
     var installed = window.matchMedia
       && window.matchMedia("(display-mode: standalone)").matches;
     if (installed || window.navigator.standalone) { return "Saphal Book on " + where; }
     return browser ? browser + " on " + where : where;
   }
 
-  // Keep the engine on the device.
-  //
-  // The service worker will store whatever passes through it, but on the first
-  // visit it is not yet in charge of the page, so the parts fetched during that
-  // first run would go unstored and the next launch would fetch them all over
-  // again. This puts them away deliberately, once, as soon as the books are
-  // open, so the second launch is the fast one rather than the third.
-  //
-  // It is done quietly. If it fails the software still works, it is just slow
-  // to start, which is what it was before.
-  async function warmEngine() {
-    if (!window.caches) { return; }
-    try {
-      var wanted = ["pyodide.js", "pyodide.asm.js", "pyodide.asm.wasm",
-                    "pyodide-lock.json", "python_stdlib.zip"];
-      try {
-        var lock = await (await fetch("__PYODIDE__pyodide-lock.json")).json();
-        var packages = (lock && lock.packages) || {};
-        Object.keys(packages).forEach(function (name) {
-          if (packages[name] && packages[name].file_name
-              && (name === "sqlite3" || name === "sqlite3-static-libs")) {
-            wanted.push(packages[name].file_name);
-          }
-        });
-      } catch (ignored) { /* the core files are the ones that matter */ }
+  /* The one call the screens make. Same shape as a request to the server.
 
-      var cache = await caches.open("saphal-book-engine");
-      for (var i = 0; i < wanted.length; i += 1) {
-        var url = "__PYODIDE__" + wanted[i];
-        if (await cache.match(url)) { continue; }
-        try { await cache.add(url); } catch (ignored) { /* skip it */ }
-      }
-    } catch (ignored) { /* nothing here is worth interrupting the books for */ }
+     It goes to the other thread and comes back, so the screen is free the
+     whole time it is away. Nothing here waits on anything. */
+  function call(method, path, query, body) {
+    if (!ready) { return Promise.reject(new Error("The books are still starting.")); }
+    var id = nextId += 1;
+    return new Promise(function (resolve, reject) {
+      waiting[id] = { resolve: resolve, reject: reject };
+      worker.postMessage({ kind: "call", id: id, method: method || "GET", path: path,
+                           query: query || {}, body: body || {}, token: token() });
+    });
   }
 
-  async function start() {
-    try {
-      step("Fetching the accounting engine", 0.1);
-      if (typeof loadPyodide !== "function") {
-        await new Promise(function (resolve, reject) {
-          var tag = document.createElement("script");
-          tag.src = "__PYODIDE__pyodide.js";
-          tag.onload = resolve;
-          tag.onerror = function () { reject(new Error("could not fetch Pyodide")); };
-          document.head.appendChild(tag);
-        });
-      }
+  function settle(msg) {
+    var pending = waiting[msg.id];
+    if (!pending) { return; }
+    delete waiting[msg.id];
+    if (msg.failed) { return pending.reject(new Error(msg.error || "That did not work.")); }
 
-      step("Starting Python", 0.35);
-      pyodide = await loadPyodide({ indexURL: "__PYODIDE__" });
+    var parsed;
+    try { parsed = JSON.parse(msg.answer); }
+    catch (error) { return pending.reject(new Error("The books gave an unreadable answer.")); }
 
-      step("Loading the database", 0.5);
-      // Pyodide does not ship sqlite3 in the base image, it has to be asked
-      // for. Everything the books are kept in depends on it.
-      await pyodide.loadPackage("sqlite3");
-
-      step("Opening your books", 0.6);
-      pyodide.FS.mkdirTree(BOOKS);
-      pyodide.FS.mount(pyodide.FS.filesystems.IDBFS, {}, BOOKS);
-      await new Promise(function (resolve) {
-        pyodide.FS.syncfs(true, function () { resolve(); });
-      });
-
-      step("Unpacking Saphal Book", 0.75);
-      var response = await fetch("chartered_book.zip?v=__STAMP__",
-                                 { cache: "no-cache" });
-      if (!response.ok) { throw new Error("the engine file is missing"); }
-      var buffer = await response.arrayBuffer();
-      await pyodide.unpackArchive(buffer, "zip");
-
-      step("Setting it up", 0.9);
-      pyodide.runPython(
-        "import os, sys\\n" +
-        "os.environ['CHARTERED_BOOK_DATA'] = '" + BOOKS + "'\\n" +
-        "os.environ['SAPHAL_DEVICE'] = " + JSON.stringify(deviceName()) + "\\n" +
-        "sys.path.insert(0, '/')\\n" +
-        "from chartered_book.web import embedded\\n"
-      );
-      dispatch = pyodide.runPython("embedded.dispatch");
-      await save();
-
-      ready = true;
-      window.CB.ready = true;
-      step("Ready", 1);
-      warmEngine();
-      var screen = document.getElementById("starting");
-      if (screen) { screen.style.display = "none"; }
-      document.dispatchEvent(new Event("saphal-book-ready"));
-    } catch (error) {
-      var detail = String((error && error.message) || error || "");
-      var short = detail.split(String.fromCharCode(10))[0].slice(0, 160);
-      fail("Saphal Book could not start.",
-           "The first load needs the internet. Check the connection and open it "
-           + "again. If it keeps failing: " + short);
+    if (parsed.token) { setToken(parsed.token); }
+    if (parsed.clear_token) { setToken(""); }
+    if (parsed.status >= 400) {
+      var error = new Error((parsed.payload && parsed.payload.error) || "That did not work.");
+      error.status = parsed.status;
+      return pending.reject(error);
     }
+    pending.resolve(parsed.payload);
+  }
+
+  function runPython(code) {
+    var id = nextId += 1;
+    return new Promise(function (resolve, reject) {
+      waiting[id] = { resolve: resolve, reject: reject };
+      worker.postMessage({ kind: "python", id: id, code: code });
+    });
+  }
+
+  function start() {
+    try {
+      worker = new Worker("engine.js?v=__STAMP__");
+    } catch (error) {
+      return fail("Saphal Book could not start.",
+                  "This browser would not start the accounting engine. "
+                  + String((error && error.message) || error));
+    }
+    worker.onerror = function (event) {
+      fail("Saphal Book could not start.",
+           "The first load needs the internet. Check the connection and open it again. "
+           + "If it keeps failing: " + String((event && event.message) || ""));
+    };
+    worker.onmessage = function (event) {
+      var msg = event.data || {};
+      if (msg.kind === "step") { return step(msg.text, msg.portion); }
+      if (msg.kind === "answer") { return settle(msg); }
+      if (msg.kind === "failed") {
+        return fail("Saphal Book could not start.",
+                    "The first load needs the internet. Check the connection and open "
+                    + "it again. If it keeps failing: "
+                    + String(msg.detail || "").split(String.fromCharCode(10))[0].slice(0, 160));
+      }
+      if (msg.kind === "ready") {
+        ready = true;
+        window.CB.ready = true;
+        var screen = document.getElementById("starting");
+        if (screen) { screen.style.display = "none"; }
+        document.dispatchEvent(new Event("saphal-book-ready"));
+      }
+    };
+    worker.postMessage({ kind: "start", device: deviceName() });
   }
 
   document.addEventListener("DOMContentLoaded", start);
 
-  return { call: call, ready: false, save: save,
+  return { call: call, ready: false,
+           // Writing already reaches the browser's storage before the screen
+           // is told it worked, so there is nothing here left to flush.
+           save: function () { return Promise.resolve(); },
            token: token, setToken: setToken,
-           // Kept reachable so a problem can be looked into from the console
-           // rather than guessed at.
-           runtime: function () { return pyodide; } };
+           runPython: runPython };
 }());
-""".replace("__PYODIDE__", PYODIDE).replace("__STAMP__", stamp)
+""".replace("__STAMP__", stamp)
 
 
 def build_stamp():
@@ -395,7 +466,7 @@ def build_stamp():
         for name in sorted(files):
             # These three carry the stamp, so they cannot be part of what it
             # is worked out from.
-            if name in ("sw.js", "index.html", "boot.js"):
+            if name in ("sw.js", "index.html", "boot.js", "engine.js"):
                 continue
             with open(os.path.join(root, name), "rb") as handle:
                 digest.update(handle.read())
@@ -427,7 +498,7 @@ def worker_js(stamp="1"):
     return ("""var VERSION = "saphal-book-web-%s";
 var ENGINE = "%s";""" % (stamp, PYODIDE)) + """
 var ENGINE_STORE = "saphal-book-engine";
-var SHELL = ["./", "index.html", "boot.js", "manifest.webmanifest",
+var SHELL = ["./", "index.html", "boot.js", "engine.js", "manifest.webmanifest",
   "chartered_book.zip",
   "static/style.css", "static/nepali.js", "static/ui.js", "static/app.js",
   "static/masters.js", "static/vouchers.js", "static/drill.js",
@@ -539,6 +610,8 @@ def main():
         handle.write(shell_html(stamp))
     with open(os.path.join(OUT, "boot.js"), "w", encoding="utf-8") as handle:
         handle.write(boot_js(stamp))
+    with open(os.path.join(OUT, "engine.js"), "w", encoding="utf-8") as handle:
+        handle.write(engine_js(stamp))
 
     # The service worker built for the server version points at absolute
     # addresses that do not exist here, so it is replaced with one written for
