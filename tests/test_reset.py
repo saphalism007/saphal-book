@@ -51,6 +51,53 @@ def clean_up(system):
     system.commit()
 
 
+def check_the_relay_asks_no_permission():
+    """
+    The relay has to send the kind of request a browser will send unasked.
+
+    A browser will post three content types without checking first. Anything
+    else and it sends an OPTIONS ahead of the real request to ask permission.
+    Google Apps Script does not answer OPTIONS, so the browser blocks the
+    request before it leaves and hands back a bare network error that reads
+    like the internet is down. That is exactly what happened: a correctly
+    deployed script, and a message saying it could not be reached.
+
+    The body is JSON and the script parses it as JSON either way. Only the
+    label on it matters, and only to the browser.
+    """
+    from chartered_book.core import mailer, webcall
+
+    SAFE = ("text/plain", "application/x-www-form-urlencoded", "multipart/form-data")
+    seen = {}
+
+    def pretend_call(url, method="GET", data=None, headers=None, timeout=None):
+        seen["headers"] = headers or {}
+        seen["data"] = data
+        return 200, {"ok": True}
+
+    was = webcall.call_json
+    webcall.call_json = pretend_call
+    try:
+        held = {"relay_url": "https://script.google.com/macros/s/x/exec",
+                "relay_secret": mailer.vault.lock(b"a secret",
+                                                  mailer._device_key())}
+        import base64
+        held["relay_secret"] = base64.b64encode(held["relay_secret"]).decode("ascii")
+        mailer._send_by_relay(held, "someone@example.com", "subject", "body")
+    finally:
+        webcall.call_json = was
+
+    sent_as = seen.get("headers", {}).get("Content-Type", "")
+    check("the relay sends a type a browser will not stop to ask about",
+          any(sent_as.startswith(kind) for kind in SAFE), True)
+
+    # And the script still has to be able to read it.
+    import json as _json
+    body = _json.loads(seen["data"].decode("utf-8"))
+    check("the script still receives the secret", body["secret"], "a secret")
+    check("and who it is for", body["to"], "someone@example.com")
+
+
 def check_it_works_without_ssl():
     """
     The reset screen has to open on a device that cannot send mail at all.
@@ -265,6 +312,7 @@ def main():
     check("and none afterwards", auth.load_session(system, token), None)
 
     check_it_works_without_ssl()
+    check_the_relay_asks_no_permission()
 
     clean_up(system)
 

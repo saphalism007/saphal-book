@@ -278,8 +278,21 @@ def _send_by_relay(held, to_address, subject, body):
     payload = json.dumps({"secret": secret, "to": to_address,
                           "subject": subject, "body": body}).encode("utf-8")
     try:
+        # text/plain, and it has to stay text/plain.
+        #
+        # The body is JSON and the script reads it as JSON, so the honest
+        # header would be application/json. But a browser treats that as a
+        # request needing permission asked for in advance, and sends an OPTIONS
+        # first. Google Apps Script does not answer OPTIONS, so the browser
+        # blocks the whole thing before it leaves, and what comes back is a
+        # bare network error that reads like the internet is down.
+        #
+        # text/plain is one of the three types a browser will send without
+        # asking first. The script gets exactly the same bytes and parses them
+        # exactly the same way. Anything else here breaks sending from a
+        # browser, which is the only place this way of sending exists for.
         status, detail = webcall.call_json(
-            url, "POST", payload, {"Content-Type": "application/json"})
+            url, "POST", payload, {"Content-Type": "text/plain;charset=utf-8"})
     except Exception as exc:
         raise MailError("Could not reach the script at that address (%s). Check "
                         "it is deployed and set to allow anyone." % exc)
