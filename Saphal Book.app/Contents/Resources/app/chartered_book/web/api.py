@@ -2614,6 +2614,82 @@ def party_statement(request):
 # Audit tools
 
 
+# The entries that come round again
+
+
+@route("GET", "/api/recurring")
+def recurring_list(request):
+    """Every pattern, with what it owes."""
+    from ..modules import recurring
+    conn = request.company()
+    return recurring.listing(conn, request.arg("as_at_bs") or None)
+
+
+@route("POST", "/api/recurring/create")
+def recurring_create(request):
+    from ..modules import recurring
+    request.require("voucher.create")
+    conn = request.company()
+    try:
+        pattern_id = recurring.create(conn, request.username(), request.body)
+    except recurring.RecurringError as exc:
+        raise ApiError(str(exc))
+    conn.commit()
+    return {"ok": True, "id": pattern_id}
+
+
+@route("POST", "/api/recurring/update")
+def recurring_update(request):
+    from ..modules import recurring
+    request.require("voucher.create")
+    conn = request.company()
+    pattern_id = request.int_arg("id")
+    try:
+        recurring.update(conn, request.username(), pattern_id, request.body)
+    except recurring.RecurringError as exc:
+        raise ApiError(str(exc))
+    conn.commit()
+    return {"ok": True}
+
+
+@route("POST", "/api/recurring/post")
+def recurring_post(request):
+    """
+    Make the entry for one date.
+
+    One at a time on purpose. Posting four months in one press is quicker and
+    is also how four wrong entries get made at once, and every one of them
+    would then have to be found and cancelled.
+    """
+    from ..modules import recurring
+    request.require("voucher.create")
+    conn = request.company()
+    try:
+        with db.Transaction(conn):
+            voucher_id = recurring.post_due(conn, request.username(),
+                                            request.int_arg("id"),
+                                            request.arg("due_bs") or "")
+    except recurring.RecurringError as exc:
+        raise ApiError(str(exc))
+    except ledger.PostingError as exc:
+        raise ApiError(str(exc))
+    return {"ok": True, "voucher_id": voucher_id,
+            "voucher": _voucher_payload(conn, voucher_id)}
+
+
+@route("POST", "/api/recurring/remove")
+def recurring_remove(request):
+    from ..modules import recurring
+    request.require("voucher.cancel")
+    conn = request.company()
+    try:
+        recurring.remove(conn, request.username(), request.int_arg("id"))
+    except recurring.RecurringError as exc:
+        raise ApiError(str(exc))
+    conn.commit()
+    return {"ok": True}
+
+
 @route("GET", "/api/find")
 def find_anything(request):
     """

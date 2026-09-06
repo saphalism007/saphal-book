@@ -1153,3 +1153,13 @@ tr.is-cleared:hover td { background: var(--good-soft); }
 .finder-note { padding: .5rem .7rem; font-size: .8rem; color: var(--ink-faint); }
 @media (max-width: 700px) { .finder { display: none; } }
 @media print { .finder { display: none; } }
+
+/* What a repeating entry owes. One line per date, with the button that makes
+   it, because posting four months in one press is quicker and is also how
+   four wrong entries get made at once. */
+.due-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: .8rem; padding: .4rem 0; border-top: 1px solid var(--line-soft);
+}
+.due-row:first-of-type { border-top: 0; }
+.due-when { font-weight: 600; font-size: .88rem; }

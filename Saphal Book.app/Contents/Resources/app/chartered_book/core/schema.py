@@ -611,3 +611,60 @@ COMPANY_MIGRATIONS.append((10, "keep the paper with the entry, not beside it", "
 
     CREATE INDEX idx_attachments_voucher ON attachments(voucher_id);
 """))
+
+
+COMPANY_MIGRATIONS.append((11, "entries that come round again", """
+    -- Rent, salary, the electricity standing charge, a loan instalment.
+    --
+    -- The same entry every month, typed again every month, and the month it
+    -- gets forgotten is the month the accounts are wrong. Kept here as a
+    -- pattern with the entries it makes, so what is due can be shown and
+    -- posted rather than remembered.
+    --
+    -- Nothing posts itself. A voucher that appeared in the books without
+    -- somebody agreeing to it is worse than one that was forgotten, because a
+    -- forgotten one is noticed. What this does is stop it being remembered
+    -- from nothing.
+    CREATE TABLE recurring (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        name          TEXT NOT NULL,
+        voucher_type  TEXT NOT NULL DEFAULT 'journal',
+        every         TEXT NOT NULL DEFAULT 'month',   -- month, quarter, year
+        day_of_month  INTEGER NOT NULL DEFAULT 1,      -- Bikram Sambat day
+        starts_bs     TEXT NOT NULL DEFAULT '',        -- 2083-04-01
+        ends_bs       TEXT NOT NULL DEFAULT '',        -- blank means no end
+        next_due_bs   TEXT NOT NULL DEFAULT '',
+        party_id      INTEGER REFERENCES parties(id),
+        narration     TEXT NOT NULL DEFAULT '',
+        note          TEXT NOT NULL DEFAULT '',
+        active        INTEGER NOT NULL DEFAULT 1,
+        created_by    TEXT NOT NULL DEFAULT '',
+        created_at    TEXT NOT NULL DEFAULT '',
+        updated_at    TEXT NOT NULL DEFAULT ''
+    );
+
+    -- The double entry the pattern makes each time. Amounts are fixed, because
+    -- a rent that changes is a new pattern rather than a guess.
+    CREATE TABLE recurring_lines (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        recurring_id  INTEGER NOT NULL REFERENCES recurring(id) ON DELETE CASCADE,
+        line_no       INTEGER NOT NULL DEFAULT 1,
+        account_id    INTEGER NOT NULL REFERENCES accounts(id),
+        dr_paisa      INTEGER NOT NULL DEFAULT 0,
+        cr_paisa      INTEGER NOT NULL DEFAULT 0,
+        narration     TEXT NOT NULL DEFAULT ''
+    );
+
+    -- What each pattern has already made, so a month cannot be posted twice.
+    CREATE TABLE recurring_posted (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        recurring_id  INTEGER NOT NULL REFERENCES recurring(id) ON DELETE CASCADE,
+        due_bs        TEXT NOT NULL,
+        voucher_id    INTEGER REFERENCES vouchers(id),
+        posted_by     TEXT NOT NULL DEFAULT '',
+        posted_at     TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE UNIQUE INDEX idx_recurring_once ON recurring_posted(recurring_id, due_bs);
+    CREATE INDEX idx_recurring_lines ON recurring_lines(recurring_id);
+"""))

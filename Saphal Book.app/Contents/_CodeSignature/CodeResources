@@ -18,7 +18,7 @@
 		</data>
 		<key>Resources/app/chartered_book/BUILD.txt</key>
 		<data>
-		Cda1OT+zfdsLO4wZtLGgeLMBKos=
+		gp4s0kX1n436VPfDJ7wBuuT3AkE=
 		</data>
 		<key>Resources/app/chartered_book/__init__.py</key>
 		<data>
@@ -74,7 +74,7 @@
 		</data>
 		<key>Resources/app/chartered_book/core/schema.py</key>
 		<data>
-		BYqnJsgl7LfR2v+f4hJQ4szvk8Y=
+		JKcLNng/DtDdWHqR0ueXYUqwIFg=
 		</data>
 		<key>Resources/app/chartered_book/core/spreadsheet.py</key>
 		<data>
@@ -148,6 +148,10 @@
 		<data>
 		6qbZmlqjEGp3ehsFJjPUqwcyJKQ=
 		</data>
+		<key>Resources/app/chartered_book/modules/recurring.py</key>
+		<data>
+		4AkuYFuhOwnmlpGtCrPrrwNoS1I=
+		</data>
 		<key>Resources/app/chartered_book/modules/reports.py</key>
 		<data>
 		SxfCmGG19m77geifNdDE+TItkjY=
@@ -182,7 +186,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/api.py</key>
 		<data>
-		ktP6VJlavsyJPFYW8ccrd5ozN7o=
+		BSIcweGw2pXUEydv1QHQd+KJTtU=
 		</data>
 		<key>Resources/app/chartered_book/web/embedded.py</key>
 		<data>
@@ -198,7 +202,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/static/app.js</key>
 		<data>
-		IZ8vdqa+4AKQSQQE5AQWZhGbkC4=
+		xszS0gJyiMUwXvRURJPDyqnRz5c=
 		</data>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
 		<data>
@@ -256,6 +260,10 @@
 		<data>
 		86OorWuuiQq76fWGOr+V07o7j/I=
 		</data>
+		<key>Resources/app/chartered_book/web/static/recurring.js</key>
+		<data>
+		kqtVy/oy46XmfoudTsq+DfdEI+I=
+		</data>
 		<key>Resources/app/chartered_book/web/static/reports.js</key>
 		<data>
 		9A3td9+zp7HbJgFWQ15ebDvHqIA=
@@ -266,11 +274,11 @@
 		</data>
 		<key>Resources/app/chartered_book/web/static/style.css</key>
 		<data>
-		Kdvwec0KWWntC1kl2IBSHZJA2zM=
+		UKWgcVjx4T/Fi1Jv5DGHpPT9sH4=
 		</data>
 		<key>Resources/app/chartered_book/web/static/sw.js</key>
 		<data>
-		GjkxMT2QTI/uaXg1TzmSHS5Nrys=
+		d+tidxrf3xQ/PNuAwb8kYkGGkUo=
 		</data>
 		<key>Resources/app/chartered_book/web/static/ui.js</key>
 		<data>
@@ -282,7 +290,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/templates/index.html</key>
 		<data>
-		Xw2Aq7qILTJd1K2xWPqAnDYpCyM=
+		0F53hdxzeiZQ+ad3cyoKwvsB9JU=
 		</data>
 		<key>Resources/app/start.py</key>
 		<data>
@@ -315,6 +323,10 @@
 		<key>Resources/app/tests/test_papers.py</key>
 		<data>
 		8kPKBrtEjfxqw8BjPInQfLbi5xI=
+		</data>
+		<key>Resources/app/tests/test_recurring.py</key>
+		<data>
+		sVqvoSjldJVV1JaGeDA1+EllhVo=
 		</data>
 		<key>Resources/app/tests/test_schedules.py</key>
 		<data>
@@ -378,7 +390,7 @@
 		</data>
 		<key>Resources/app/tools/make_web_app.py</key>
 		<data>
-		RN2RNA2aAcqdQ8RPTZ90NX9fyBI=
+		H9HqO78GDzxGKwCX1+D61GwXfhg=
 		</data>
 	</dict>
 	<key>files2</key>
@@ -401,7 +413,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			Ps81wyVV4FicQoLteRkihD/C5OgcEskYbr4FAiN7pcI=
+			INluflbhnprEfLv13ExwnwWeRFd0G7DgyjQG7QwtRsM=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/__init__.py</key>
@@ -499,7 +511,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			qzVgswe0nFSQ0jVs456bcoD1AjP/G+W5uzJAnoT4JbQ=
+			tJQGAHKEeBtR/qRqcAR7sR7BxjkdpHhraN65ZhXSpFg=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/core/spreadsheet.py</key>
@@ -628,6 +640,13 @@
 			pmt+u/7KNJtOu8uNE4So20kQwST75NU2xkEL/EtcsOU=
 			</data>
 		</dict>
+		<key>Resources/app/chartered_book/modules/recurring.py</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			uFhhsHpQVEpR8G7VFNKzXgfzp4ehe87+h8YoMpcwJaQ=
+			</data>
+		</dict>
 		<key>Resources/app/chartered_book/modules/reports.py</key>
 		<dict>
 			<key>hash2</key>
@@ -681,7 +700,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			V5o0ko++WFQgkIrN0xm35Aqb8t4rkFgqlOxtxJ6DXH0=
+			1TXG3ALG2PZY9BekmNoS/Pbdcx/sNQx98FT7sGekRJ8=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/embedded.py</key>
@@ -709,7 +728,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			DmSKgqyLcak5GkxWe1NX5Sr3RoVlLbspM5+i5zXfV8E=
+			KqcElYsmLK/54qe0k9QsEOIPLQQRChswPlYUZhhZRFw=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
@@ -810,6 +829,13 @@
 			v5cgTE5llFtMXPxVJjvqy7FDr16x7jFCNkygeyUjjXQ=
 			</data>
 		</dict>
+		<key>Resources/app/chartered_book/web/static/recurring.js</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			oAWL9b5yzMJUvHkNG7QtMVx4SIZVd27JPG5r9+ShRTM=
+			</data>
+		</dict>
 		<key>Resources/app/chartered_book/web/static/reports.js</key>
 		<dict>
 			<key>hash2</key>
@@ -828,14 +854,14 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			FVcuxYOYSBkMgkMjUB2cIrzbA0v99MilduOIKy9btBU=
+			Wvso9UQ7hOTdd8oNbsUooreTzP5JEs64Ehou85GrUc0=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/sw.js</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			FbRm/m474gGGbqjUCjxzML16yYm1c56WTuWXBMsS2dM=
+			mpjaWPbkxLdroWUhtSuTKpwWcgXfrED/qCL+NG5DVXw=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/ui.js</key>
@@ -856,7 +882,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			Sl1NOzd6xtR7T7tarm5ZCeq2ZDBMpaCc+3BBe328r7I=
+			HhKhoS9NsK9Dms4dvKLMOQ4DCkr6ljq8sHj2x0/sHic=
 			</data>
 		</dict>
 		<key>Resources/app/start.py</key>
@@ -913,6 +939,13 @@
 			<key>hash2</key>
 			<data>
 			uhXK0jggYuLTKZSqZ1TDl2WzhShf0N5gPvi99htwqc8=
+			</data>
+		</dict>
+		<key>Resources/app/tests/test_recurring.py</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			+tNMCxv7+3nP9XZfRCxSlnE3YNOWtvOD7Km+95PlSzQ=
 			</data>
 		</dict>
 		<key>Resources/app/tests/test_schedules.py</key>
@@ -1024,7 +1057,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			teZ/dINvzlB/tpOjaD0JGANMwFPn5nWIBuUvLwEsaZs=
+			J/r/dngb0UIvFfgjfp79f4gVtQUcj0okxzbDzY41Xa0=
 			</data>
 		</dict>
 	</dict>

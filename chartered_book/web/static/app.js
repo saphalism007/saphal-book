@@ -96,6 +96,8 @@ var App = (function () {
       { key: "audit", label: "Audit trail" }
     ];
 
+    records.push({ key: "recurring", label: "Repeating entries" });
+
     var yearEnd = [{ key: "period-end", label: goods ? "Closing stock and year end" : "Year end" }];
 
     return [
