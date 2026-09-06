@@ -23,6 +23,7 @@ var SHELL = [
   "/static/banking.js",
   "/static/assets.js",
   "/static/incometax.js",
+  "/static/analysis.js",
   "/static/audit.js",
   "/static/manifest.json",
   "/static/icons/icon-192.png",

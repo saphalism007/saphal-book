@@ -1,4 +1,4 @@
-var VERSION = "saphal-book-web-c98e0d99c8f3";
+var VERSION = "saphal-book-web-9589dff0d38e";
 var ENGINE = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
 var ENGINE_STORE = "saphal-book-engine";
 var SHELL = ["./", "index.html", "boot.js", "manifest.webmanifest",
@@ -6,7 +6,7 @@ var SHELL = ["./", "index.html", "boot.js", "manifest.webmanifest",
   "static/style.css", "static/nepali.js", "static/ui.js", "static/app.js",
   "static/masters.js", "static/vouchers.js", "static/drill.js",
   "static/reports.js", "static/statements.js", "static/banking.js",
-  "static/assets.js", "static/incometax.js", "static/audit.js",
+  "static/assets.js", "static/incometax.js", "static/analysis.js", "static/audit.js",
   "static/icons/icon-192.png", "static/icons/icon-512.png"];
 
 self.addEventListener("install", function (event) {

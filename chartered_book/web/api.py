@@ -2563,6 +2563,41 @@ def party_statement(request):
 # Audit tools
 
 
+@route("GET", "/api/reports/by-party")
+def report_by_party(request):
+    """What each customer bought, or what was bought from each supplier."""
+    from ..modules import analysis
+    conn = request.company()
+    from_ad, to_ad = _dates(request, conn)
+    side = request.arg("side") or "sales"
+    if side not in analysis.SIDES:
+        raise ApiError("Ask for sales or purchase.")
+    return analysis.by_party(conn, side, from_ad, to_ad,
+                             monthly=request.arg("monthly") == "1")
+
+
+@route("GET", "/api/reports/by-item")
+def report_by_item(request):
+    """What was sold or bought, item by item."""
+    from ..modules import analysis
+    conn = request.company()
+    from_ad, to_ad = _dates(request, conn)
+    side = request.arg("side") or "sales"
+    if side not in analysis.SIDES:
+        raise ApiError("Ask for sales or purchase.")
+    return analysis.by_item(conn, side, from_ad, to_ad,
+                            monthly=request.arg("monthly") == "1")
+
+
+@route("GET", "/api/reports/profitability")
+def report_profitability(request):
+    """What each item earned against what it cost."""
+    from ..modules import analysis
+    conn = request.company()
+    from_ad, to_ad = _dates(request, conn)
+    return analysis.item_profitability(conn, from_ad, to_ad)
+
+
 @route("GET", "/api/reports/stock-ageing")
 def stock_ageing(request):
     conn = request.company()

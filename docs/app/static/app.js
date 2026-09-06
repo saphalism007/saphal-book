@@ -66,6 +66,13 @@ var App = (function () {
       { key: "groups", label: "Group summary" }
     ];
     if (goods) { reports.push({ key: "stock", label: "Stock" }); }
+    if (goods) {
+      reports.push({ key: "sales-by-item", label: "Sales by item" });
+      reports.push({ key: "purchase-by-item", label: "Purchases by item" });
+      reports.push({ key: "profitability", label: "What each item made" });
+    }
+    reports.push({ key: "sales-by-customer", label: "Sales by customer" });
+    reports.push({ key: "purchase-by-supplier", label: "Purchases by supplier" });
     reports.push({ key: "outstanding", label: "Receivable and payable" });
     reports.push({ key: "ageing", label: "Ageing" });
     reports.push({ key: "statement", label: "Statement of account" });
