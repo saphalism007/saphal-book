@@ -51,8 +51,23 @@ self.addEventListener("fetch", function (event) {
     return;
   }
   if (new URL(request.url).origin !== self.location.origin) { return; }
+  // no-store, and this is the whole point of the line.
+  //
+  // This already went to the network first and fell back to the cache, which
+  // sounded like enough. It was not. A plain fetch is still answered out of the
+  // browser's own HTTP cache, and GitHub Pages sends max-age=600 on everything,
+  // so for ten minutes after a change the network was never actually asked.
+  //
+  // What that cost was not ten minutes. index.html carries the build stamp on
+  // every script it loads, so a stale index.html asks for the old app.js by
+  // name, gets it, and keeps asking for it. Three fixes in a row looked to the
+  // person using this like nothing had happened, because the screens they were
+  // pressing were still the old ones.
+  //
+  // Offline still works. The cache is written on every good answer and read
+  // whenever the network cannot be reached, which is what the catch below is.
   event.respondWith(
-    fetch(request).then(function (response) {
+    fetch(request, { cache: "no-store" }).then(function (response) {
       if (response && response.status === 200) {
         var copy = response.clone();
         caches.open(VERSION).then(function (cache) { cache.put(request, copy); });

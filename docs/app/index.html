@@ -191,9 +191,29 @@
 
 <script>
 window.CHARTERED_BOOK_WEB = true;
+window.SAPHAL_BUILD = "d8a08155f90a";
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", function () {
-    navigator.serviceWorker.register("sw.js").catch(function () { /* nothing lost */ });
+    navigator.serviceWorker.register("sw.js").then(function (reg) {
+      // Ask outright whether there is a newer one, rather than waiting for the
+      // browser to get round to it. Without this a tab that is left open for a
+      // day never notices a change at all.
+      reg.update();
+      // And when a new worker takes over, the page in front of somebody is
+      // still the old one until it is loaded again. Doing that here, once, is
+      // the difference between a fix arriving and a fix being reported as not
+      // working.
+      // Only when one is being replaced. On a first visit there is no
+      // controller until the new worker claims the page, and reloading then
+      // would restart the engine for nothing.
+      var hadOne = !!navigator.serviceWorker.controller;
+      var swapping = false;
+      navigator.serviceWorker.addEventListener("controllerchange", function () {
+        if (!hadOne || swapping) { return; }
+        swapping = true;
+        window.location.reload();
+      });
+    }).catch(function () { /* nothing lost */ });
   });
 }
 </script>
