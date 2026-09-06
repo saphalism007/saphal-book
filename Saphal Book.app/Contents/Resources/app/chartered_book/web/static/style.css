@@ -1121,12 +1121,18 @@ tr.is-cleared:hover td { background: var(--good-soft); }
    Sits next to the page title because that is where the eye already is when
    somebody stops and thinks "where is that invoice". The results hang under
    it rather than taking over the screen, so the page behind stays put. */
-/* The title keeps its room. The search takes what is left and no more: a
-   heading cut down to "Dash..." to make space for a box is a bad trade. */
+/* The title keeps its room and the search gets real width.
+
+   It was 22rem and shared with the heading, which left the placeholder cut off
+   mid word. A search box you cannot read the label of is a box nobody uses. */
 .topbar-left > h1 { flex: 0 0 auto; white-space: nowrap; }
-.finder { position: relative; flex: 0 1 22rem; min-width: 0; margin-left: 1rem; }
+.topbar-left { flex: 1 1 auto; min-width: 0; }
+.finder { position: relative; flex: 1 1 20rem; max-width: 38rem; min-width: 0;
+          margin-left: 1.2rem; }
 .finder input {
-  width: 100%; padding: .34rem .6rem; font-size: .82rem;
+  width: 100%; padding: .42rem .7rem .42rem 2rem; font-size: .84rem;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round'><circle cx='11' cy='11' r='7'/><line x1='16.5' y1='16.5' x2='21' y2='21'/></svg>");
+  background-repeat: no-repeat; background-position: .5rem center; background-size: 14px;
   border: 1px solid var(--line); border-radius: var(--radius-sm, 7px);
   background: var(--paper); color: var(--ink);
 }

@@ -764,6 +764,42 @@ var App = (function () {
      because on a tablet each one crosses to the engine and back, and eight of
      those for a word nobody has finished spelling is work done for nothing. */
 
+  /* Screens are searched here rather than in the engine.
+
+     The menu is already built on this device from what the company does, so
+     asking the engine what screens exist would be asking it something the
+     screen knows better and waiting for the answer. Typing backup, or balance
+     sheet, or tds goes straight there. */
+
+  function findPages(text) {
+    var tokens = text.toLowerCase().split(/\s+/).filter(Boolean);
+    if (!tokens.length) { return []; }
+    var out = [];
+    buildMenu().forEach(function (section) {
+      section.items.forEach(function (item) {
+        var hay = (item.label + " " + section.title).toLowerCase();
+        var best = 0;
+        var every = tokens.every(function (token) {
+          var label = item.label.toLowerCase();
+          var mark = label === token ? 1000
+                   : label.indexOf(token) === 0 ? 700
+                   : label.split(/[\s,]+/).some(function (w) { return w.indexOf(token) === 0; }) ? 500
+                   : label.indexOf(token) >= 0 ? 300
+                   : hay.indexOf(token) >= 0 ? 150
+                   : 0;
+          best += mark;
+          return mark > 0;
+        });
+        if (every) {
+          out.push({ label: item.label, detail: section.title, score: best,
+                     opens: "page", route: item.key });
+        }
+      });
+    });
+    out.sort(function (a, b) { return b.score - a.score; });
+    return out.slice(0, 6);
+  }
+
   function wireFinder() {
     var box = qs("#finder");
     var results = qs("#finder-results");
@@ -774,15 +810,27 @@ var App = (function () {
 
     function hide() { results.classList.add("hidden"); picked = -1; rows = []; }
 
-    function draw(found) {
+    function draw(found, typed) {
       UI.clear(results);
       rows = [];
-      if (found.note && !found.count) {
-        results.appendChild(el("div.finder-note", { text: found.note }));
+
+      // Screens first when one is a strong answer. Somebody typing "backup"
+      // wants the screen, not the four entries with backup in the narration.
+      var pages = findPages(typed || "");
+      var groups = (found.groups || []).slice();
+      if (pages.length) {
+        var best = (groups[0] && groups[0].rows[0] && groups[0].rows[0].score) || 0;
+        var where = (pages[0].score >= 500 && pages[0].score >= best) ? 0 : groups.length;
+        groups.splice(where, 0, { kind: "pages", title: "Go to", rows: pages });
+      }
+
+      if (!groups.length) {
+        results.appendChild(el("div.finder-note", {
+          text: found.note || "Nothing matches that." }));
         results.classList.remove("hidden");
         return;
       }
-      (found.groups || []).forEach(function (group) {
+      groups.forEach(function (group) {
         results.appendChild(el("div.finder-group", { text: group.title }));
         group.rows.forEach(function (row) {
           var line = el("div.finder-row", {}, [
@@ -819,6 +867,7 @@ var App = (function () {
       // Each of these already has a way in from elsewhere in the software, so
       // the search uses those rather than inventing a second one that would
       // then have to be kept in step.
+      if (row.opens === "page") { return go(row.route); }
       if (row.opens === "voucher") { return Vouchers.view(row.id); }
       if (row.opens === "ledger") { return Reports.openLedger(row.id); }
       if (row.opens === "item") { return Reports.openItemMovement(row.id); }
@@ -834,8 +883,12 @@ var App = (function () {
       if (text.length < 2) { return hide(); }
       settle = setTimeout(function () {
         api("/api/find", { query: { q: text } })
-          .then(draw)
-          .catch(function () { hide(); });
+          .then(function (found) { draw(found, text); })
+          .catch(function () {
+            // Offline, or between companies. Screens still work, and taking
+            // somebody to a screen is most of what this is used for.
+            draw({ groups: [], count: 0, note: "" }, text);
+          });
       }, 220);
     });
 

@@ -18,7 +18,7 @@
 		</data>
 		<key>Resources/app/chartered_book/BUILD.txt</key>
 		<data>
-		qIkqPoDW51tzw+I6BtidMMbOmUE=
+		G90Bdi3PvF8gDRQ6mtWGbA4E2Lc=
 		</data>
 		<key>Resources/app/chartered_book/__init__.py</key>
 		<data>
@@ -114,7 +114,7 @@
 		</data>
 		<key>Resources/app/chartered_book/modules/finder.py</key>
 		<data>
-		cgYKoeCof1vYbT/jTOKuCYahGz8=
+		9R6YcCwlYz9+Uaify7+GO4k6MB4=
 		</data>
 		<key>Resources/app/chartered_book/modules/guidance.py</key>
 		<data>
@@ -206,7 +206,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/static/app.js</key>
 		<data>
-		HV4CESflRtbOM0zOlZgZM1tu+7E=
+		ohpyD9j3ExgHCxcRu6ytMNhy8FU=
 		</data>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
 		<data>
@@ -278,7 +278,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/static/style.css</key>
 		<data>
-		UKWgcVjx4T/Fi1Jv5DGHpPT9sH4=
+		SA6bZeeip5hK63qvi8eXp8mnT/k=
 		</data>
 		<key>Resources/app/chartered_book/web/static/sw.js</key>
 		<data>
@@ -294,7 +294,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/templates/index.html</key>
 		<data>
-		0F53hdxzeiZQ+ad3cyoKwvsB9JU=
+		x5VKWgv2XCwWFOTsy/Frhzrc9y4=
 		</data>
 		<key>Resources/app/start.py</key>
 		<data>
@@ -421,7 +421,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			vvlEJxS27XkTPzxMfHosufM+nxlgStQwrQ1aOElR25U=
+			E+wVSvxLJaL2cVoRFQXYR34gwH7CsR4z9WsO5p+Xz5U=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/__init__.py</key>
@@ -589,7 +589,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			9LB99P0izUUzfD1VR3XQbegaVIVcJDOtQUNCw1bGuUc=
+			MKvCUn4Ja6tVeZGla4EAC4YxQKe525aHyU9Gc0qGDI8=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/modules/guidance.py</key>
@@ -743,7 +743,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			dt6FkTi8xZMStYnkqvF5CuDuXTMQvlY/i2W5WWMe2TM=
+			58yKz1/zsg7etyeDVsyehjGGoVg4Tbh/+Yth04Qk85k=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
@@ -869,7 +869,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			Wvso9UQ7hOTdd8oNbsUooreTzP5JEs64Ehou85GrUc0=
+			K9vxnEY8RBpF6R5P8kHRfnrlYrFh37HMpqMHa3KxgPA=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/sw.js</key>
@@ -897,7 +897,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			HhKhoS9NsK9Dms4dvKLMOQ4DCkr6ljq8sHj2x0/sHic=
+			wVSBsE5T8WgNCrIv0cZwtIv0vELMb2/abSM1cJQtEzE=
 			</data>
 		</dict>
 		<key>Resources/app/start.py</key>
