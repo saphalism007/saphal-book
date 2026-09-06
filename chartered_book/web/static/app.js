@@ -82,6 +82,9 @@ var App = (function () {
       reports.push({ key: "sales-book", label: "Sales book" });
       reports.push({ key: "purchase-book", label: "Purchase book" });
     }
+    // Withholding tax does not depend on being registered for VAT. A firm
+    // paying rent deducts under section 88 whether it charges VAT or not.
+    reports.push({ key: "tds", label: "TDS" });
 
     var statements = [
       { key: "statements", label: "Financial statements" },

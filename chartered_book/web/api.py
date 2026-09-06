@@ -2775,6 +2775,28 @@ def remove_paper(request):
             "totals": papers.how_much(conn)}
 
 
+@route("GET", "/api/reports/tds")
+def tds_report(request):
+    """
+    Tax deducted at source, both ways.
+
+    Asked for a Bikram Sambat month where one is given, because that is how it
+    is deposited: section 90 wants it within twenty five days of the month end.
+    Asked for a date range otherwise.
+    """
+    from ..modules import tds as tds_module
+    conn = request.company()
+    bs_year = request.int_arg("bs_year")
+    bs_month = request.int_arg("bs_month")
+    if bs_year and bs_month:
+        try:
+            return tds_module.monthly(conn, bs_year, bs_month)
+        except nd.DateRangeError as exc:
+            raise ApiError(str(exc))
+    from_ad, to_ad = _dates(request, conn)
+    return tds_module.register(conn, from_ad, to_ad)
+
+
 @route("GET", "/api/reports/vat-register")
 def vat_register_report(request):
     """

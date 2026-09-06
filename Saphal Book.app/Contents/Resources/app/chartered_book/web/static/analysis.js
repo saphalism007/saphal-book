@@ -333,6 +333,147 @@ var Analysis = (function () {
     };
   }
 
+  /* Tax deducted at source, both ways.
+
+     Two questions that are easy to run together and must not be. What this
+     business withheld from people it paid and owes to the department, and what
+     its own customers withheld from it, which is money already paid towards its
+     own tax and belongs at the end of the income tax computation.
+
+     Shown a month at a time because that is how it is deposited: section 90
+     wants it within twenty five days of the month end, and that date is the
+     one worth having on the screen. */
+
+  App.register("tds", function (page) {
+    var today = NP.adToBs(NP.todayIso());
+    var yearInput = el("input", { type: "number", value: today.year,
+                                  min: "2000", max: "2099" });
+    var monthSelect = UI.select(NP.MONTHS_EN.map(function (name, index) {
+      return { value: index + 1, label: name };
+    }), today.month);
+    var box = el("div");
+
+    function load() {
+      return api("/api/reports/tds", { query: {
+        bs_year: yearInput.value, bs_month: monthSelect.value
+      }}).then(draw);
+    }
+    yearInput.addEventListener("change", load);
+    monthSelect.addEventListener("change", load);
+
+    function draw(data) {
+      UI.clear(box);
+      box.appendChild(Reports.reportHead("Tax deducted at source",
+        NP.MONTHS_EN[data.bs_month - 1] + " " + data.bs_year));
+
+      // What is owed, and by when. The first thing anybody opens this for.
+      box.appendChild(el("div.card", {}, [
+        el("div.card-head", {}, [
+          el("h2", { text: data.owing
+            ? "Still to deposit: " + UI.rs(data.owing)
+            : "Nothing left to deposit" })
+        ]),
+        el("p.card-note", { text: data.due_ad
+          ? "Due by " + UI.bs(data.due_ad, "long") + " (" + data.due_ad + "), which is "
+            + "twenty five days after the month end under section 90."
+          : "" })
+      ]));
+
+      var rows = [];
+      (data.sections || []).forEach(function (section) {
+        rows.push(el("tr.total-row", {}, [
+          el("td", {}, [
+            el("div", { text: section.name }),
+            el("div.muted", { style: "font-size:.74rem",
+              text: section.section_name
+                    + (section.rate_bp ? "  ·  " + (section.rate_bp / 100) + "%" : "") })
+          ]),
+          el("td.num", { text: UI.rs(section.opening, { blankZero: true }) }),
+          el("td.num", { text: UI.rs(section.withheld, { blankZero: true }) }),
+          el("td.num", { text: UI.rs(section.deposited, { blankZero: true }) }),
+          el("td.num", { text: UI.rs(section.closing) })
+        ]));
+        section.rows.forEach(function (entry) {
+          rows.push(el("tr.clickable", {
+            onclick: function () { Vouchers.view(entry.voucher_id); }
+          }, [
+            el("td.indent", {}, [
+              el("div", { text: UI.bs(entry.date_ad, "short") + "  " + entry.number }),
+              el("div.muted", { style: "font-size:.74rem",
+                text: [entry.party_name, entry.party_pan ? "PAN " + entry.party_pan : "",
+                       entry.narration].filter(Boolean).join("  ·  ") })
+            ]),
+            el("td.num"),
+            el("td.num.muted", { text: UI.rs(entry.cr_paisa, { blankZero: true }) }),
+            el("td.num.muted", { text: UI.rs(entry.dr_paisa, { blankZero: true }) }),
+            el("td.num")
+          ]));
+        });
+      });
+
+      box.appendChild(UI.table(
+        ["Section", { label: "Owed at the start", num: true },
+         { label: "Withheld", num: true }, { label: "Deposited", num: true },
+         { label: "Still owed", num: true }],
+        rows,
+        [el("tr.grand-row", {}, [
+          el("td", { text: "Total" }),
+          el("td.num", { text: UI.rs(data.totals.opening) }),
+          el("td.num", { text: UI.rs(data.totals.withheld) }),
+          el("td.num", { text: UI.rs(data.totals.deposited) }),
+          el("td.num", { text: UI.rs(data.totals.closing) })
+        ])],
+        { emptyText: "Nothing withheld or deposited in this month." }));
+
+      // The other direction, kept apart because it is somebody else's
+      // withholding and belongs at the end of the income tax computation
+      // rather than in what is owed above.
+      var suffered = data.suffered || {};
+      box.appendChild(el("div.card", {}, [
+        el("div.card-head", {}, [
+          el("h2", { text: "Withheld from this business" })
+        ]),
+        el("p.card-note", { text: "What customers deducted before paying. It is money "
+          + "already paid towards this year's income tax and comes off at the end of "
+          + "the computation, so it is not part of what is owed above." }),
+        UI.table(
+          ["Date", "Entry", "Customer", { label: "Withheld", num: true },
+           { label: "Taken off", num: true }],
+          (suffered.rows || []).map(function (entry) {
+            return el("tr.clickable", {
+              onclick: function () { Vouchers.view(entry.voucher_id); }
+            }, [
+              el("td", { text: UI.bs(entry.date_ad, "short") }),
+              el("td", { text: entry.number }),
+              el("td", { text: entry.party_name || entry.narration }),
+              el("td.num", { text: UI.rs(entry.dr_paisa, { blankZero: true }) }),
+              el("td.num", { text: UI.rs(entry.cr_paisa, { blankZero: true }) })
+            ]);
+          }),
+          [el("tr.grand-row", {}, [
+            el("td", { text: "Standing at the month end" }), el("td"), el("td"),
+            el("td.num", { text: UI.rs(suffered.closing || 0) }), el("td.num")
+          ])],
+          // A month with no new withholding can still carry a standing figure
+          // from earlier, so this says "none this month" rather than "none",
+          // which would sit oddly under a balance.
+          { emptyText: "None this month. What is standing came from earlier months." })
+      ]));
+
+      box.appendChild(el("div.row.no-print", { style: "margin-top:.7rem" }, [
+        UI.exportButton(box, "TDS " + NP.MONTHS_EN[data.bs_month - 1] + " " + data.bs_year),
+        el("button.secondary", { text: "Print", onclick: UI.printPage })
+      ]));
+    }
+
+    page.appendChild(el("div.row.no-print", { style: "margin-bottom:.6rem" }, [
+      UI.field("Year", yearInput),
+      UI.field("Month", monthSelect)
+    ]));
+    page.appendChild(box);
+    return load();
+  });
+
   App.register("sales-book", registerScreen("sales", "Sales book",
     "Bikri Khata, the register the Value Added Tax Rules, 2053 require"));
   App.register("purchase-book", registerScreen("purchase", "Purchase book",
