@@ -2782,6 +2782,98 @@ def remove_paper(request):
             "totals": papers.how_much(conn)}
 
 
+# Quotations, which are not entries yet
+
+
+@route("GET", "/api/quotations")
+def quotation_list(request):
+    from ..modules import quotations
+    conn = request.company()
+    return quotations.listing(conn, request.arg("status") or None)
+
+
+@route("GET", "/api/quotations/one")
+def quotation_one(request):
+    from ..modules import quotations
+    conn = request.company()
+    try:
+        return quotations.one(conn, request.int_arg("id"))
+    except quotations.QuotationError as exc:
+        raise ApiError(str(exc), 404)
+
+
+@route("GET", "/api/quotations/next-number")
+def quotation_number(request):
+    from ..modules import quotations
+    conn = request.company()
+    return {"number": quotations.next_number(conn)}
+
+
+@route("POST", "/api/quotations/create")
+def quotation_create(request):
+    from ..modules import quotations
+    request.require("voucher.create")
+    conn = request.company()
+    try:
+        with db.Transaction(conn):
+            quotation_id = quotations.create(conn, request.username(), request.body)
+    except (quotations.QuotationError, invoices.InvoiceError) as exc:
+        raise ApiError(str(exc))
+    return {"ok": True, "id": quotation_id,
+            "quotation": quotations.one(conn, quotation_id)}
+
+
+@route("POST", "/api/quotations/status")
+def quotation_status(request):
+    from ..modules import quotations
+    request.require("voucher.create")
+    conn = request.company()
+    try:
+        quotations.set_status(conn, request.username(), request.int_arg("id"),
+                              request.arg("status") or "")
+    except quotations.QuotationError as exc:
+        raise ApiError(str(exc))
+    conn.commit()
+    return {"ok": True}
+
+
+@route("POST", "/api/quotations/to-invoice")
+def quotation_to_invoice(request):
+    """
+    Turn one into a sales invoice.
+
+    Priced again from the lines rather than copied from what was stored, so the
+    invoice is right by today's rules. Where that changes the figure, the
+    person is looking at both and can see it.
+    """
+    from ..modules import quotations
+    request.require("voucher.create")
+    conn = request.company()
+    try:
+        with db.Transaction(conn):
+            voucher_id = quotations.to_invoice(conn, request.username(),
+                                               request.int_arg("id"),
+                                               request.arg("date_ad") or None)
+    except (quotations.QuotationError, invoices.InvoiceError,
+            ledger.PostingError) as exc:
+        raise ApiError(str(exc))
+    return {"ok": True, "voucher_id": voucher_id,
+            "voucher": _voucher_payload(conn, voucher_id)}
+
+
+@route("POST", "/api/quotations/remove")
+def quotation_remove(request):
+    from ..modules import quotations
+    request.require("voucher.cancel")
+    conn = request.company()
+    try:
+        quotations.remove(conn, request.username(), request.int_arg("id"))
+    except quotations.QuotationError as exc:
+        raise ApiError(str(exc))
+    conn.commit()
+    return {"ok": True}
+
+
 @route("GET", "/api/chasing")
 def chasing_list(request):
     """

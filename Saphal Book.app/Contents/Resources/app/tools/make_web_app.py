@@ -68,7 +68,7 @@ def shell_html(stamp="1"):
     """
     scripts = ["nepali.js", "ui.js", "app.js", "masters.js", "vouchers.js",
                "drill.js", "reports.js", "statements.js", "banking.js",
-               "assets.js", "incometax.js", "analysis.js", "recurring.js", "audit.js"]
+               "assets.js", "incometax.js", "analysis.js", "recurring.js", "quotations.js", "audit.js"]
     tags = "\n".join('<script src="static/%s?v=%s"></script>' % (s, stamp)
                      for s in scripts)
     source = open(os.path.join(PKG, "web", "templates", "index.html"), encoding="utf-8").read()
@@ -503,7 +503,7 @@ var SHELL = ["./", "index.html", "boot.js", "engine.js", "manifest.webmanifest",
   "static/style.css", "static/nepali.js", "static/ui.js", "static/app.js",
   "static/masters.js", "static/vouchers.js", "static/drill.js",
   "static/reports.js", "static/statements.js", "static/banking.js",
-  "static/assets.js", "static/incometax.js", "static/analysis.js", "static/recurring.js", "static/audit.js",
+  "static/assets.js", "static/incometax.js", "static/analysis.js", "static/recurring.js", "static/quotations.js", "static/audit.js",
   "static/icons/icon-192.png", "static/icons/icon-512.png"];
 
 self.addEventListener("install", function (event) {

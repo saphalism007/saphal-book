@@ -668,3 +668,64 @@ COMPANY_MIGRATIONS.append((11, "entries that come round again", """
     CREATE UNIQUE INDEX idx_recurring_once ON recurring_posted(recurring_id, due_bs);
     CREATE INDEX idx_recurring_lines ON recurring_lines(recurring_id);
 """))
+
+
+COMPANY_MIGRATIONS.append((12, "quotations, which are not entries yet", """
+    -- What was offered, before anybody agreed to it.
+    --
+    -- A quotation is a promise about a price, not a transaction. Nothing has
+    -- been sold, no tax is due and no stock has moved, so it has no business
+    -- in the vouchers table where every row is an entry in the books. It gets
+    -- its own place, and becomes an invoice only when the customer says yes.
+    --
+    -- What it must not do is price differently from the invoice it turns into.
+    -- A quotation that says one figure and an invoice that says another is
+    -- worse than having no quotations at all, so both are priced by the same
+    -- code and the totals are stored here only so an old quotation still reads
+    -- as it did on the day it was sent.
+    CREATE TABLE quotations (
+        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+        number            TEXT NOT NULL,
+        date_ad           TEXT NOT NULL,
+        date_bs           TEXT NOT NULL DEFAULT '',
+        valid_until_ad    TEXT NOT NULL DEFAULT '',
+        party_id          INTEGER REFERENCES parties(id),
+        party_name        TEXT NOT NULL DEFAULT '',
+        narration         TEXT NOT NULL DEFAULT '',
+        terms             TEXT NOT NULL DEFAULT '',
+        price_includes_vat INTEGER NOT NULL DEFAULT 0,
+        bill_discount_paisa INTEGER NOT NULL DEFAULT 0,
+        other_charges_paisa INTEGER NOT NULL DEFAULT 0,
+        subtotal_paisa    INTEGER NOT NULL DEFAULT 0,
+        discount_paisa    INTEGER NOT NULL DEFAULT 0,
+        taxable_paisa     INTEGER NOT NULL DEFAULT 0,
+        exempt_paisa      INTEGER NOT NULL DEFAULT 0,
+        vat_paisa         INTEGER NOT NULL DEFAULT 0,
+        total_paisa       INTEGER NOT NULL DEFAULT 0,
+        status            TEXT NOT NULL DEFAULT 'open',
+        voucher_id        INTEGER REFERENCES vouchers(id),
+        created_by        TEXT NOT NULL DEFAULT '',
+        created_at        TEXT NOT NULL DEFAULT '',
+        updated_at        TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE quotation_items (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        quotation_id  INTEGER NOT NULL REFERENCES quotations(id) ON DELETE CASCADE,
+        line_no       INTEGER NOT NULL DEFAULT 1,
+        item_id       INTEGER REFERENCES items(id),
+        description   TEXT NOT NULL DEFAULT '',
+        qty           INTEGER NOT NULL DEFAULT 0,
+        unit_id       INTEGER REFERENCES units(id),
+        rate_paisa    INTEGER NOT NULL DEFAULT 0,
+        discount_bp   INTEGER NOT NULL DEFAULT 0,
+        discount_paisa INTEGER NOT NULL DEFAULT 0,
+        taxable_paisa INTEGER NOT NULL DEFAULT 0,
+        vat_bp        INTEGER NOT NULL DEFAULT 0,
+        vat_paisa     INTEGER NOT NULL DEFAULT 0,
+        amount_paisa  INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE UNIQUE INDEX idx_quotation_number ON quotations(number);
+    CREATE INDEX idx_quotation_items ON quotation_items(quotation_id);
+"""))

@@ -33,6 +33,8 @@ var App = (function () {
     var vat = !!company.vat_registered;
 
     var daily = [{ key: "dashboard", label: "Dashboard", accel: "F1" }];
+    // Before the invoice, because that is the order the work happens in.
+    daily.push({ key: "quotations", label: "Quotations" });
     daily.push({ key: "sales", label: goods && !services ? "Sales invoice"
       : !goods && services ? "Fee invoice" : "Sales invoice", accel: "F5" });
     daily.push({ key: "purchase", label: goods ? "Purchase bill" : "Expense bill", accel: "F6" });
