@@ -27,11 +27,15 @@ import zipfile
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT = os.path.join(HERE, "download")
+# Written straight into the published site rather than into a folder beside
+# it. There used to be two: one the release script wrote and one the site
+# served, and a copy that has to be kept in step with another copy is a copy
+# that will one day be out of step without anybody noticing.
+OUT = os.path.join(HERE, "docs", "download")
 APP = os.path.join(HERE, "Saphal Book.app")
 
 FORBIDDEN = (".db", ".db-wal", ".db-shm", ".sqlite", ".sqlite3", ".log", ".csv", ".xlsx")
-SKIP_DIRS = {"__pycache__", "data", "backups", ".git", "download"}
+SKIP_DIRS = {"__pycache__", "data", "backups", ".git", "download", "docs"}
 
 WINDOWS_FILES = ["start.py", "README.md", "run.bat", "run on wifi.bat",
                  "Saphal Book.vbs"]
