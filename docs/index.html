@@ -3,248 +3,86 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Saphal Book, bookkeeping and accounts for Nepal</title>
-<meta name="description" content="Offline bookkeeping, accounting and audit software for Nepal. Bikram Sambat, VAT, TDS, NFRS statements. Free, runs on your own computer.">
+<title>Saphal Book</title>
+<meta name="description" content="Bookkeeping, accounting and audit for Nepal.">
 <meta name="theme-color" content="#1d3557">
 <link rel="icon" type="image/png" href="icon-192.png?v=2">
-<link rel="icon" sizes="any" href="icon-192.png?v=2">
 <link rel="apple-touch-icon" href="icon-192.png?v=2">
 <style>
 :root{
   --ink:#16202b; --soft:#4f5d6b; --faint:#8b98a5; --paper:#fff; --ground:#f2f5f8;
   --line:#dfe5ec; --brand:#1d3557; --brand-lift:#2f5b96; --brand-soft:#e7eefb;
-  --brand-line:#bed0ec; --teal:#0d7d84; --teal-soft:#dff4f5; --amber:#a2670c;
-  --amber-soft:#fdf1da; --violet:#5546ad; --violet-soft:#eceafb; --good:#16744a;
+  --brand-line:#bed0ec; --violet:#5546ad; --teal:#0d7d84; --amber:#a2670c;
   --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
 }
 @media (prefers-color-scheme:dark){:root{
   --ink:#e8edf3; --soft:#a9b6c4; --faint:#74838f; --paper:#161c24; --ground:#0f141a;
   --line:#2a343f; --brand:#4d7ab8; --brand-lift:#5c8bcb; --brand-soft:#1c2a3d;
-  --brand-line:#2f4258; --teal:#4fb3b8; --teal-soft:#12292b; --amber:#d9a441;
-  --amber-soft:#2e2513; --violet:#9d94e0; --violet-soft:#211f38; --good:#57c48c;
+  --brand-line:#2f4258; --violet:#9d94e0; --teal:#4fb3b8; --amber:#d9a441;
 }}
 *{box-sizing:border-box}
+html,body{height:100%}
 body{margin:0;font-family:var(--sans);background:var(--ground);color:var(--ink);
-  line-height:1.6;-webkit-font-smoothing:antialiased}
-.rail{height:4px;background:linear-gradient(90deg,var(--brand) 0%,var(--violet) 26%,var(--teal) 52%,var(--amber) 76%,#a83a71 100%)}
-.wrap{max-width:760px;margin:0 auto;padding:0 1.2rem 4rem}
-header{text-align:center;padding:3rem 0 2.2rem}
-header img{width:88px;height:88px;border-radius:22px;box-shadow:0 8px 28px rgba(16,32,48,.16)}
-h1{font-size:2rem;margin:1.1rem 0 .3rem;letter-spacing:-.02em}
-.tag{color:var(--soft);font-size:1.05rem;margin:0 auto;max-width:30rem}
-.free{display:inline-block;margin-top:.9rem;background:var(--brand-soft);color:var(--brand-lift);
-  border:1px solid var(--brand-line);border-radius:20px;padding:.25rem .85rem;font-size:.82rem;font-weight:650}
-h2{font-size:1.18rem;margin:2.4rem 0 .5rem;letter-spacing:-.01em;display:flex;align-items:center;gap:.5rem}
-h2::before{content:"";width:3px;height:17px;border-radius:2px;background:var(--brand)}
-h3{font-size:.98rem;margin:1.3rem 0 .35rem}
-p{margin:0 0 .8rem;color:var(--soft)}
-.card{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:1.2rem 1.3rem;margin:1rem 0}
-.dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:.9rem;margin:1.1rem 0}
-.btn{display:block;text-decoration:none;background:linear-gradient(165deg,var(--brand-lift),var(--brand));
-  color:#fff;border-radius:10px;padding:.95rem 1.1rem;text-align:center;font-weight:650;
-  box-shadow:0 2px 8px rgba(20,40,66,.22)}
-.btn:hover{filter:brightness(1.1)}
-.btn small{display:block;font-weight:400;opacity:.82;font-size:.78rem;margin-top:.15rem}
-.btn.ghost{background:var(--paper);color:var(--brand-lift);border:1px solid var(--brand-line);box-shadow:none}
-ol,ul{margin:.4rem 0 .9rem;padding-left:1.3rem;color:var(--soft)}
-li{margin-bottom:.35rem}
-.note{background:var(--amber-soft);border:1px solid var(--amber);border-left-width:4px;
-  border-radius:8px;padding:.8rem 1rem;margin:1rem 0;font-size:.92rem;color:var(--ink)}
-.note strong{color:var(--amber)}
-.feat{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:.8rem;margin:1.1rem 0}
-.feat div{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:.85rem .95rem;font-size:.88rem}
-.feat b{display:block;margin-bottom:.15rem;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
-.feat:nth-of-type(1) div:nth-child(4n+1) b{color:var(--brand-lift)}
-.feat div:nth-child(4n+2) b{color:var(--teal)}
-.feat div:nth-child(4n+3) b{color:var(--amber)}
-.feat div:nth-child(4n+4) b{color:var(--violet)}
-.feat div:nth-child(4n+1) b{color:var(--brand-lift)}
-code{background:var(--brand-soft);color:var(--brand-lift);padding:.1rem .38rem;border-radius:5px;
-  font-size:.9em;font-family:ui-monospace,"SF Mono",Consolas,monospace}
-footer{text-align:center;color:var(--faint);font-size:.84rem;margin-top:3rem;
-  border-top:1px solid var(--line);padding-top:1.4rem}
-footer a{color:var(--brand-lift)}
-.pick{display:flex;gap:.4rem;flex-wrap:wrap;margin:.9rem 0 0}
-.pick button{border:1px solid var(--line);background:var(--paper);color:var(--soft);
-  border-radius:20px;padding:.35rem .9rem;font:inherit;font-size:.85rem;font-weight:600;cursor:pointer}
-.pick button.on{background:var(--brand);color:#fff;border-color:transparent}
-.panel{display:none}.panel.on{display:block}
+  line-height:1.6;-webkit-font-smoothing:antialiased;
+  display:flex;flex-direction:column;min-height:100vh}
+.rail{height:4px;flex:0 0 auto;
+  background:linear-gradient(90deg,var(--brand) 0%,var(--violet) 30%,var(--teal) 60%,var(--amber) 85%,#a83a71 100%)}
+
+main{flex:1 1 auto;display:grid;place-items:center;padding:2rem 1.2rem}
+.panel{width:100%;max-width:430px;text-align:center}
+
+.mark{width:86px;height:86px;border-radius:22px;
+  box-shadow:0 10px 34px rgba(16,32,48,.18);margin:0 auto;display:block}
+h1{font-size:2.05rem;margin:1.15rem 0 .35rem;letter-spacing:-.025em;font-weight:700}
+.tag{color:var(--soft);font-size:1.02rem;margin:0 auto 2rem;max-width:24rem}
+
+.card{background:var(--paper);border:1px solid var(--line);border-radius:14px;
+  padding:1.5rem 1.4rem;box-shadow:0 1px 3px rgba(16,32,48,.05);text-align:left}
+.card h2{font-size:1.05rem;margin:0 0 .25rem;letter-spacing:-.01em;font-weight:650}
+.card p{margin:0 0 1.15rem;color:var(--soft);font-size:.9rem;line-height:1.55}
+
+.btn{display:block;text-decoration:none;border-radius:10px;padding:.85rem 1.1rem;
+  text-align:center;font-weight:650;font-size:.95rem;
+  background:linear-gradient(165deg,var(--brand-lift),var(--brand));color:#fff;
+  box-shadow:0 2px 9px rgba(20,40,66,.22);transition:filter .15s}
+.btn:hover{filter:brightness(1.09)}
+.btn.ghost{background:var(--paper);color:var(--brand-lift);
+  border:1px solid var(--brand-line);box-shadow:none}
+.btn.ghost:hover{background:var(--brand-soft);filter:none}
+.btn + .btn{margin-top:.6rem}
+
+.quiet{margin-top:1.6rem;font-size:.86rem;color:var(--faint);text-align:center}
+.quiet a{color:var(--brand-lift);text-decoration:none;font-weight:600}
+.quiet a:hover{text-decoration:underline}
+
+footer{flex:0 0 auto;text-align:center;padding:1.4rem 1.2rem 2rem;
+  font-size:.78rem;color:var(--faint)}
 </style>
 </head>
 <body>
 <div class="rail"></div>
-<div class="wrap">
 
-<header>
-  <img src="icon.png" alt="Saphal Book">
-  <h1>Saphal Book</h1>
-  <p class="tag">Bookkeeping, accounting and audit for Nepal. It runs on your own
-     computer, or in your own browser, and keeps your books there either way.</p>
-  <span class="free">Free. No account to open, nothing to subscribe to, nothing
-     kept on anybody else's machine.</span>
-</header>
+<main>
+  <div class="panel">
+    <img class="mark" src="icon-192.png?v=2" alt="">
+    <h1>Saphal Book</h1>
+    <p class="tag">Bookkeeping, accounting and audit for Nepal.</p>
 
-<h2>Open it right here</h2>
-<p>The whole thing also runs inside your browser, with nothing to install and no
-   computer involved. Good for a phone, a tablet, or just trying it.</p>
-<div class="dl">
-  <a class="btn" href="app/" style="grid-column:1/-1">
-     Open Saphal Book in this browser
-     <small>Works on iPad, Android, Mac and Windows. Add it to your home screen.</small></a>
-</div>
-<p style="font-size:.88rem">Books made that way live in that browser on that
-   device. They are their own set and do not join up with the books on a
-   computer, so pick one place to keep the real ones.</p>
+    <div class="card">
+      <h2>Open your books</h2>
+      <p>Sign in with the name you already use, or open a new set of books.
+         Everything stays on your own device.</p>
+      <a class="btn" href="app/">Sign in</a>
+      <a class="btn ghost" href="app/">Create an account</a>
+    </div>
 
-<h2>Or install it on a computer</h2>
-<div class="dl">
-  <a class="btn" id="mac"
-     href="https://github.com/saphalism007/saphal-book/raw/main/download/Saphal%20Book%20for%20Mac.zip">
-     Download for Mac<small>Unzip and open. Nothing to install.</small></a>
-  <a class="btn" id="win"
-     href="https://github.com/saphalism007/saphal-book/raw/main/download/Saphal%20Book%20for%20Windows.zip">
-     Download for Windows<small>Needs Python once, free from python.org</small></a>
-</div>
-
-<div class="pick" id="pick">
-  <button data-p="mac">Mac</button>
-  <button data-p="win">Windows</button>
-  <button data-p="ios">iPhone or iPad</button>
-  <button data-p="android">Android</button>
-</div>
-
-<div class="card">
-  <div class="panel" id="p-mac">
-    <h3>On a Mac</h3>
-    <ol>
-      <li>Download the Mac file above and unzip it.</li>
-      <li><b>Right click</b> Saphal Book and choose <b>Open</b>, then <b>Open</b>
-          again on the box that appears.</li>
-      <li>It opens in your browser. Make your login on the first screen.</li>
-    </ol>
-    <div class="note"><strong>The first open will be refused.</strong> macOS says it
-      cannot check the developer, which it says about anything not sold through the
-      App Store. Right click then Open gets past it, once only. Double clicking will
-      keep failing.</div>
+    <p class="quiet">
+      Using it on a computer, a phone or a tablet?
+      <a href="install/">Install it</a>
+    </p>
   </div>
+</main>
 
-  <div class="panel" id="p-win">
-    <h3>On Windows</h3>
-    <ol>
-      <li>Install Python once, free, from <a href="https://www.python.org/downloads/">python.org</a>.
-          On the installer's first screen <b>tick Add Python to PATH</b>. It is easy
-          to miss and nothing works without it.</li>
-      <li>Download the Windows file above and unzip it.</li>
-      <li>Double click <code>Saphal Book.vbs</code>.</li>
-    </ol>
-  </div>
-
-  <div class="panel" id="p-ios">
-    <h3>On an iPhone or iPad</h3>
-    <p>There is no App Store app, but you do not need one. Two ways, and they
-       give you different things.</p>
-    <h3 style="margin-top:1rem">Its own books, nothing else needed</h3>
-    <ol>
-      <li>Open <a href="app/">this link</a> in <b>Safari</b>. It has to be Safari,
-          Chrome on iOS cannot do the next step.</li>
-      <li>Wait a few seconds the first time while the accounting engine loads.</li>
-      <li>Tap Share, then <b>Add to Home Screen</b>. It gets its own icon.</li>
-    </ol>
-    <p>Those books live on the iPad and are a separate set from any computer.</p>
-    <h3 style="margin-top:1rem">The same books as your computer</h3>
-    <ol>
-      <li>Install it on a Mac or Windows first, from the buttons above.</li>
-      <li>On that computer open <b>Use on your phone</b>. It shows an address.</li>
-      <li>Type that address into Safari and add it to the home screen the same way.</li>
-    </ol>
-    <div class="note">That second way shows your real shop books live, but the
-      computer has to be switched on and on the same wifi.</div>
-  </div>
-
-  <div class="panel" id="p-android">
-    <h3>On Android</h3>
-    <p>There is no Play Store app, but you do not need one. Two ways.</p>
-    <h3 style="margin-top:1rem">Its own books, nothing else needed</h3>
-    <ol>
-      <li>Open <a href="app/">this link</a> in <b>Chrome</b>.</li>
-      <li>Wait a few seconds the first time while the accounting engine loads.</li>
-      <li>Tap the three dots, then <b>Install app</b>. It gets its own icon.</li>
-    </ol>
-    <h3 style="margin-top:1rem">The same books as your computer</h3>
-    <ol>
-      <li>Install it on a Mac or Windows first.</li>
-      <li>On that computer open <b>Use on your phone</b> for the address.</li>
-      <li>Open that address in Chrome and install it the same way.</li>
-    </ol>
-  </div>
-</div>
-
-<h2>What it does</h2>
-<div class="feat">
-  <div><b>Nepali calendar</b>Bikram Sambat everywhere, checked against known
-       historical dates. The fiscal year runs Shrawan to Ashadh.</div>
-  <div><b>Exact to the paisa</b>Money is held as whole paisa, never as decimals,
-       so the trial balance ties to the last one.</div>
-  <div><b>Tax</b>VAT at 13 percent with both registers, tax deducted at source,
-       and the monthly return with its due date.</div>
-  <div><b>Statements</b>Balance sheet, profit and loss, changes in equity, cash
-       flows under NAS 07, with last year beside this year.</div>
-  <div><b>Fixed assets</b>A register, a movement schedule, and depreciation on the
-       pool basis under Schedule 2 of the Income Tax Act, 2058.</div>
-  <div><b>Audit tools</b>Analytical review with findings referenced to the Act or
-       the standard, ratios, ageing, and trial balance import.</div>
-  <div><b>Stock</b>Weighted average, ageing, reorder warnings, physical count
-       adjustments with the reason recorded.</div>
-  <div><b>Drill down</b>Click any figure and it opens what is behind it, group to
-       ledger to month to the voucher itself.</div>
-</div>
-
-<h2>Where your books are kept</h2>
-<p>On your own computer, in the folder your operating system sets aside for
-   application data. Not in the software folder, so replacing the software never
-   touches them. Nothing is uploaded anywhere and there is no account to sign up
-   for.</p>
-<p>Back it up from inside the software. Point it at your Google Drive or OneDrive
-   folder and every backup copies itself there.</p>
-
-<h2>Honest limitations</h2>
-<ul>
-  <li>There is no App Store or Play Store app. The browser version installs to
-      the home screen and behaves like one, but it is not in the stores.</li>
-  <li>Books kept in a browser are separate from books kept on a computer, and
-      they do not sync. Clearing the browser's site data would remove them, so
-      back them up.</li>
-  <li>Nobody is on the other end of this. It was written for two hardware shops
-      and one practice in Nepal, and is used on them.</li>
-  <li>Tax rates and thresholds move with each Finance Act. The reference inside
-      says so, and figures should be checked before a return is filed on them.</li>
-</ul>
-
-<footer>
-  <p><a href="https://github.com/saphalism007/saphal-book">Source on GitHub</a></p>
-  <p>Written in the Python standard library alone. Nothing to install alongside it.</p>
-</footer>
-
-</div>
-<script>
-(function(){
-  var ua = navigator.userAgent;
-  var pick = /iPhone|iPad|iPod/.test(ua) || (/Mac/.test(ua) && navigator.maxTouchPoints > 1)
-    ? "ios" : /Android/.test(ua) ? "android" : /Win/.test(ua) ? "win" : "mac";
-  var buttons = document.querySelectorAll("#pick button");
-  function show(name){
-    Array.prototype.forEach.call(buttons, function(b){
-      b.classList.toggle("on", b.dataset.p === name);
-    });
-    Array.prototype.forEach.call(document.querySelectorAll(".panel"), function(p){
-      p.classList.toggle("on", p.id === "p-" + name);
-    });
-  }
-  Array.prototype.forEach.call(buttons, function(b){
-    b.addEventListener("click", function(){ show(b.dataset.p); });
-  });
-  show(pick);
-}());
-</script>
+<footer>Bikram Sambat &middot; VAT &middot; TDS &middot; NFRS</footer>
 </body>
 </html>
