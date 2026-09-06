@@ -75,6 +75,7 @@ var App = (function () {
     reports.push({ key: "purchase-by-supplier", label: "Purchases by supplier" });
     reports.push({ key: "outstanding", label: "Receivable and payable" });
     reports.push({ key: "ageing", label: "Ageing" });
+    reports.push({ key: "chasing", label: "Money to chase" });
     reports.push({ key: "statement", label: "Statement of account" });
     reports.push({ key: "reconcile", label: "Bank reconciliation" });
     if (vat) {

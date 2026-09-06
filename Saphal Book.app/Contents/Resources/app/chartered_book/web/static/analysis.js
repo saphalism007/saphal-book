@@ -479,6 +479,159 @@ var Analysis = (function () {
   App.register("purchase-book", registerScreen("purchase", "Purchase book",
     "Kharid Khata, the register the Value Added Tax Rules, 2053 require"));
 
+  /* Asking for money that is late.
+
+     The ageing report has said for a long time who owes what and stopped
+     there. Knowing is not collecting. This is the short step between the two:
+     who to chase today, worst first, with the reminder already written.
+
+     Nothing is sent from here. This software has no business messaging
+     somebody's customers on their behalf, and a reminder that went out without
+     being read would one day carry the wrong figure to the wrong person. */
+
+  App.register("chasing", function (page) {
+    var box = el("div");
+    var bar = Reports.periodBar(load, { singleDate: true });
+    var grace = el("input.num", { type: "text", value: "0" });
+    var side = UI.select([
+      { value: "receivable", label: "Customers who owe us" },
+      { value: "payable", label: "Suppliers we owe" }
+    ], "receivable");
+    side.addEventListener("change", load);
+    grace.addEventListener("change", load);
+
+    function load() {
+      return api("/api/chasing", { query: {
+        side: side.value, as_at: bar.to.getIso(), grace_days: grace.value || 0
+      }}).then(draw);
+    }
+
+    function draw(data) {
+      UI.clear(box);
+      var chasing = data.side === "receivable";
+      box.appendChild(Reports.reportHead(
+        chasing ? "Money to chase" : "Bills we are late paying",
+        "As at " + UI.bs(data.as_at_ad, "long") + "   (" + data.as_at_ad + ")"));
+
+      box.appendChild(el("div.card", {}, [
+        el("div.card-head", {}, [
+          el("h2", { text: data.count
+            ? UI.rs(data.total) + " overdue across " + data.count
+              + (data.count === 1 ? " account" : " accounts")
+            : "Nothing is overdue" })
+        ]),
+        el("p.card-note", { text: data.count
+          ? "Past the credit days agreed with each one, not merely unpaid. "
+            + "Worst first: an old small debt turns bad sooner than a large new one."
+          : "Everything owing is still inside the terms agreed with each account." })
+      ]));
+
+      data.rows.forEach(function (person) {
+        var bills = UI.table(
+          ["Bill", "Date", { label: "Amount", num: true },
+           { label: "Days past due", num: true }],
+          person.bills.map(function (bill) {
+            return el("tr.clickable", {
+              onclick: function () { Vouchers.view(bill.voucher_id); }
+            }, [
+              el("td", { text: bill.number }),
+              el("td", { text: UI.bs(bill.date_ad, "short") }),
+              el("td.num", { text: UI.rs(bill.amount) }),
+              el("td.num", { text: String(bill.days_over) })
+            ]);
+          }), null, {});
+
+        box.appendChild(el("div.card", {}, [
+          el("div.card-head", {}, [
+            el("h2", {}, [
+              el("span", { text: person.name }),
+              person.oldest_days > 180
+                ? el("span.pill.warn", { text: "over six months" }) : null
+            ]),
+            el("div.row", {}, [
+              el("button.secondary", { text: "Statement", onclick: function () {
+                App.state.pendingStatement = person.party_id;
+                App.go("statement");
+              }}),
+              el("button.primary", { text: "Reminder", onclick: function () {
+                showReminder(person);
+              }})
+            ])
+          ]),
+          el("p.card-note", { text: UI.rs(person.amount) + " overdue of "
+            + UI.rs(person.total_owed) + " owing"
+            + (person.credit_days ? ".  Terms " + person.credit_days + " days" : "")
+            + (person.phone ? ".  " + person.phone : "") }),
+          bills
+        ]));
+      });
+
+      box.appendChild(el("div.row.no-print", { style: "margin-top:.7rem" }, [
+        UI.exportButton(box, chasing ? "Money to chase" : "Bills to pay"),
+        el("button.secondary", { text: "Print", onclick: UI.printPage })
+      ]));
+    }
+
+    /* The reminder itself, to be read before it goes anywhere. */
+
+    function showReminder(person) {
+      var english = el("textarea.reminder", { rows: "14" });
+      english.value = person.message_en;
+      var nepali = el("textarea.reminder", { rows: "14" });
+      nepali.value = person.message_np;
+      nepali.style.display = "none";
+
+      var which = UI.select([
+        { value: "en", label: "English" },
+        { value: "np", label: "Nepali" }
+      ], UI.getLang() === "np" ? "np" : "en");
+      if (which.value === "np") {
+        english.style.display = "none";
+        nepali.style.display = "";
+      }
+      which.addEventListener("change", function () {
+        var np = which.value === "np";
+        english.style.display = np ? "none" : "";
+        nepali.style.display = np ? "" : "none";
+      });
+
+      function current() {
+        return which.value === "np" ? nepali : english;
+      }
+
+      UI.modal("Reminder for " + person.name, el("div", {}, [
+        el("div.row", {}, [UI.field("Language", which)]),
+        english, nepali,
+        el("p.card-note", { text: "Read it before it goes. Nothing is sent from here: "
+          + "copy it into whatever you use, or press Print and hand it over." })
+      ]), [
+        { label: "Close" },
+        { label: "Copy it", action: function (event) {
+            UI.copyText(current().value, event && event.currentTarget);
+            return false;
+          } },
+        person.phone
+          ? { label: "Open WhatsApp", action: function () {
+                var number = String(person.phone).replace(/[^0-9]/g, "");
+                if (number.length === 10) { number = "977" + number; }
+                window.open("https://wa.me/" + number + "?text="
+                            + encodeURIComponent(current().value),
+                            "_blank", "noopener");
+                return false;
+              } }
+          : null
+      ].filter(Boolean), { wide: true });
+    }
+
+    page.appendChild(el("div.row.no-print", { style: "margin-bottom:.5rem" }, [
+      UI.field("Who", side),
+      UI.field("Days of grace", grace)
+    ]));
+    page.appendChild(bar);
+    page.appendChild(box);
+    return load();
+  });
+
   App.register("sales-by-customer", partyScreen("sales", "Sales by customer"));
   App.register("sales-by-item", itemScreen("sales", "Sales by item"));
   App.register("purchase-by-supplier", partyScreen("purchase", "Purchases by supplier"));

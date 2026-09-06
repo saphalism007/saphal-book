@@ -2782,6 +2782,25 @@ def remove_paper(request):
             "totals": papers.how_much(conn)}
 
 
+@route("GET", "/api/chasing")
+def chasing_list(request):
+    """
+    Who to chase today, worst first, with the reminder already written.
+
+    Nothing is sent from here. This software has no business messaging
+    somebody's customers on their behalf, and a reminder that went out without
+    being read would one day carry the wrong figure to the wrong person.
+    """
+    from ..modules import chasing
+    conn = request.company()
+    side = request.arg("side") or "receivable"
+    if side not in chasing.SIDES:
+        raise ApiError("Ask about receivable or payable.")
+    _, to_ad = _dates(request, conn)
+    return chasing.with_reminders(conn, side, request.arg("as_at") or to_ad,
+                                  request.int_arg("grace_days", 0) or 0)
+
+
 @route("GET", "/api/reports/tds")
 def tds_report(request):
     """

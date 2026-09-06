@@ -1213,3 +1213,12 @@ tr.is-cleared:hover td { background: var(--good-soft); }
 .month-name {
   font-size: .68rem; color: var(--ink-faint); margin-top: .3rem; white-space: nowrap;
 }
+
+/* A reminder, shown before it goes anywhere. Monospaced so the columns of
+   bill, date and amount line up the way they will when it is read. */
+.reminder {
+  width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .8rem; line-height: 1.5; padding: .6rem .7rem;
+  border: 1px solid var(--line); border-radius: var(--radius-sm, 7px);
+  background: var(--paper); color: var(--ink); resize: vertical;
+}

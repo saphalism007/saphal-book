@@ -1,4 +1,4 @@
-var VERSION = "saphal-book-web-eb7212c06874";
+var VERSION = "saphal-book-web-48f9b8146e2b";
 var ENGINE = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
 var ENGINE_STORE = "saphal-book-engine";
 var SHELL = ["./", "index.html", "boot.js", "engine.js", "manifest.webmanifest",
