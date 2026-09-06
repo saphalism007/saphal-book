@@ -18,7 +18,7 @@
 		</data>
 		<key>Resources/app/chartered_book/BUILD.txt</key>
 		<data>
-		JomUoP74DuuXHd0er3QR6mMJrfg=
+		SkvRmUI2Zbg+1IiU84bJmkDCK28=
 		</data>
 		<key>Resources/app/chartered_book/__init__.py</key>
 		<data>
@@ -66,7 +66,7 @@
 		</data>
 		<key>Resources/app/chartered_book/core/mailer.py</key>
 		<data>
-		yEF3+33MEA126DS4XpRaK1+JLug=
+		gsoB7meg3KgwFHe5w64lEOQjrf0=
 		</data>
 		<key>Resources/app/chartered_book/core/money.py</key>
 		<data>
@@ -210,7 +210,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/api.py</key>
 		<data>
-		IcBFYg53psHeuszPZk8OTNwxoGo=
+		SybHWtGVw1QzgBDOnLSH9h2MS9s=
 		</data>
 		<key>Resources/app/chartered_book/web/embedded.py</key>
 		<data>
@@ -226,7 +226,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/static/app.js</key>
 		<data>
-		4cZvo3UkJl1yUts2bZxx9SUYzSo=
+		61MAdTNgDlVQAXgAjep3grq5S3o=
 		</data>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
 		<data>
@@ -370,7 +370,7 @@
 		</data>
 		<key>Resources/app/tests/test_reset.py</key>
 		<data>
-		ePOosrCStav83il3xORUFWW7gzU=
+		7HzAUmZze9UT/XBSsJ4ahrMvdUQ=
 		</data>
 		<key>Resources/app/tests/test_schedules.py</key>
 		<data>
@@ -465,7 +465,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			KfTtkiGVhZnqO6IHtpmKgMwRpYwnjkwmOYt/t3+y7Is=
+			xNi+nBLFyMJUwsgAmw8U6D/Lz6NVKwMW67k56xxFwFU=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/__init__.py</key>
@@ -549,7 +549,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			l+arc29XCDfuMCW3+32WRdQ0F+ktLtVu1yAnA3ITy98=
+			OqllFT/DxxykJ1e77sIe0JV/rphSNIkH7VkBfVCFQM0=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/core/money.py</key>
@@ -794,7 +794,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			4hxkRwdiIAUFE+UJM7FQ19o5DAO0Fs9yx0Pe1mBQkPk=
+			G0rSgIJsjPyt+ByjmDiAp/p2j/6xZBMfKLFeDs+8BAE=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/embedded.py</key>
@@ -822,7 +822,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			ibplGB62SQX3grvKSfCldxpZ1Uv5/xDiFWj+Ttdd+P8=
+			J+jzPN01E0tEBjFMvj729PTSP3tsLnFAQTMAc5kRvMQ=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
@@ -1074,7 +1074,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			vr02E4P7+JI0DkrBop5ftj5Z1O+Cxq0QKzWHd6Mau+8=
+			JtPttrMPVECEq7RJ+cK1VHw2JskbJ3F4sDCS6Zk4+fw=
 			</data>
 		</dict>
 		<key>Resources/app/tests/test_schedules.py</key>

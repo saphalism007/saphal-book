@@ -21,10 +21,41 @@ before putting a real mail password in. Use an app password, which is what
 Gmail hands out for exactly this and which can be withdrawn on its own without
 touching the account.
 
-And SMTP needs a socket. The Mac and Windows apps have one. The version that
-runs inside a browser does not, and cannot be given one, so a reset code cannot
-be sent from a browser tab. That is said on the screen at the point it matters,
-rather than left to fail.
+There are two ways of getting the message out, and which one is used depends on
+what the device can do.
+
+SMTP needs a socket. The Mac and Windows apps have one, so there it talks to
+the provider directly and that is the end of it.
+
+A browser tab has no socket and cannot be given one, which made the reset
+useless on saphalbook.com, which is where most people actually use this. So
+there is a second way: a small script the account holder puts in their own
+Google account, which answers on an ordinary web address. A browser can reach
+that, and it sends the mail from their own Gmail. It is free, it belongs to
+them, and nothing is signed up for. RELAY_SCRIPT below is the whole of it, and
+the app shows it on screen ready to copy.
+
+The relay is used wherever it is set up, browser or not, because a thing that
+works the same everywhere is worth more than a thing that works two different
+ways.
+"""
+
+# What the account holder pastes into script.google.com. It is short on purpose:
+# it is going to be read by somebody deciding whether to trust it with their
+# Gmail, and a page of code nobody reads is how people get talked into pasting
+# something else. It sends one message and answers nothing back but ok.
+RELAY_SCRIPT = """\
+function doPost(e) {
+  var SECRET = "PUT-YOUR-SECRET-HERE";
+  var body = JSON.parse(e.postData.contents);
+  if (body.secret !== SECRET) {
+    return ContentService.createTextOutput(JSON.stringify({error: "no"}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  MailApp.sendEmail(body.to, body.subject, body.body);
+  return ContentService.createTextOutput(JSON.stringify({ok: true}))
+    .setMimeType(ContentService.MimeType.JSON);
+}
 """
 
 import base64
@@ -126,44 +157,83 @@ def settings(system):
                          (SETTING_KEY,)).fetchone()
     if row is None:
         return {"configured": False, "address": "", "host": "", "port": 587,
-                "from_name": "Saphal Book", "can_send": can_send()}
+                "from_name": "Saphal Book", "relay_url": "", "relay_set": False,
+                "how": "nothing", "can_send": False, "smtp_here": _smtp() is not None}
     held = json.loads(row["value"])
-    return {"configured": bool(held.get("address")), "address": held.get("address", ""),
+    relay = bool(held.get("relay_url") and held.get("relay_secret"))
+    smtp = bool(held.get("address") and held.get("locked"))
+    return {"configured": relay or smtp,
+            "address": held.get("address", ""),
             "host": held.get("host", ""), "port": held.get("port", 587),
             "from_name": held.get("from_name", "Saphal Book"),
-            "can_send": can_send()}
+            "relay_url": held.get("relay_url", ""), "relay_set": relay,
+            # What this device would actually use, said plainly, because "set
+            # up" and "able to send from here" are not the same thing and the
+            # difference is the whole of the browser problem.
+            "how": "relay" if relay else ("smtp" if smtp else "nothing"),
+            "can_send": relay or (smtp and _smtp() is not None),
+            "smtp_here": _smtp() is not None}
 
 
-def save(system, address, password, host="", port=587, from_name="Saphal Book"):
-    """Keep the details. An empty password leaves the stored one alone."""
-    address = (address or "").strip()
-    if not address or "@" not in address:
-        raise MailError("Put in the full email address it will send from.")
-    guess = suggest(address)
-    host = (host or "").strip() or guess.get("host", "")
-    if not host:
-        raise MailError("Put in the outgoing mail server for that address.")
-    try:
-        port = int(port or 587)
-    except (TypeError, ValueError):
-        raise MailError("The port has to be a number, usually 587.")
+def save(system, address="", password="", host="", port=587,
+         from_name="Saphal Book", relay_url="", relay_secret=""):
+    """
+    Keep the details. An empty password or secret leaves the stored one alone.
 
+    Either way of sending is enough on its own, so this refuses only when
+    neither has been filled in.
+    """
     existing = system.execute("SELECT value FROM app_settings WHERE key = ?",
                               (SETTING_KEY,)).fetchone()
-    locked = json.loads(existing["value"]).get("locked", "") if existing else ""
+    held = json.loads(existing["value"]) if existing else {}
+
+    address = (address or "").strip()
+    relay_url = (relay_url or "").strip()
+
+    if relay_url and not relay_url.startswith("https://"):
+        raise MailError("The web address for the script has to start with "
+                        "https://, so the code cannot be read on the way.")
+
+    locked = held.get("locked", "")
     if password:
-        locked = vault.lock(password.encode("utf-8"), _device_key())
-        if isinstance(locked, bytes):
-            locked = base64.b64encode(locked).decode("ascii")
-    if not locked:
-        raise MailError("Put in the app password for that address.")
+        blob = vault.lock(password.encode("utf-8"), _device_key())
+        locked = base64.b64encode(blob).decode("ascii") if isinstance(blob, bytes) else blob
+
+    secret = held.get("relay_secret", "")
+    if relay_secret:
+        blob = vault.lock(relay_secret.encode("utf-8"), _device_key())
+        secret = base64.b64encode(blob).decode("ascii") if isinstance(blob, bytes) else blob
+
+    if address:
+        if "@" not in address:
+            raise MailError("Put in the full email address it will send from.")
+        host = (host or "").strip() or suggest(address).get("host", "")
+        if not host:
+            raise MailError("Put in the outgoing mail server for that address.")
+        try:
+            port = int(port or 587)
+        except (TypeError, ValueError):
+            raise MailError("The port has to be a number, usually 587.")
+        if not locked:
+            raise MailError("Put in the app password for that address.")
+    else:
+        host, port = held.get("host", ""), held.get("port", 587)
+
+    if relay_url and not secret:
+        raise MailError("Put in the secret you wrote into the script, so nobody "
+                        "else can use it to send mail.")
+
+    if not (relay_url and secret) and not (address and locked):
+        raise MailError("Fill in one of the two ways of sending: the script "
+                        "address, or an email address and its app password.")
 
     system.execute(
         "INSERT INTO app_settings (key, value) VALUES (?, ?) "
         "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
         (SETTING_KEY, json.dumps({"address": address, "host": host, "port": port,
                                   "from_name": (from_name or "Saphal Book").strip(),
-                                  "locked": locked})))
+                                  "locked": locked, "relay_url": relay_url,
+                                  "relay_secret": secret})))
     system.commit()
     return settings(system)
 
@@ -173,6 +243,16 @@ def forget(system):
     system.commit()
 
 
+def _unlock(value, what):
+    try:
+        blob = base64.b64decode(value) if isinstance(value, str) else value
+        return vault.unlock(blob, _device_key()).decode("utf-8")
+    except Exception:
+        raise MailError(
+            "The stored %s could not be read on this device. Put it in again "
+            "under Setup, Email for codes." % what)
+
+
 def _held(system):
     row = system.execute("SELECT value FROM app_settings WHERE key = ?",
                          (SETTING_KEY,)).fetchone()
@@ -180,31 +260,66 @@ def _held(system):
         raise MailError(
             "No email has been set up to send from, so there is nowhere for a "
             "code to come from. Set one up under Setup, Email for codes.")
-    held = json.loads(row["value"])
-    locked = held.get("locked", "")
+    return json.loads(row["value"])
+
+
+def _send_by_relay(held, to_address, subject, body):
+    """
+    Hand the message to the account holder's own script, over https.
+
+    This is the way that works in a browser, because it is an ordinary web
+    request and needs no socket of its own. The secret is what stops a stranger
+    who finds the address using it to send mail as them.
+    """
+    from . import webcall
+
+    url = held.get("relay_url", "")
+    secret = _unlock(held.get("relay_secret", ""), "secret for the script")
+    payload = json.dumps({"secret": secret, "to": to_address,
+                          "subject": subject, "body": body}).encode("utf-8")
     try:
-        blob = base64.b64decode(locked) if isinstance(locked, str) else locked
-        held["password"] = vault.unlock(blob, _device_key()).decode("utf-8")
-    except Exception:
-        raise MailError(
-            "The stored mail password could not be read on this device. Put it "
-            "in again under Setup, Email for codes.")
-    return held
+        status, detail = webcall.call_json(
+            url, "POST", payload, {"Content-Type": "application/json"})
+    except Exception as exc:
+        raise MailError("Could not reach the script at that address (%s). Check "
+                        "it is deployed and set to allow anyone." % exc)
+
+    if status >= 400:
+        raise MailError("The script refused the message (%s). Check it is "
+                        "deployed as a web app that anyone can reach." % status)
+    if isinstance(detail, dict) and detail.get("error"):
+        raise MailError("The script refused the message. The secret here and "
+                        "the one written into the script are not the same.")
+    # A script that has not been authorised answers with Google's sign in page
+    # rather than an error, so an answer that is not ours is treated as one.
+    if isinstance(detail, dict) and detail.get("message") \
+            and "ok" not in str(detail.get("message")).lower():
+        raise MailError("That address answered with a Google page rather than "
+                        "the script. Open the script once in your browser and "
+                        "allow it, then deploy it again.")
+    return True
 
 
 def send(system, to_address, subject, body):
     """Send one message, or say plainly why it did not go."""
+    held = _held(system)
+
+    # The relay first, because it is the one that works everywhere.
+    if held.get("relay_url") and held.get("relay_secret"):
+        return _send_by_relay(held, to_address, subject, body)
+
     modules = _smtp()
     if modules is None or os.environ.get("SAPHAL_NO_SMTP"):
         raise MailError(
-            "This is the version that runs inside a browser, and a browser tab "
-            "cannot open a mail connection. Do the reset from the Saphal Book "
-            "app on a Mac or a Windows computer, or ask somebody with an owner "
-            "login to set the password under Setup, Users.")
+            "This is Saphal Book running inside a browser, which has no way of "
+            "opening a mail connection of its own. An owner can set up the "
+            "small Google script under Setup, Email for codes, and then this "
+            "works here too. Until then, do the reset from the app on a Mac or "
+            "Windows computer, or ask an owner to set the password under "
+            "Setup, Users.")
     smtplib, ssl = modules
-
-    held = _held(system)
     note = EmailMessage()
+    held["password"] = _unlock(held.get("locked", ""), "mail password")
     note["From"] = email.utils.formataddr(
         (held.get("from_name") or "Saphal Book", held["address"]))
     note["To"] = to_address

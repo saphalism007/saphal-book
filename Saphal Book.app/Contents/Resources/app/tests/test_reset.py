@@ -95,13 +95,39 @@ def check_it_works_without_ssl():
     try:
         stripped = importlib.import_module("chartered_book.core.mailer")
         check("the mailer loads on a device with no ssl", stripped is not None, True)
-        check("and knows it cannot send", stripped.can_send(), False)
+
+        system = db.open_system()
+        was = system.execute("SELECT value FROM app_settings WHERE key = ?",
+                             (stripped.SETTING_KEY,)).fetchone()
         try:
-            stripped.send(db.open_system(), "someone@example.com", "x", "y")
-            FAILURES.append("it claimed to send mail with no ssl module")
-        except stripped.MailError as exc:
-            check("and says so in a way somebody can act on",
-                  "browser" in str(exc).lower(), True)
+            # Set up the way a Mac would be, then ask a device with no ssl to
+            # use it. That is exactly the browser's situation.
+            stripped.save(system, "shop@gmail.com", "an app password")
+            check("it knows this device cannot send that way",
+                  stripped.settings(system)["can_send"], False)
+            try:
+                stripped.send(system, "someone@example.com", "x", "y")
+                FAILURES.append("it claimed to send mail with no ssl module")
+            except stripped.MailError as exc:
+                check("and says so in a way somebody can act on",
+                      "browser" in str(exc).lower(), True)
+                check("and points at the way that does work here",
+                      "script" in str(exc).lower(), True)
+
+            # And with the script set up, it stops being a dead end.
+            stripped.save(system, relay_url="https://script.google.com/x",
+                          relay_secret="a shared secret")
+            check("the script makes it able to send from here",
+                  stripped.settings(system)["can_send"], True)
+            check("and that is the way it would go",
+                  stripped.settings(system)["how"], "relay")
+        finally:
+            system.execute("DELETE FROM app_settings WHERE key = ?",
+                           (stripped.SETTING_KEY,))
+            if was is not None:
+                system.execute("INSERT INTO app_settings (key, value) VALUES (?, ?)",
+                               (stripped.SETTING_KEY, was["value"]))
+            system.commit()
     except ImportError as exc:
         FAILURES.append("the mailer will not load without ssl: %s" % exc)
     finally:

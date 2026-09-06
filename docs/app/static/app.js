@@ -344,22 +344,31 @@ var App = (function () {
           UI.field("Your username", username)
         ]);
 
-        if (!how.socket) {
-          // The browser build has no way of opening a mail connection, and
-          // saying so now is better than a code that never arrives.
-          body.appendChild(el("p.card-note", { text:
-            "This is Saphal Book running inside a browser, and a browser tab "
-            + "cannot send email. Do this from the Saphal Book app on a Mac or "
-            + "Windows computer, or ask somebody with an owner login to set your "
-            + "password under Setup, Users." }));
-        } else if (!how.configured) {
-          body.appendChild(el("p.card-note", { text:
-            "No address has been set up on this computer for codes to come from "
-            + "yet, so nothing can be sent. Somebody with an owner login can set "
-            + "one up under Setup, Email for codes. Until then, an owner can set "
-            + "your password under Setup, Users." }));
+        // Say what this particular device can actually do, and never leave a
+        // button on screen that cannot work.
+        if (!how.can_send) {
+          if (!how.configured) {
+            body.appendChild(el("p.card-note", { text:
+              "Nothing has been set up yet for codes to be sent from, so there "
+              + "is nowhere for one to come from. An owner can set that up under "
+              + "Setup, Email for codes. Until then, an owner can set your "
+              + "password directly under Setup, Users." }));
+          } else {
+            body.appendChild(el("p.card-note", { text:
+              "Codes here are set up to go through a mail provider, which the "
+              + "Mac and Windows apps can do but a browser tab cannot. An owner "
+              + "can add the small Google script under Setup, Email for codes "
+              + "and it will work here too. Until then, do this from the app, or "
+              + "ask an owner to set your password under Setup, Users." }));
+          }
         }
 
+        var buttons = [{ label: "Cancel" }];
+        if (!how.can_send) {
+          // No point offering a button that is known to fail.
+          UI.modal("Reset your password", body, buttons, { slim: true });
+          return;
+        }
         UI.modal("Reset your password", body, [
           { label: "Cancel" },
           { label: "Send me a code", kind: "primary", action: function () {
@@ -794,6 +803,12 @@ var App = (function () {
     var password = el("input", { type: "password", autocomplete: "new-password" });
     var host = el("input", { type: "text" });
     var port = el("input.num", { type: "text", value: "587" });
+    var relayUrl = el("input", { type: "url", autocapitalize: "none" });
+    var relaySecret = el("input", { type: "password", autocomplete: "new-password" });
+    var script = el("textarea", { rows: "9", readonly: true,
+                                  style: "width:100%;font-family:ui-monospace,"
+                                         + "SFMono-Regular,Menlo,monospace;"
+                                         + "font-size:.72rem" });
     var hint = el("p.card-note");
     var standing = el("p.card-note");
 
@@ -814,6 +829,38 @@ var App = (function () {
 
     var body = el("div", {}, [
       standing,
+
+      el("h3", { style: "font-size:.92rem;margin:1rem 0 .2rem",
+                 text: "The way that works everywhere" }),
+      el("p.card-note", { text: "A small script in your own Google account, "
+        + "which sends the code from your own Gmail. It is the only way that "
+        + "works in a browser, so set this one up if people use Saphal Book at "
+        + "saphalbook.com." }),
+      el("ol", { style: "font-size:.8rem;color:var(--ink-soft);padding-left:1.1rem" }, [
+        el("li", { text: "Open script.google.com and start a new project." }),
+        el("li", { text: "Delete what is there and paste the script below in." }),
+        el("li", { text: "Change PUT-YOUR-SECRET-HERE to any phrase you like, "
+                         + "and put that same phrase in the Secret box here." }),
+        el("li", { text: "Press Deploy, then New deployment, choose Web app, "
+                         + "set Who has access to Anyone, and Deploy." }),
+        el("li", { text: "Google asks you to allow it once. Copy the web app "
+                         + "address it gives you into the box here." })
+      ]),
+      script,
+      el("div.row", { style: "margin-top:.4rem" }, [
+        el("button.secondary", { text: "Copy the script", onclick: function () {
+          UI.copyText(script.value);
+          UI.flash("Copied. Paste it into script.google.com.", "good");
+        }})
+      ]),
+      UI.field("Web app address", relayUrl),
+      UI.field("Secret", relaySecret,
+        "The same phrase you wrote into the script."),
+
+      el("h3", { style: "font-size:.92rem;margin:1.4rem 0 .2rem",
+                 text: "Or straight from a mail provider" }),
+      el("p.card-note", { text: "Simpler to set up, but it only works in the "
+        + "Mac and Windows apps. A browser tab cannot open a mail connection." }),
       UI.field("Send from this address", address),
       UI.field("App password", password,
         "Not the password you sign in to your email with."),
@@ -828,14 +875,21 @@ var App = (function () {
       address.value = held.address || "";
       host.value = held.host || "";
       port.value = String(held.port || 587);
+      relayUrl.value = held.relay_url || "";
+      script.value = held.script || "";
       hint.textContent = held.hint || "";
-      if (!held.can_send) {
-        standing.textContent = "This is Saphal Book running inside a browser, "
-          + "which cannot open a mail connection. Set this up in the app on a "
-          + "Mac or Windows computer instead.";
-      } else if (held.configured) {
-        standing.textContent = "Set up. Leave the password box empty to keep the "
-          + "one already stored.";
+      if (held.how === "relay") {
+        standing.textContent = "Set up through the script, so codes can be sent "
+          + "from anywhere, this browser included. Leave the secret box empty to "
+          + "keep the one already stored.";
+      } else if (held.how === "smtp" && held.smtp_here) {
+        standing.textContent = "Set up through the mail provider, which works "
+          + "here but not in a browser. Adding the script below makes it work "
+          + "everywhere.";
+      } else if (held.how === "smtp") {
+        standing.textContent = "Set up through a mail provider, which this "
+          + "device cannot use because it is a browser. Set up the script below "
+          + "and codes will work here too.";
       } else {
         standing.textContent = "Nothing set up yet, so nobody here can be sent a "
           + "reset code.";
@@ -855,8 +909,10 @@ var App = (function () {
       { label: "Save", kind: "primary", action: function () {
         return api("/api/mail-settings", { body: {
           address: address.value.trim(), password: password.value,
-          host: host.value.trim(), port: port.value.trim() || 587
+          host: host.value.trim(), port: port.value.trim() || 587,
+          relay_url: relayUrl.value.trim(), relay_secret: relaySecret.value
         }}).then(function () {
+          relaySecret.value = "";
           password.value = "";
           UI.flash("Saved. Send a test to make sure it works.", "good");
           return false;

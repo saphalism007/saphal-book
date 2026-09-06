@@ -531,8 +531,8 @@ def reset_how(request):
     """What this device is able to offer somebody who is locked out."""
     from ..core import mailer
     held = mailer.settings(request.system)
-    return {"can_send": held["can_send"] and held["configured"],
-            "socket": held["can_send"], "configured": held["configured"],
+    return {"can_send": held["can_send"], "how": held["how"],
+            "smtp_here": held["smtp_here"], "configured": held["configured"],
             "owner_can_reset": bool(request.system.execute(
                 "SELECT 1 FROM users WHERE role = 'owner' AND active = 1 LIMIT 1"
             ).fetchone())}
@@ -584,6 +584,7 @@ def mail_settings(request):
     request.require("user.manage")
     held = mailer.settings(request.system)
     held["hint"] = mailer.suggest(held["address"]).get("note", "")
+    held["script"] = mailer.RELAY_SCRIPT
     return held
 
 
@@ -598,7 +599,9 @@ def save_mail_settings(request):
         return mailer.save(request.system, request.arg("address") or "",
                            request.arg("password") or "",
                            request.arg("host") or "", request.arg("port") or 587,
-                           request.arg("from_name") or "Saphal Book")
+                           request.arg("from_name") or "Saphal Book",
+                           request.arg("relay_url") or "",
+                           request.arg("relay_secret") or "")
     except mailer.MailError as exc:
         raise ApiError(str(exc))
 
