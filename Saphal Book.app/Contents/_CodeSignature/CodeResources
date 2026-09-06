@@ -18,7 +18,7 @@
 		</data>
 		<key>Resources/app/chartered_book/BUILD.txt</key>
 		<data>
-		ovgFkW2+RcnMk1AkfFQUV/dyn48=
+		diUY3lRYZSijKGmTJ0qmgiduJyE=
 		</data>
 		<key>Resources/app/chartered_book/__init__.py</key>
 		<data>
@@ -66,7 +66,7 @@
 		</data>
 		<key>Resources/app/chartered_book/core/mailer.py</key>
 		<data>
-		wVxoLn9au94r5rcU80aqroLC/Ik=
+		yEF3+33MEA126DS4XpRaK1+JLug=
 		</data>
 		<key>Resources/app/chartered_book/core/money.py</key>
 		<data>
@@ -366,7 +366,7 @@
 		</data>
 		<key>Resources/app/tests/test_reset.py</key>
 		<data>
-		uYwCcieELhFRl2qwY6yQqkoH15k=
+		ePOosrCStav83il3xORUFWW7gzU=
 		</data>
 		<key>Resources/app/tests/test_schedules.py</key>
 		<data>
@@ -461,7 +461,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			EK1nUaY/W8HwMgstNpxl//Ec+G2E0tzBIV/eAuuFyvU=
+			khQLzzssH61yNpD1q7t4LCDQb7VYpRQaiCs/mP3NZ0Y=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/__init__.py</key>
@@ -545,7 +545,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			E1AO/JHxZ/GBGncUcrpVcKOsP7XI5CfYdeT16gYqN5U=
+			l+arc29XCDfuMCW3+32WRdQ0F+ktLtVu1yAnA3ITy98=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/core/money.py</key>
@@ -1063,7 +1063,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			cOxG2aFPfxXQ5E5z27bsQSQQ4VPr3vA85JtonvW/N8k=
+			vr02E4P7+JI0DkrBop5ftj5Z1O+Cxq0QKzWHd6Mau+8=
 			</data>
 		</dict>
 		<key>Resources/app/tests/test_schedules.py</key>

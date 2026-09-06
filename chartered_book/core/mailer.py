@@ -32,12 +32,18 @@ import datetime
 import email.utils
 import json
 import os
-import smtplib
-import socket
-import ssl
 from email.message import EmailMessage
 
 from . import vault
+
+# smtplib and ssl are fetched at the moment of sending, not here.
+#
+# The browser build has no ssl module at all, and importing this file used to
+# fail there before a single line of it ran. That took the reset screen down
+# with it: pressing "Forgot your password?" asked what this device could offer,
+# the question could not even be loaded, and nothing appeared. Nothing in this
+# file except the sending itself needs either one, so nothing except the
+# sending asks for them.
 
 SETTING_KEY = "outgoing_mail"
 CONNECT_SECONDS = 20
@@ -59,20 +65,27 @@ class MailError(Exception):
     pass
 
 
+def _smtp():
+    """The two modules sending needs, or None where this build has no such thing."""
+    try:
+        import smtplib
+        import ssl
+        return smtplib, ssl
+    except ImportError:
+        return None
+
+
 def can_send():
     """
-    Whether this build has a socket to send through at all.
+    Whether this build can send mail at all.
 
-    The browser build has none. Asking now means the screen can say so before
-    somebody types their mail password in for nothing.
+    Asked rather than assumed. The browser build has no ssl module, so the
+    answer there is no, and the screen can say so before somebody types their
+    mail password in for nothing.
     """
     if os.environ.get("SAPHAL_NO_SMTP"):
         return False
-    try:
-        import sys
-        return "pyodide" not in sys.modules and not hasattr(sys, "_emscripten_info")
-    except Exception:
-        return False
+    return _smtp() is not None
 
 
 def suggest(address):
@@ -181,12 +194,14 @@ def _held(system):
 
 def send(system, to_address, subject, body):
     """Send one message, or say plainly why it did not go."""
-    if not can_send():
+    modules = _smtp()
+    if modules is None or os.environ.get("SAPHAL_NO_SMTP"):
         raise MailError(
             "This is the version that runs inside a browser, and a browser tab "
             "cannot open a mail connection. Do the reset from the Saphal Book "
             "app on a Mac or a Windows computer, or ask somebody with an owner "
             "login to set the password under Setup, Users.")
+    smtplib, ssl = modules
 
     held = _held(system)
     note = EmailMessage()
@@ -217,14 +232,14 @@ def send(system, to_address, subject, body):
                 server.ehlo()
             server.login(held["address"], held["password"])
             server.send_message(note)
+    # Narrowest first, and OSError last, because a TLS failure is an OSError
+    # and would otherwise be reported as a server nobody could reach, which
+    # would have somebody checking their internet instead of their port.
     except smtplib.SMTPAuthenticationError:
         raise MailError(
             "The mail provider refused that address and password. If it is "
             "Gmail, it has to be an app password, not the password you sign in "
             "to Gmail with.")
-    except (socket.gaierror, socket.timeout, OSError) as exc:
-        raise MailError("Could not reach the mail server (%s). Check the "
-                        "internet connection and the server name." % exc)
     except smtplib.SMTPNotSupportedError:
         raise MailError(
             "That server will not take an encrypted connection on port %d. The "
@@ -235,6 +250,9 @@ def send(system, to_address, subject, body):
                         "(%s). Check the server name and the port." % exc)
     except smtplib.SMTPException as exc:
         raise MailError("The mail did not go: %s" % exc)
+    except OSError as exc:
+        raise MailError("Could not reach the mail server (%s). Check the "
+                        "internet connection and the server name." % exc)
     return True
 
 

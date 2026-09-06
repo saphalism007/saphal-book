@@ -51,6 +51,67 @@ def clean_up(system):
     system.commit()
 
 
+def check_it_works_without_ssl():
+    """
+    The reset screen has to open on a device that cannot send mail at all.
+
+    This is here because of a real failure. The version that runs in a browser
+    has no ssl module, the mailer imported it at the top of the file, and so
+    the file could not be loaded there at all. Pressing "Forgot your password?"
+    asked what that device was able to offer, the question could not be
+    answered, and nothing happened. The screen that was supposed to say "this
+    build cannot send mail, here is what to do instead" was the very screen the
+    missing module took down.
+
+    So ssl and smtplib are taken away here, exactly as the browser has them
+    taken away, and what is checked is that the mailer still loads, still
+    answers whether it can send, and refuses to send with something a person
+    can act on.
+    """
+    import importlib
+    import sys
+
+    class Absent(object):
+        """Refuses two modules the way a browser does, and nothing else."""
+
+        gone = ("ssl", "smtplib")
+
+        def find_module(self, name, path=None):
+            return self if name in self.gone else None
+
+        def find_spec(self, name, path=None, target=None):
+            if name in self.gone:
+                raise ImportError("No module named %r" % name)
+            return None
+
+        def load_module(self, name):
+            raise ImportError("No module named %r" % name)
+
+    keep = {name: sys.modules.pop(name, None) for name in ("ssl", "smtplib")}
+    keep["chartered_book.core.mailer"] = sys.modules.pop(
+        "chartered_book.core.mailer", None)
+    blocker = Absent()
+    sys.meta_path.insert(0, blocker)
+    try:
+        stripped = importlib.import_module("chartered_book.core.mailer")
+        check("the mailer loads on a device with no ssl", stripped is not None, True)
+        check("and knows it cannot send", stripped.can_send(), False)
+        try:
+            stripped.send(db.open_system(), "someone@example.com", "x", "y")
+            FAILURES.append("it claimed to send mail with no ssl module")
+        except stripped.MailError as exc:
+            check("and says so in a way somebody can act on",
+                  "browser" in str(exc).lower(), True)
+    except ImportError as exc:
+        FAILURES.append("the mailer will not load without ssl: %s" % exc)
+    finally:
+        sys.meta_path.remove(blocker)
+        for name, was in keep.items():
+            sys.modules.pop(name, None)
+            if was is not None:
+                sys.modules[name] = was
+
+
 def main():
     system = db.open_system()
     clean_up(system)
@@ -176,6 +237,8 @@ def main():
     proved = resets.check(system, who, posted["code"])
     resets.finish(system, who, proved["ticket"], "the fourth password")
     check("and none afterwards", auth.load_session(system, token), None)
+
+    check_it_works_without_ssl()
 
     clean_up(system)
 
