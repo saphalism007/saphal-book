@@ -695,6 +695,27 @@ var App = (function () {
     function whenQuiet(why) {
       if (busyRightNow()) { return; }
       run(why);
+      checkGoogleOccasionally();
+    }
+
+    /* Making this device and the account agree about Google.
+
+       Worth doing, and worth doing nowhere near a click. It reaches Google, so
+       in the browser version it stops the page while it waits. Once a day, in
+       a quiet moment, is often enough for something that only changes when
+       somebody deliberately reconnects a Drive. */
+
+    var A_DAY = 24 * 60 * 60 * 1000;
+
+    function checkGoogleOccasionally() {
+      var last = 0;
+      try { last = +(localStorage.getItem("cb_google_checked") || 0); } catch (e) { last = 0; }
+      if (Date.now() - last < A_DAY) { return; }
+      api("/api/backup/check-google", { body: {} }).then(function () {
+        try { localStorage.setItem("cb_google_checked", String(Date.now())); } catch (e) {}
+        // If the backup screen happens to be open, let it pick up what changed.
+        if (App.state.route === "backup") { App.go("backup"); }
+      }).catch(function () { /* offline, or no Drive connected. Nothing to say. */ });
     }
 
     function start() {
@@ -1310,19 +1331,16 @@ var App = (function () {
     return load();
 
     function load() {
-      return api("/api/backup/list").then(function (data) {
-        draw(data);
-        // Whether this device and the account agree about Google is a question
-        // for the network, so it is asked after the screen is up rather than
-        // before it will draw at all.
-        api("/api/backup/check-google", { body: {} }).then(function (google) {
-          if (App.state.route !== "backup") { return; }
-          if (google.connected === (data.google || {}).connected
-              && google.account === (data.google || {}).account) { return; }
-          data.google = google;
-          draw(data);
-        }).catch(function () { /* offline. The local backups still show. */ });
-      });
+      // Nothing but this device. Opening the screen used to go and ask Google
+      // which account the backups belong to, right after painting, and in the
+      // browser version that request blocks everything for about a second. The
+      // screen appeared and then froze exactly as somebody reached for it,
+      // which is the lag that kept being reported here.
+      //
+      // The address does not change on its own, so it is read from what was
+      // written down. Checking it against Google is background work now, done
+      // once a day when nobody is typing.
+      return api("/api/backup/list").then(draw);
     }
 
     function draw(data) {

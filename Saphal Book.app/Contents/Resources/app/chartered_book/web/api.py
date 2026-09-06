@@ -851,13 +851,59 @@ def create_voucher(request):
     return {"ok": True, "id": voucher_id, "voucher": _voucher_payload(conn, voucher_id)}
 
 
+def _settle_with_invoice(conn, request, voucher_id, kind):
+    """
+    Take the money that changed hands as the invoice was written.
+
+    Somebody billing a customer who pays part of it at the counter should not
+    have to leave the invoice, open a receipt, find the bill again and allocate
+    against it. The amount is entered on the invoice and the receipt is written
+    here, in the same transaction, allocated to the bill that has just been
+    made.
+
+    Nothing happens without an amount, so an ordinary credit invoice is
+    untouched by any of this.
+    """
+    from ..modules import settlements
+    money_now = request.body.get("settle") or {}
+    amount = money.to_paisa(money_now.get("amount") or 0)
+    if amount <= 0:
+        return None
+
+    voucher = conn.execute("SELECT party_id, total_paisa, number FROM vouchers WHERE id = ?",
+                           (voucher_id,)).fetchone()
+    if voucher is None or not voucher["party_id"]:
+        raise ApiError("Money taken against an invoice needs a customer or supplier on it.")
+    if amount > voucher["total_paisa"]:
+        raise ApiError("That is more than the invoice comes to. The invoice is %s."
+                       % money.format_money(voucher["total_paisa"]))
+
+    try:
+        return settlements.post(conn, request.username(), {
+            "date_ad": request.body.get("date_ad"),
+            "party_id": voucher["party_id"],
+            "bank_account_id": money_now.get("bank_account_id"),
+            "payment_mode": money_now.get("mode") or "cash",
+            "reference_no": (money_now.get("reference") or "").strip(),
+            "narration": "Against %s" % voucher["number"],
+            "allocations": [{"voucher_id": voucher_id, "amount": money.to_rupees(amount)}],
+        }, kind)
+    except settlements.SettlementError as exc:
+        raise ApiError(str(exc))
+
+
 @route("POST", "/api/vouchers/sales")
 def create_sales(request):
     request.require("voucher.create")
     conn = request.company()
     payload = dict(request.body)
-    voucher_id = _post(conn, request,
-                       lambda: invoices.post_sales(conn, request.username(), payload))
+
+    def build():
+        voucher_id = invoices.post_sales(conn, request.username(), payload)
+        _settle_with_invoice(conn, request, voucher_id, "receipt")
+        return voucher_id
+
+    voucher_id = _post(conn, request, build)
     return {"ok": True, "id": voucher_id, "voucher": _voucher_payload(conn, voucher_id)}
 
 
@@ -866,8 +912,13 @@ def create_purchase(request):
     request.require("voucher.create")
     conn = request.company()
     payload = dict(request.body)
-    voucher_id = _post(conn, request,
-                       lambda: invoices.post_purchase(conn, request.username(), payload))
+
+    def build():
+        voucher_id = invoices.post_purchase(conn, request.username(), payload)
+        _settle_with_invoice(conn, request, voucher_id, "payment")
+        return voucher_id
+
+    voucher_id = _post(conn, request, build)
     return {"ok": True, "id": voucher_id, "voucher": _voucher_payload(conn, voucher_id)}
 
 

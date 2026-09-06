@@ -119,6 +119,41 @@ var Vouchers = (function () {
       var referenceInput = el("input", { type: "text", placeholder: spec.refLabel });
       var refDateField = UI.dateField(NP.todayIso());
       var narration = el("input", { type: "text", placeholder: "What this invoice is for" });
+
+      /* Money that changes hands while the invoice is being written.
+
+         Somebody billing a customer who pays part of it at the counter should
+         not have to save the invoice, leave it, open a receipt, find the bill
+         again and allocate against it. The amount goes here and the receipt is
+         written with the invoice, allocated to it. Leave it empty and nothing
+         happens, so an ordinary credit invoice is untouched. */
+      var settleAmount = UI.amountInput("", { onChange: recalc });
+      var settleMode = UI.select([
+        { value: "cash", label: "Cash" },
+        { value: "cheque", label: "Cheque" },
+        { value: "bank", label: "Bank transfer" },
+        { value: "card", label: "Card" },
+        { value: "wallet", label: "Mobile wallet" }
+      ], "cash");
+      var settleAccountInput = el("input", { type: "text",
+        placeholder: "Cash box or bank account" });
+      var settleAccountId = null;
+      var settleRef = el("input", { type: "text", placeholder: "Cheque or reference number" });
+      var settleNote = el("div.hint");
+
+      accountPicker(settleAccountInput, function (account) {
+        settleAccountId = account.id;
+        settleAccountInput.value = account.name;
+      });
+      api("/api/banking/accounts").then(function (data) {
+        var preferred = (data.rows || []).filter(function (a) {
+          return a.account_kind === (isSales ? "cash" : "bank");
+        })[0] || (data.rows || [])[0];
+        if (preferred && !settleAccountId) {
+          settleAccountId = preferred.id;
+          settleAccountInput.value = preferred.name;
+        }
+      });
       var priceIncludes = el("input", { type: "checkbox" });
       var otherCharges = UI.amountInput("", { onChange: recalc });
       // A discount agreed on the bill as a whole rather than line by line.
@@ -357,6 +392,12 @@ var Vouchers = (function () {
           round_invoice: roundBox.checked,
           price_includes_vat: priceIncludes.checked,
           status: status || "posted",
+          settle: {
+            amount: settleAmount.value || 0,
+            mode: settleMode.value,
+            bank_account_id: settleAccountId,
+            reference: settleRef.value.trim()
+          },
           items: lines.filter(function (line) { return line.itemId; }).map(function (line) {
             var discountText = String(line.discount || "").trim();
             var row = {
@@ -490,6 +531,24 @@ var Vouchers = (function () {
         pullButton ? el("div.row", { style: "margin-top:.5rem" }, [pullButton]) : null
       ]);
 
+      var settleCard = el("div.card", {}, [
+        el("div.card-head", {}, [
+          el("h2", { text: isSales ? "Money received now" : "Money paid now" })
+        ]),
+        el("p.card-note", { text: isSales
+          ? "Leave this empty for an ordinary credit sale. Put an amount here and the "
+            + "receipt is written with the invoice and set against it, so there is no "
+            + "second entry to make."
+          : "Leave this empty for an ordinary credit purchase. Put an amount here and the "
+            + "payment is written with the bill and set against it." }),
+        el("div.row", {}, [
+          UI.field(isSales ? "Received" : "Paid", settleAmount),
+          UI.field("How", settleMode),
+          UI.field("Into", el("div", {}, [settleAccountInput, settleNote])),
+          UI.field("Reference", settleRef)
+        ])
+      ]);
+
       var gridCard = el("div.card", {}, [
         el("div.card-head", {}, [
           el("h2", { text: spec.title }),
@@ -540,6 +599,7 @@ var Vouchers = (function () {
 
       page.appendChild(header);
       page.appendChild(gridCard);
+      page.appendChild(settleCard);
       page.appendChild(actions);
       setTimeout(function () { partyInput.focus(); }, 60);
     };
