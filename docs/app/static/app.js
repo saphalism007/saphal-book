@@ -1165,12 +1165,15 @@ var App = (function () {
 
   register("dashboard", function (page) {
     return api("/api/dashboard").then(function (data) {
+      var against = data.compare || {};
       var tiles = el("div.grid.four", {}, [
-        tile("Revenue this year", UI.rs(data.revenue), "Sales and service income", "violet"),
+        tile("Revenue this year", UI.rs(data.revenue), "Sales and service income",
+             "violet", against.revenue),
         tile("Gross profit", UI.rs(data.gross_profit),
           data.pending_closing_stock ? "Counting stock still on the shelf" : "Revenue less cost of sales",
-          "teal"),
-        tile("Profit", UI.rs(data.profit), "After every expense", data.profit >= 0 ? "good" : "bad"),
+          "teal", against.gross_profit),
+        tile("Profit", UI.rs(data.profit), "After every expense",
+             data.profit >= 0 ? "good" : "bad", against.profit),
         tile("Stock on hand", UI.rs(data.stock_value), data.counts.items + " items on the list", "amber")
       ]);
       var tiles2 = el("div.grid.four", {}, [
@@ -1185,6 +1188,8 @@ var App = (function () {
       ]);
       page.appendChild(tiles);
       page.appendChild(tiles2);
+      if ((data.attention || []).length) { page.appendChild(waiting(data.attention)); }
+      if ((data.by_month || []).length > 1) { page.appendChild(shape(data.by_month)); }
       if (data.pending_closing_stock) {
         page.appendChild(el("div.card", { style: "border-color:#f0dcb4;background:var(--warn-soft)" }, [
           el("div", { style: "display:flex;gap:.8rem;align-items:center;flex-wrap:wrap" }, [
@@ -1246,11 +1251,89 @@ var App = (function () {
     });
   });
 
-  function tile(label, value, note, kind) {
+  function tile(label, value, note, kind, movement) {
     return el("div.tile" + (kind ? "." + kind : ""), {}, [
       el("div.tile-label", { text: label }),
       el("div.tile-value", { text: value }),
+      movement ? change(movement) : null,
       note ? el("div.tile-note", { text: note }) : null
+    ]);
+  }
+
+  /* Which way a figure has gone since the same period last year.
+
+     A year back rather than last month, because trade is seasonal: Dashain
+     against Shrawan tells nobody anything and Dashain against last Dashain
+     tells them everything.
+
+     Down is not painted red. A fall in expenses is good news and a fall in
+     revenue is not, and a colour that means the opposite on the tile next to
+     it is worse than no colour. The arrow says the direction and the reader
+     knows what it means for that figure. */
+
+  function change(movement) {
+    if (!movement || movement.direction === "level") { return null; }
+    var arrow = movement.direction === "up" ? "\u2191" : "\u2193";
+    var amount = movement.change_bp === null
+      ? UI.rs(Math.abs(movement.change))
+      : Math.abs(movement.change_bp / 100).toFixed(0) + "%";
+    return el("div.tile-change", {}, [
+      el("span", { text: arrow + " " + amount }),
+      el("span.tile-against", { text: " on last year" })
+    ]);
+  }
+
+  /* The handful of things actually waiting.
+
+     Kept short on purpose. A list of fifteen is a list nobody reads, and the
+     point of putting these on the front screen is that they get dealt with
+     rather than admired. */
+
+  function waiting(items) {
+    return el("div.card", {}, [
+      el("div.card-head", {}, [el("h2", { text: "Worth dealing with" })]),
+      el("div", {}, items.map(function (item) {
+        return el("div.waiting" + (item.severity === "high" ? ".urgent" : ""), {}, [
+          el("div", {}, [
+            el("div.waiting-title", { text: item.title }),
+            el("div.waiting-detail", { text: item.detail })
+          ]),
+          el("button.secondary", { text: "Look at it",
+                                   onclick: function () { go(item.goes_to); } })
+        ]);
+      }))
+    ]);
+  }
+
+  /* The shape of the year.
+
+     A total hides which months made it. A business that made its whole year in
+     two months has a different problem from one that made it evenly, and the
+     annual figure reads identically for both. Drawn as bars rather than a
+     chart library, because twelve bars is twelve bars. */
+
+  function shape(months) {
+    var most = months.reduce(function (top, m) {
+      return Math.max(top, Math.abs(m.revenue), Math.abs(m.profit));
+    }, 0) || 1;
+
+    return el("div.card", {}, [
+      el("div.card-head", {}, [el("h2", { text: "Month by month" })]),
+      el("p.card-note", { text: "Revenue in full, profit as the darker bar. "
+        + "A month below the line made a loss." }),
+      el("div.months", {}, months.map(function (m) {
+        var revenueHeight = Math.round(Math.abs(m.revenue) / most * 100);
+        var profitHeight = Math.round(Math.abs(m.profit) / most * 100);
+        return el("div.month" + (m.profit < 0 ? ".loss" : ""), {
+          title: m.name + "  ·  revenue " + UI.rs(m.revenue) + "  ·  profit " + UI.rs(m.profit)
+        }, [
+          el("div.month-bars", {}, [
+            el("div.month-revenue", { style: "height:" + revenueHeight + "%" }),
+            el("div.month-profit", { style: "height:" + profitHeight + "%" })
+          ]),
+          el("div.month-name", { text: m.name.slice(0, 3) })
+        ]);
+      }))
     ]);
   }
 

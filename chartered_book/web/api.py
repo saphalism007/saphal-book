@@ -1137,6 +1137,7 @@ def settle_vat(request):
 
 @route("GET", "/api/dashboard")
 def dashboard(request):
+    from ..modules import overview
     conn = request.company()
     fy = company_module.current_fiscal_year(conn)
     from_ad = fy["start_ad"] if fy else today()
@@ -1191,6 +1192,12 @@ def dashboard(request):
             "vouchers": conn.execute(
                 "SELECT COUNT(*) n FROM vouchers WHERE status = 'posted'").fetchone()["n"],
         },
+        # Direction and what is waiting. A figure on its own says almost
+        # nothing: revenue of six lakh is good or bad entirely depending on
+        # what it was last year.
+        "compare": overview.compare(conn, from_ad, to_ad),
+        "by_month": overview.by_month(conn, from_ad, to_ad),
+        "attention": overview.attention(conn, to_ad),
     }
 
 
