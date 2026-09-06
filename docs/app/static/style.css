@@ -1105,3 +1105,13 @@ tr.is-cleared:hover td { background: var(--good-soft); }
   cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
 }
 .place-action:hover { color: var(--ink); }
+
+/* The paper behind an entry. Sits under the voucher itself, so what is
+   asserted and what proves it are read one after the other. */
+.papers { margin-top: 1rem; padding-top: .8rem; border-top: 1px solid var(--line); }
+.paper { padding: .5rem 0; border-top: 1px solid var(--line-soft); }
+.paper:first-child { border-top: 0; }
+.paper-what { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
+.paper-name { font-weight: 600; font-size: .88rem; }
+.paper-what .muted { font-size: .76rem; }
+@media print { .papers { display: none; } }

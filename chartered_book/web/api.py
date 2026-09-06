@@ -2614,6 +2614,77 @@ def party_statement(request):
 # Audit tools
 
 
+# The paper behind the entry
+
+
+@route("GET", "/api/papers")
+def papers_for_voucher(request):
+    """What is kept against one entry. The content itself is not sent."""
+    from ..modules import papers
+    conn = request.company()
+    voucher_id = request.int_arg("voucher_id")
+    if not voucher_id:
+        raise ApiError("Which entry?")
+    return {"rows": papers.listing(conn, voucher_id), "totals": papers.how_much(conn)}
+
+
+@route("POST", "/api/papers")
+def keep_paper(request):
+    """Keep one paper against one entry."""
+    from ..modules import papers
+    request.require("voucher.create")
+    conn = request.company()
+    try:
+        paper_id = papers.attach(
+            conn, request.username(), request.int_arg("voucher_id"),
+            request.arg("filename"), request.arg("mime"),
+            request.arg("content"), request.arg("note") or "")
+    except papers.PaperError as exc:
+        raise ApiError(str(exc))
+    conn.commit()
+    return {"ok": True, "id": paper_id,
+            "rows": papers.listing(conn, request.int_arg("voucher_id")),
+            "totals": papers.how_much(conn)}
+
+
+@route("GET", "/api/papers/open")
+def open_paper(request):
+    """One paper, content and all, so the screen can show or save it."""
+    from ..modules import papers
+    conn = request.company()
+    paper_id = request.int_arg("id")
+    if not paper_id:
+        raise ApiError("Which paper?")
+    try:
+        return papers.fetch(conn, paper_id)
+    except papers.PaperError as exc:
+        raise ApiError(str(exc), 404)
+
+
+@route("POST", "/api/papers/remove")
+def remove_paper(request):
+    """
+    Take one paper away.
+
+    Needs the right to cancel an entry rather than to make one, because
+    removing the evidence behind a posted voucher is closer to unmaking it than
+    to adding to it.
+    """
+    from ..modules import papers
+    request.require("voucher.cancel")
+    conn = request.company()
+    paper_id = request.int_arg("id")
+    voucher_id = request.int_arg("voucher_id")
+    try:
+        papers.remove(conn, request.username(), paper_id)
+    except papers.PaperError as exc:
+        raise ApiError(str(exc))
+    conn.commit()
+    return {"ok": True,
+            "rows": papers.listing(conn, voucher_id) if voucher_id else [],
+            "totals": papers.how_much(conn)}
+
+
 @route("GET", "/api/reports/vat-register")
 def vat_register_report(request):
     """

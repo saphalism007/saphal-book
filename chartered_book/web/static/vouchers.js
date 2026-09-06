@@ -881,9 +881,127 @@ var Vouchers = (function () {
 
   /* Viewing and printing one voucher */
 
+  /* The paper behind the entry.
+
+     A voucher on its own is an assertion; the bill behind it is the evidence,
+     and on an audit the two living in different places is most of the work.
+     Kept with the books, so a backup, a copy sent to the account and a tablet
+     all carry them. That costs size, which is why the limit is said here
+     rather than discovered when a file is refused. */
+
+  function papersFor(voucherId) {
+    var box = el("div.papers");
+    var list = el("div");
+    var chooser = el("input", { type: "file" });
+    chooser.accept = "image/*,application/pdf,.csv,.txt,.xlsx,.docx,.xls,.doc";
+    chooser.style.display = "none";
+
+    function draw(data) {
+      UI.clear(list);
+      (data.rows || []).forEach(function (paper) {
+        var row = el("div.paper", {}, [
+          el("div.paper-what", {}, [
+            el("span.paper-name", { text: paper.filename }),
+            el("span.muted", { text: paper.size_text })
+          ]),
+          paper.note ? el("div.card-note", { style: "margin:.1rem 0", text: paper.note }) : null,
+          el("div.place-actions", {}, [
+            el("button.place-action", { text: paper.shows_in_place ? "Look at it" : "Save it",
+              onclick: function () { openPaper(paper); } }),
+            App.state.permissions["voucher.cancel"]
+              ? el("button.place-action", { text: "Take it away", onclick: function () {
+                  UI.confirmAction("Take away " + paper.filename,
+                    "The entry stays. Only the paper behind it goes, and who took it "
+                    + "away is recorded.",
+                    function () {
+                      return api("/api/papers/remove",
+                                 { body: { id: paper.id, voucher_id: voucherId } })
+                        .then(draw)
+                        .catch(function (error) { UI.flash(error.message, "bad"); });
+                    }, "Take it away");
+                }})
+              : null
+          ])
+        ]);
+        list.appendChild(row);
+      });
+      if (!(data.rows || []).length) {
+        list.appendChild(el("p.card-note", { text: "Nothing kept against this entry yet." }));
+      }
+      var totals = data.totals || {};
+      if (totals.heavy) {
+        list.appendChild(el("p.card-note", {
+          style: "border-left:3px solid var(--warn);padding-left:.6rem",
+          text: "The papers in these books now come to " + totals.size_text
+                + ". They are backed up and sent to your account along with everything "
+                + "else, so that is what each copy carries." }));
+      }
+    }
+
+    function openPaper(paper) {
+      return api("/api/papers/open", { query: { id: paper.id } })
+        .then(function (got) {
+          if (paper.shows_in_place) { return showPaper(got); }
+          UI.downloadFile(got.filename, got.content, got.mime || "application/octet-stream");
+        })
+        .catch(function (error) { UI.flash(error.message, "bad"); });
+    }
+
+    function showPaper(got) {
+      var source = "data:" + (got.mime || "application/octet-stream")
+                   + ";base64," + got.content;
+      var shown = got.mime === "application/pdf"
+        ? el("iframe", { style: "width:100%;height:70vh;border:0" })
+        : el("img", { style: "max-width:100%;max-height:70vh;display:block;margin:0 auto" });
+      shown.src = source;
+      UI.modal(got.filename, el("div", {}, [shown]), [
+        { label: "Close" },
+        { label: "Save it", action: function () {
+            UI.downloadFile(got.filename, got.content,
+                            got.mime || "application/octet-stream");
+            return false;
+          } }
+      ], { wide: true });
+    }
+
+    chooser.addEventListener("change", function () {
+      var file = chooser.files && chooser.files[0];
+      if (!file) { return; }
+      var reader = new FileReader();
+      reader.onload = function () {
+        // A data URL is "data:<mime>;base64,<the bytes>". Only the bytes go.
+        var text = String(reader.result || "");
+        var comma = text.indexOf(",");
+        api("/api/papers", { body: {
+          voucher_id: voucherId, filename: file.name,
+          mime: file.type || "", content: comma >= 0 ? text.slice(comma + 1) : ""
+        }}).then(function (data) {
+          UI.flash("Kept " + file.name + " with this entry.", "good");
+          draw(data);
+        }).catch(function (error) { UI.flash(error.message, "bad"); });
+        chooser.value = "";
+      };
+      reader.readAsDataURL(file);
+    });
+
+    box.appendChild(el("div.doc-subtitle", { text: "The paper behind this entry" }));
+    box.appendChild(list);
+    box.appendChild(el("div.row.no-print", { style: "margin-top:.4rem" }, [
+      el("button.secondary", { text: "Keep a bill or photograph",
+                               onclick: function () { chooser.click(); } }),
+      chooser
+    ]));
+
+    api("/api/papers", { query: { voucher_id: voucherId } })
+      .then(draw)
+      .catch(function () { UI.clear(list); });
+    return box;
+  }
+
   function view(voucherId, printNow) {
     api("/api/vouchers/" + voucherId).then(function (data) {
       var body = renderVoucher(data);
+      body.appendChild(papersFor(voucherId));
       var buttons = [
         { label: "Close" },
         { label: "Print", action: function () { UI.printPage(); return false; } }

@@ -578,3 +578,36 @@ COMPANY_MIGRATIONS.append((9, "income tax computation", """
         note                TEXT NOT NULL DEFAULT ''
     );
 """))
+
+
+COMPANY_MIGRATIONS.append((10, "keep the paper with the entry, not beside it", """
+    -- What was in the envelope.
+    --
+    -- An entry on its own is an assertion. The bill behind it is the evidence,
+    -- and on an audit the two living in different places is most of the work.
+    --
+    -- There was already a table for this and nothing ever used it, which is
+    -- just as well, because it held a path to a file on the disk. These books
+    -- travel: backed up as one file, sent to an account, opened on a tablet.
+    -- A paper left on a disk would be lost by all three, and evidence that
+    -- does not travel with the entry is not evidence anybody can rely on.
+    --
+    -- So the file itself is kept here. The price is size, which is why there
+    -- is a limit on each one and why the screen says what the books have grown
+    -- to. Nothing is carried over because there was nothing to carry.
+    DROP TABLE IF EXISTS attachments;
+
+    CREATE TABLE attachments (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        voucher_id   INTEGER NOT NULL REFERENCES vouchers(id) ON DELETE CASCADE,
+        filename     TEXT NOT NULL,
+        mime         TEXT NOT NULL DEFAULT '',
+        size_bytes   INTEGER NOT NULL DEFAULT 0,
+        content      BLOB NOT NULL,
+        note         TEXT NOT NULL DEFAULT '',
+        added_by     TEXT NOT NULL DEFAULT '',
+        added_at     TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE INDEX idx_attachments_voucher ON attachments(voucher_id);
+"""))
