@@ -18,7 +18,7 @@
 		</data>
 		<key>Resources/app/chartered_book/BUILD.txt</key>
 		<data>
-		X/3ByErxe64qoTn6fzyxDNG5gZ8=
+		ovgFkW2+RcnMk1AkfFQUV/dyn48=
 		</data>
 		<key>Resources/app/chartered_book/__init__.py</key>
 		<data>
@@ -58,11 +58,15 @@
 		</data>
 		<key>Resources/app/chartered_book/core/db.py</key>
 		<data>
-		93wrUBVdY1nwP6Hwcxc/9xnPgu0=
+		JJjBi8bSMxqbA3qHMVf4jG4SEIc=
 		</data>
 		<key>Resources/app/chartered_book/core/gdrive.py</key>
 		<data>
 		fkVR+DfTpqgcBw/JXqU87ZbRT/8=
+		</data>
+		<key>Resources/app/chartered_book/core/mailer.py</key>
+		<data>
+		wVxoLn9au94r5rcU80aqroLC/Ik=
 		</data>
 		<key>Resources/app/chartered_book/core/money.py</key>
 		<data>
@@ -71,6 +75,10 @@
 		<key>Resources/app/chartered_book/core/nepali_date.py</key>
 		<data>
 		1ul24DjB+fXrUw+vGpJyKRg344k=
+		</data>
+		<key>Resources/app/chartered_book/core/resets.py</key>
+		<data>
+		RhuKSrKEyOp/NGPOOyKNBYs3698=
 		</data>
 		<key>Resources/app/chartered_book/core/schema.py</key>
 		<data>
@@ -202,7 +210,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/api.py</key>
 		<data>
-		5d5mzEvkqM2xDb5/S+yyujIDZdQ=
+		IcBFYg53psHeuszPZk8OTNwxoGo=
 		</data>
 		<key>Resources/app/chartered_book/web/embedded.py</key>
 		<data>
@@ -218,7 +226,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/static/app.js</key>
 		<data>
-		TZZslYKFdKEsv+Z6+wxP3oM3hB8=
+		4cZvo3UkJl1yUts2bZxx9SUYzSo=
 		</data>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
 		<data>
@@ -310,7 +318,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/templates/index.html</key>
 		<data>
-		A5qTUn10QKv5bk+4GKgUZ1WgxFA=
+		KP/y/2I+7NiT4SsdxZWxyUtv1z4=
 		</data>
 		<key>Resources/app/start.py</key>
 		<data>
@@ -326,7 +334,7 @@
 		</data>
 		<key>Resources/app/tests/test_accounts.py</key>
 		<data>
-		z/+D1r+Xc0ClwSR0EAWi6r39kJM=
+		gvxL+ZHp4b05sa0OjnlcfN71gRA=
 		</data>
 		<key>Resources/app/tests/test_discounts.py</key>
 		<data>
@@ -355,6 +363,10 @@
 		<key>Resources/app/tests/test_recurring.py</key>
 		<data>
 		sVqvoSjldJVV1JaGeDA1+EllhVo=
+		</data>
+		<key>Resources/app/tests/test_reset.py</key>
+		<data>
+		uYwCcieELhFRl2qwY6yQqkoH15k=
 		</data>
 		<key>Resources/app/tests/test_schedules.py</key>
 		<data>
@@ -449,7 +461,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			mmA1jkF5FwIBHJJqjlq0C/0fDBNLkqfC9dA4hCa0Xrc=
+			EK1nUaY/W8HwMgstNpxl//Ec+G2E0tzBIV/eAuuFyvU=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/__init__.py</key>
@@ -519,7 +531,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			9Lg6W0e6cFzlgDRLl3Xw1Kjx7NJPv2ZPq+lFnqMfd/k=
+			saY84fW7nK+g71aXo3Ok67b6x4mOUMLR+krR8PKnuCc=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/core/gdrive.py</key>
@@ -527,6 +539,13 @@
 			<key>hash2</key>
 			<data>
 			Ww7yQEezVNK9CQQtWNGPbpMVHMieHBsZbpVXN9RJ3kc=
+			</data>
+		</dict>
+		<key>Resources/app/chartered_book/core/mailer.py</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			E1AO/JHxZ/GBGncUcrpVcKOsP7XI5CfYdeT16gYqN5U=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/core/money.py</key>
@@ -541,6 +560,13 @@
 			<key>hash2</key>
 			<data>
 			tmL8CEjlwxY9sUvZBiCq0RBTMEkLEsxvrtSsBvKyMVI=
+			</data>
+		</dict>
+		<key>Resources/app/chartered_book/core/resets.py</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			YBIkrsLALwjchyjtlD9EyS0BfnM+HHXHlltTQNbXOCM=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/core/schema.py</key>
@@ -764,7 +790,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			7X3Musne5QyJItalWkLh8emB6KdFm6cBeHxlVyJF9Hk=
+			4hxkRwdiIAUFE+UJM7FQ19o5DAO0Fs9yx0Pe1mBQkPk=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/embedded.py</key>
@@ -792,7 +818,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			oYu+a8HLLsIHTVWx2EBHs0JXRMel81fEa+8Yhvnakl0=
+			ibplGB62SQX3grvKSfCldxpZ1Uv5/xDiFWj+Ttdd+P8=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
@@ -953,7 +979,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			dLvMOgMh1WExeMLnjrTYuFYwSqp6Dm1k5E5kVhH5ekY=
+			8pc1q9lgYd/aFuEvH5MyoMK+NWJgWziaWFd0fy9zo0I=
 			</data>
 		</dict>
 		<key>Resources/app/start.py</key>
@@ -981,7 +1007,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			4qbSI6ojl0O9EYiKK5qkyU/Dgo+thX0Atf8nbOLpDCw=
+			iob9lw6JhvdtcX4UZb/ngH0j8ZePZcWBAqGZhJZRNXc=
 			</data>
 		</dict>
 		<key>Resources/app/tests/test_discounts.py</key>
@@ -1031,6 +1057,13 @@
 			<key>hash2</key>
 			<data>
 			+tNMCxv7+3nP9XZfRCxSlnE3YNOWtvOD7Km+95PlSzQ=
+			</data>
+		</dict>
+		<key>Resources/app/tests/test_reset.py</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			cOxG2aFPfxXQ5E5z27bsQSQQ4VPr3vA85JtonvW/N8k=
 			</data>
 		</dict>
 		<key>Resources/app/tests/test_schedules.py</key>

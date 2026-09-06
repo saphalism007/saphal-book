@@ -410,3 +410,31 @@ SYSTEM_MIGRATIONS.append((5, "how to reach the person who signed up", """
     ALTER TABLE users ADD COLUMN email TEXT NOT NULL DEFAULT '';
     ALTER TABLE users ADD COLUMN mobile TEXT NOT NULL DEFAULT '';
 """))
+
+SYSTEM_MIGRATIONS.append((6, "getting back in without the password", """
+    -- One code at a time per person, and it does not live long.
+    --
+    -- Only the hash of the code is kept, for the same reason only the hash of
+    -- a password is kept: this file can be read by anybody holding the device,
+    -- and a code sitting here in plain sight would let them reset the password
+    -- without ever seeing the email it was sent to.
+    --
+    -- tries is what stops somebody working through all million six digit codes.
+    -- ticket is handed over once the code has been proved and is what the new
+    -- password is actually set with, so the code itself is spent the moment it
+    -- is used.
+    CREATE TABLE password_resets (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        code_hash   TEXT NOT NULL,
+        salt        TEXT NOT NULL,
+        sent_to     TEXT NOT NULL DEFAULT '',
+        asked_at    TEXT NOT NULL,
+        expires_at  TEXT NOT NULL,
+        tries       INTEGER NOT NULL DEFAULT 0,
+        ticket      TEXT NOT NULL DEFAULT '',
+        used_at     TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE INDEX idx_password_resets_user ON password_resets(user_id);
+"""))

@@ -93,12 +93,40 @@ def main():
           auth.can({"role": auth.find_user(system, staff)["role"]}, "user.manage"),
           False)
 
-    # And the same name cannot be taken twice, whatever the case.
+    # --- The same username cannot be taken twice, however it is typed ---
+    #
+    # Two people signing in as the same name is not a small problem in a set of
+    # books: every entry is stamped with who made it, and two of them would be
+    # indistinguishable afterwards. So this is checked the way somebody would
+    # actually stumble into it, not just the obvious way.
+    for attempt, why in [
+        (staff, "exactly the same"),
+        (staff.upper(), "in capitals"),
+        (staff.title(), "with a capital first letter"),
+        ("  " + staff + "  ", "with spaces around it"),
+    ]:
+        try:
+            auth.create_user(system, attempt, "a different password again")
+            FAILURES.append("the username was taken twice, " + why)
+        except auth.AuthError:
+            pass
+
+    # And the file itself refuses it too, so a path that somehow got past the
+    # check above would still not end up with two.
     try:
-        auth.create_user(system, staff.upper(), "fourth pass word")
-        FAILURES.append("the same username was taken twice")
-    except auth.AuthError:
-        pass
+        system.execute(
+            "INSERT INTO users (username, full_name, password_hash, password_salt, "
+            "iterations, role, active, must_change, created_at) "
+            "VALUES (?, '', 'x', 'y', 1, 'operator', 1, 0, '2026-01-01')",
+            (staff.upper(),))
+        system.commit()
+        FAILURES.append("the books themselves allowed a duplicate username")
+    except Exception:
+        system.rollback()
+
+    check("so there is still exactly one of them",
+          system.execute("SELECT COUNT(*) n FROM users WHERE lower(username) = ?",
+                         (staff,)).fetchone()["n"], 1)
 
     clean_up(system)
 

@@ -132,7 +132,7 @@ window.CB = (function () {
 
   function start() {
     try {
-      worker = new Worker("engine.js?v=b494267fb936");
+      worker = new Worker("engine.js?v=a85286f68bb6");
     } catch (error) {
       return fail("Saphal Book could not start.",
                   "This browser would not start the accounting engine. "

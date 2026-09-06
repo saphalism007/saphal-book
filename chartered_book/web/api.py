@@ -519,6 +519,109 @@ def save_my_details(request):
     return {"ok": True}
 
 
+# --- Getting back in without the password -------------------------------
+#
+# These three are the only routes in here that answer without anybody being
+# signed in, which is the whole point of them, so each one is deliberately
+# narrow about what it will do and what it will say back.
+
+
+@route("GET", "/api/reset/how")
+def reset_how(request):
+    """What this device is able to offer somebody who is locked out."""
+    from ..core import mailer
+    held = mailer.settings(request.system)
+    return {"can_send": held["can_send"] and held["configured"],
+            "socket": held["can_send"], "configured": held["configured"],
+            "owner_can_reset": bool(request.system.execute(
+                "SELECT 1 FROM users WHERE role = 'owner' AND active = 1 LIMIT 1"
+            ).fetchone())}
+
+
+@route("POST", "/api/reset/start")
+def reset_start(request):
+    """Send a code to the address on the account."""
+    from ..core import mailer, resets
+    resets.tidy(request.system)
+    username = request.arg("username") or ""
+    try:
+        return resets.begin(request.system, username, lambda address, code, row:
+                            mailer.send_code(request.system, address, code, row,
+                                             resets.GOOD_FOR_MINUTES))
+    except (resets.ResetError, mailer.MailError) as exc:
+        raise ApiError(str(exc))
+
+
+@route("POST", "/api/reset/check")
+def reset_check(request):
+    """Prove the code and get the ticket that sets the password."""
+    from ..core import resets
+    try:
+        return resets.check(request.system, request.arg("username") or "",
+                            request.arg("code") or "")
+    except resets.ResetError as exc:
+        raise ApiError(str(exc))
+
+
+@route("POST", "/api/reset/finish")
+def reset_finish(request):
+    """Set the new password against a proved ticket."""
+    from ..core import resets
+    try:
+        return resets.finish(request.system, request.arg("username") or "",
+                             request.arg("ticket") or "",
+                             request.arg("new_password") or "")
+    except resets.ResetError as exc:
+        raise ApiError(str(exc))
+
+
+# --- The address codes are sent from ------------------------------------
+
+
+@route("GET", "/api/mail-settings")
+def mail_settings(request):
+    from ..core import mailer
+    request.require("user.manage")
+    held = mailer.settings(request.system)
+    held["hint"] = mailer.suggest(held["address"]).get("note", "")
+    return held
+
+
+@route("POST", "/api/mail-settings")
+def save_mail_settings(request):
+    from ..core import mailer
+    request.require("user.manage")
+    if request.arg("forget"):
+        mailer.forget(request.system)
+        return {"ok": True, "configured": False}
+    try:
+        return mailer.save(request.system, request.arg("address") or "",
+                           request.arg("password") or "",
+                           request.arg("host") or "", request.arg("port") or 587,
+                           request.arg("from_name") or "Saphal Book")
+    except mailer.MailError as exc:
+        raise ApiError(str(exc))
+
+
+@route("POST", "/api/mail-settings/test")
+def test_mail_settings(request):
+    from ..core import mailer
+    request.require("user.manage")
+    to = request.arg("to") or ""
+    if not to:
+        row = request.system.execute("SELECT email FROM users WHERE id = ?",
+                                     (request.require_user()["user_id"],)).fetchone()
+        to = (row["email"] if row else "") or ""
+    if not to:
+        raise ApiError("There is no address to send the test to. Put one against "
+                       "your account first, under Your account.")
+    try:
+        mailer.send_test(request.system, to)
+    except mailer.MailError as exc:
+        raise ApiError(str(exc))
+    return {"ok": True, "sent_to": to}
+
+
 @route("POST", "/api/change-password")
 def change_password(request):
     user = request.require_user()

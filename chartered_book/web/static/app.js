@@ -217,9 +217,12 @@ var App = (function () {
 
     var stuck = qs("#gate-stuck");
     var helpPanel = qs("#gate-help-panel");
-    stuck.textContent = needsSetup ? "What is this asking me for?" : "Cannot get in?";
     helpPanel.classList.add("hidden");
-    stuck.onclick = function () {
+
+    // On Sign In this is a real reset, not an explanation. Somebody who cannot
+    // get in wants a way in, and a link that only tells them about their
+    // situation is the thing that makes people ring somebody up.
+    function showHelp() {
       if (!helpPanel.classList.contains("hidden")) {
         helpPanel.classList.add("hidden");
         return;
@@ -315,7 +318,119 @@ var App = (function () {
       }).catch(function (error) {
         helpPanel.textContent = error.message;
       });
-    };
+    }
+
+    /* Resetting a forgotten password.
+
+       Three steps, and the middle one is what makes it worth anything: a code
+       goes to the address on the account, and typing it back proves the person
+       asking is the person who owns that address.
+
+       Everything that keeps the code safe is on the other side of this, in the
+       books rather than the screen: it lasts ten minutes, dies after five wrong
+       guesses, is spent once, and only its hash is ever written down. Nothing
+       here shows the code, and nothing here decides whether it was right. */
+
+    function openReset() {
+      var username = el("input", { type: "text", autocapitalize: "none",
+                                   autocomplete: "username" });
+      username.value = qs("#login-username").value.trim();
+
+      api("/api/reset/how").then(function (how) {
+        var body = el("div", {}, [
+          el("p", { text: "A code goes to the email address on your account. "
+                          + "Type it back on the next screen and you can choose a "
+                          + "new password." }),
+          UI.field("Your username", username)
+        ]);
+
+        if (!how.socket) {
+          // The browser build has no way of opening a mail connection, and
+          // saying so now is better than a code that never arrives.
+          body.appendChild(el("p.card-note", { text:
+            "This is Saphal Book running inside a browser, and a browser tab "
+            + "cannot send email. Do this from the Saphal Book app on a Mac or "
+            + "Windows computer, or ask somebody with an owner login to set your "
+            + "password under Setup, Users." }));
+        } else if (!how.configured) {
+          body.appendChild(el("p.card-note", { text:
+            "No address has been set up on this computer for codes to come from "
+            + "yet, so nothing can be sent. Somebody with an owner login can set "
+            + "one up under Setup, Email for codes. Until then, an owner can set "
+            + "your password under Setup, Users." }));
+        }
+
+        UI.modal("Reset your password", body, [
+          { label: "Cancel" },
+          { label: "Send me a code", kind: "primary", action: function () {
+            if (!username.value.trim()) {
+              UI.flash("Put in your username first.", "warn");
+              return false;
+            }
+            return api("/api/reset/start", { body: { username: username.value.trim() } })
+              .then(function (sent) {
+                UI.closeModal();
+                askForCode(username.value.trim(), sent);
+                return false;
+              })
+              .catch(function (error) { UI.flash(error.message, "bad"); return false; });
+          }}
+        ], { slim: true });
+      }).catch(function (error) { UI.flash(error.message, "bad"); });
+    }
+
+    function askForCode(who, sent) {
+      var code = el("input", { type: "text", inputmode: "numeric",
+                               autocomplete: "one-time-code", maxlength: "6" });
+      var body = el("div", {}, [
+        el("p", { text: "A code was sent to " + sent.sent_to + ". It works for "
+                        + sent.good_for_minutes + " minutes and once only." }),
+        UI.field("The six digit code", code),
+        el("p.card-note", { text: "If it is not there in a minute, look in the "
+                                  + "spam folder." })
+      ]);
+      UI.modal("Check your email", body, [
+        { label: "Cancel" },
+        { label: "Continue", kind: "primary", action: function () {
+          return api("/api/reset/check", { body: { username: who, code: code.value } })
+            .then(function (proved) {
+              UI.closeModal();
+              chooseNewPassword(who, proved.ticket);
+              return false;
+            })
+            .catch(function (error) { UI.flash(error.message, "bad"); return false; });
+        }}
+      ], { slim: true });
+    }
+
+    function chooseNewPassword(who, ticket) {
+      var fresh = el("input", { type: "password", autocomplete: "new-password" });
+      var again = el("input", { type: "password", autocomplete: "new-password" });
+      var body = el("div", {}, [
+        UI.field("New password", fresh, "At least eight characters."),
+        UI.field("Type it again", again),
+        el("p.card-note", { text: "Your books are not touched by this. Every entry, "
+          + "company and report stays exactly where it is. Anything signed in as "
+          + "you elsewhere is signed out." })
+      ]);
+      UI.modal("Choose a new password", body, [
+        { label: "Cancel" },
+        { label: "Set it", kind: "primary", action: function () {
+          if (fresh.value !== again.value) {
+            UI.flash("The two passwords are not the same.", "bad");
+            return false;
+          }
+          return api("/api/reset/finish", {
+            body: { username: who, ticket: ticket, new_password: fresh.value }
+          }).then(function () {
+            qs("#login-username").value = who;
+            qs("#login-password").value = "";
+            qs("#login-password").focus();
+            UI.flash("Password changed. Sign in with the new one.", "good");
+          }).catch(function (error) { UI.flash(error.message, "bad"); return false; });
+        }}
+      ], { slim: true });
+    }
 
     /* Signing in, or opening an account. Both are always on offer, because a
        second device has an account already but no login of its own, and a
@@ -328,6 +443,9 @@ var App = (function () {
       qs("#gate-title").textContent = making ? "Sign Up" : "Sign In";
       qs("#gate-submit").textContent = making ? "Sign Up" : "Sign In";
       switcher.textContent = making ? "Sign In instead" : "Sign Up";
+      helpPanel.classList.add("hidden");
+      stuck.textContent = making ? "What is this asking me for?" : "Forgot your password?";
+      stuck.onclick = making ? showHelp : openReset;
       qs("#login-password").setAttribute(
         "autocomplete", making ? "new-password" : "current-password");
       UI.qsa(".hidden-when-login").forEach(function (node) {
@@ -604,6 +722,9 @@ var App = (function () {
         }})
       ]) : null,
       el("div.row", { style: "margin-top:.8rem" }, [
+        el("button.secondary", { text: "My details", onclick: function () {
+          UI.closeModal(); openMyDetails();
+        }}),
         el("button.secondary", { text: "Change my password", onclick: function () {
           UI.closeModal(); openPasswordForm();
         }}),
@@ -616,6 +737,132 @@ var App = (function () {
       ])
     ]);
     UI.modal("Your account", body, [{ label: "Close" }], { slim: true });
+  }
+
+  /* Your own name, address and number, changed from inside the software.
+
+     Somebody who signed up without an address had no way of adding one
+     afterwards, which left their backups with nowhere to go and, now, left them
+     with no way of resetting a forgotten password either. Both of those come
+     back to this one screen. */
+
+  function openMyDetails() {
+    var fullName = el("input", { type: "text" });
+    var email = el("input", { type: "email", autocomplete: "email",
+                              autocapitalize: "none" });
+    var mobile = el("input", { type: "tel", autocomplete: "tel" });
+
+    var body = el("div", {}, [
+      UI.field("Full name", fullName),
+      UI.field("Email", email,
+        "Backups go to the Google Drive this address belongs to, and a "
+        + "forgotten password is reset by a code sent here. Worth filling in."),
+      UI.field("Mobile", mobile),
+      el("p.card-note", { text: "Neither is sent anywhere. They sit on this "
+        + "device with everything else." })
+    ]);
+
+    api("/api/me").then(function (me) {
+      fullName.value = me.full_name || "";
+      email.value = me.email || "";
+      mobile.value = me.mobile || "";
+    });
+
+    UI.modal("My details", body, [
+      { label: "Cancel" },
+      { label: "Save", kind: "primary", action: function () {
+        return api("/api/me", { body: {
+          full_name: fullName.value.trim(),
+          email: email.value.trim(),
+          mobile: mobile.value.trim()
+        }}).then(function () {
+          if (state.user) { state.user.full_name = fullName.value.trim(); }
+          UI.flash("Saved.", "good");
+        }).catch(function (error) { UI.flash(error.message, "bad"); return false; });
+      }}
+    ], { slim: true });
+  }
+
+  /* The address reset codes are sent from.
+
+     Set up once, by an owner. It is the account holder's own mail provider, so
+     nothing is signed up for and nothing is paid, which is the rule the whole
+     of this is built to. */
+
+  function openMailSetup() {
+    var address = el("input", { type: "email", autocapitalize: "none" });
+    var password = el("input", { type: "password", autocomplete: "new-password" });
+    var host = el("input", { type: "text" });
+    var port = el("input.num", { type: "text", value: "587" });
+    var hint = el("p.card-note");
+    var standing = el("p.card-note");
+
+    address.addEventListener("change", function () {
+      if (!host.value.trim()) { fillServerFrom(address.value); }
+    });
+
+    function fillServerFrom(value) {
+      var at = (value || "").split("@")[1] || "";
+      var known = {
+        "gmail.com": ["smtp.gmail.com", "587"],
+        "outlook.com": ["smtp-mail.outlook.com", "587"],
+        "hotmail.com": ["smtp-mail.outlook.com", "587"],
+        "yahoo.com": ["smtp.mail.yahoo.com", "587"]
+      }[at.toLowerCase()];
+      if (known) { host.value = known[0]; port.value = known[1]; }
+    }
+
+    var body = el("div", {}, [
+      standing,
+      UI.field("Send from this address", address),
+      UI.field("App password", password,
+        "Not the password you sign in to your email with."),
+      el("div.row", {}, [
+        UI.field("Outgoing server", host),
+        UI.field("Port", port)
+      ]),
+      hint
+    ]);
+
+    api("/api/mail-settings").then(function (held) {
+      address.value = held.address || "";
+      host.value = held.host || "";
+      port.value = String(held.port || 587);
+      hint.textContent = held.hint || "";
+      if (!held.can_send) {
+        standing.textContent = "This is Saphal Book running inside a browser, "
+          + "which cannot open a mail connection. Set this up in the app on a "
+          + "Mac or Windows computer instead.";
+      } else if (held.configured) {
+        standing.textContent = "Set up. Leave the password box empty to keep the "
+          + "one already stored.";
+      } else {
+        standing.textContent = "Nothing set up yet, so nobody here can be sent a "
+          + "reset code.";
+      }
+    });
+
+    UI.modal("Email for codes", body, [
+      { label: "Close" },
+      { label: "Send a test", action: function () {
+        return api("/api/mail-settings/test", { body: {} })
+          .then(function (out) {
+            UI.flash("Test sent to " + out.sent_to + ".", "good");
+            return false;
+          })
+          .catch(function (error) { UI.flash(error.message, "bad"); return false; });
+      }},
+      { label: "Save", kind: "primary", action: function () {
+        return api("/api/mail-settings", { body: {
+          address: address.value.trim(), password: password.value,
+          host: host.value.trim(), port: port.value.trim() || 587
+        }}).then(function () {
+          password.value = "";
+          UI.flash("Saved. Send a test to make sure it works.", "good");
+          return false;
+        }).catch(function (error) { UI.flash(error.message, "bad"); return false; });
+      }}
+    ], { slim: true });
   }
 
   function openPasswordForm() {
@@ -1517,9 +1764,16 @@ var App = (function () {
       page.appendChild(el("div.card", {}, [
         el("div.card-head", {}, [
           el("h2", { text: "People who can sign in" }),
-          el("button.primary", { text: "Add a user", onclick: function () { openUserForm(null); } })
+          el("div.row", {}, [
+            el("button.secondary", { text: "Email for codes",
+                                     onclick: function () { openMailSetup(); } }),
+            el("button.primary", { text: "Add a user",
+                                   onclick: function () { openUserForm(null); } })
+          ])
         ]),
         el("p.card-note", { text: "Owner can do everything. Accountant can post, edit and cancel. Operator enters day to day vouchers. View only can read reports and nothing else." }),
+        el("p.card-note", { text: "Editing somebody sets them a new password, which "
+          + "is how a forgotten one is dealt with when there is no email set up." }),
         UI.table(["Username", "Name", "Role", "Status", "Last signed in", ""], rows)
       ]));
     });
@@ -1535,7 +1789,6 @@ var App = (function () {
                               autocapitalize: "none",
                               value: user ? (user.email || "") : "" });
     var mobile = el("input", { type: "tel", autocomplete: "tel",
-                               placeholder: "98\u2026",
                                value: user ? (user.mobile || "") : "" });
     var role = UI.select(Object.keys({ owner: 1, accountant: 1, operator: 1, viewer: 1 }).map(function (key) {
       return { value: key, label: key.charAt(0).toUpperCase() + key.slice(1) };
