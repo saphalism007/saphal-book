@@ -8,10 +8,16 @@ this file.
 
 import datetime
 import os
+import sys
 
 from ..core import audit, auth, backup, coa, db, money, nepali_date as nd
 from ..modules import company as company_module, invoices, ledger, masters, reports
 from .server import ApiError, route
+
+# Whether this copy is running inside a browser rather than on a machine of its
+# own. There are no folders to open there, so the places screen says where
+# things are without offering to show them.
+_WEB = sys.platform == "emscripten"
 
 
 def rows(cursor_rows):
@@ -1232,7 +1238,11 @@ def check_google_link(request):
         pass
     settings = backup.google_settings(request.system)
     return {"connected": settings is not None,
-            "account": backup.google_account(request.system) if settings else "",
+            # This one is allowed to ask Google, because it is already the call
+            # that goes to the network and nobody is watching it. What comes
+            # back is written down, so the screen itself never has to ask.
+            "account": backup.google_account(request.system, ask_google=True)
+                       if settings else "",
             "folder_name": settings["folder_name"] if settings else ""}
 
 
@@ -1852,6 +1862,90 @@ def cloud_sign_out(request):
     # Signing out has to take the key off the device too, or the next call
     # would quietly pick the connection back up.
     _forget_account(request.system)
+    return {"ok": True}
+
+
+@route("GET", "/api/where")
+def where_things_are(request):
+    """
+    Every place this person's books and backups actually sit, right now.
+
+    Read from the machine each time rather than written down anywhere, so a
+    folder that moves, a Drive that is reconnected to another account, or a
+    destination somebody adds is reflected the moment it changes. Nothing here
+    touches the network: the Google address is the one already written down
+    when the connection was made.
+    """
+    import os
+    from ..core import db as core_db
+    from ..modules import sync
+    request.require_user()
+    system = request.system
+
+    places = []
+
+    def add(what, where, note="", exists=None, opens=True):
+        if exists is None:
+            exists = bool(where) and os.path.exists(where)
+        places.append({"what": what, "where": where, "note": note,
+                       "exists": exists, "can_open": opens and not _WEB})
+
+    add("The books themselves", core_db.BOOKS_DIR,
+        "One file for each company. These are the real ones.")
+    add("Backups on this device", backup.export_folder(),
+        "One file, replaced each time you back up.")
+
+    for folder in backup.get_destinations(system) or []:
+        path = folder["path"] if isinstance(folder, dict) else folder
+        add("Also copied to", path, "Set under Backup and safety.")
+
+    settings = backup.google_settings(system)
+    if settings:
+        folder_id = settings.get("folder_id") or ""
+        places.append({
+            "what": "Google Drive",
+            "where": settings.get("folder_name") or "Saphal Book backups",
+            "note": "Goes to %s" % (backup.google_account(system) or "your Google account"),
+            "exists": True, "can_open": False,
+            "link": ("https://drive.google.com/drive/folders/%s" % folder_id)
+                    if folder_id else ""})
+    else:
+        places.append({
+            "what": "Google Drive",
+            "where": "Not connected on this device",
+            "note": "Connect it under Backup and safety and backups go there too.",
+            "exists": False, "can_open": False})
+
+    return {"places": places, "device": sync.device_name(system),
+            "username": request.username(),
+            "on_the_web": _WEB}
+
+
+@route("POST", "/api/where/open")
+def open_where(request):
+    """Show one of those folders in Finder, on the machine running the books."""
+    import subprocess
+    import sys
+    request.require_user()
+    if _WEB:
+        raise ApiError("This copy runs in a browser, so there is no folder to open.")
+    path = (request.arg("path") or "").strip()
+    known = [os.path.dirname(db.BOOKS_DIR), db.BOOKS_DIR, backup.export_folder()]
+    for folder in backup.get_destinations(request.system) or []:
+        known.append(folder["path"] if isinstance(folder, dict) else folder)
+    if path not in known:
+        raise ApiError("That is not one of this software's own folders.")
+    if not os.path.isdir(path):
+        raise ApiError("That folder is not on this machine at the moment.")
+    try:
+        if sys.platform == "darwin":
+            subprocess.Popen(["open", path])
+        elif os.name == "nt":
+            subprocess.Popen(["explorer", path])
+        else:
+            subprocess.Popen(["xdg-open", path])
+    except Exception as exc:                                        # noqa: BLE001
+        raise ApiError("Could not open it. (%s)" % exc)
     return {"ok": True}
 
 

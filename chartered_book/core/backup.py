@@ -337,19 +337,36 @@ def google_settings(system_conn):
             "keep": int(held.get("gdrive_keep") or 20)}
 
 
-def google_account(system_conn):
-    """Which Google account the backups go to, asked of Google rather than assumed."""
-    from . import gdrive
+def google_account(system_conn, ask_google=False):
+    """
+    Which Google account the backups go to.
+
+    Read from what was written down when the connection was made, not asked of
+    Google. Asking took the better part of a second, every time, on a screen
+    that only wanted to print an address on a line, and that second was the
+    whole of why opening Backup and safety felt slower than everything else.
+
+    The address does not change on its own. Where somebody wants it checked
+    against Google, ask_google does that and writes down what comes back, so
+    the next hundred readings are free.
+    """
     settings = google_settings(system_conn)
     if settings is None:
         return ""
+    known = (settings.get("account") or "").strip()
+    if known and not ask_google:
+        return known
+    from . import gdrive
     try:
         token = gdrive.access_token(settings["client_id"], settings["client_secret"],
                                     settings["refresh_token"])
         who = gdrive._call(token, "https://www.googleapis.com/drive/v3/about?fields=user")
-        return who.get("user", {}).get("emailAddress", "")
+        address = who.get("user", {}).get("emailAddress", "")
     except Exception:                                               # noqa: BLE001
-        return settings.get("account", "")
+        return known
+    if address and address != known:
+        _remember_google(system_conn, {"gdrive_account": address})
+    return address or known
 
 
 def send_to_google(system_conn, zip_path):

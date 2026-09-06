@@ -1591,6 +1591,7 @@ var App = (function () {
 
       page.appendChild(standing(state, split.length));
       if (showWorkings) { page.appendChild(workings(state)); }
+      page.appendChild(places());
       page.appendChild(explainer());
     }
 
@@ -1912,6 +1913,73 @@ var App = (function () {
                   { label: "On your account", num: true }], rows, null,
                  { emptyText: "No companies on this device yet." })
       ]);
+    }
+
+    /* Where everything actually is.
+
+       Read off the machine every time this is drawn rather than written down
+       anywhere, so a folder that moves, a Drive reconnected to another account
+       or a destination somebody adds shows up the moment it changes. A path
+       that is right today and wrong next month is worse than no path at all. */
+
+    function places() {
+      var card = el("div.card", {}, [
+        el("div.card-head", {}, [el("h2", { text: "Where everything is kept" })]),
+        el("p.card-note", { text: "Read from this device each time this screen opens, "
+          + "so it is always where things actually are." })
+      ]);
+      var host = el("div");
+      card.appendChild(host);
+      host.appendChild(el("p.card-note", { text: "Looking" }));
+
+      api("/api/where").then(function (found) {
+        UI.clear(host);
+        (found.places || []).forEach(function (spot) {
+          var line = el("div.place", {}, [
+            el("div.place-what", {}, [
+              el("span", { text: spot.what }),
+              spot.exists ? null
+                : el("span.pill.warn", { text: "not there at the moment" })
+            ]),
+            el("code.place-where", { text: spot.where })
+          ]);
+          if (spot.note) {
+            line.appendChild(el("div.card-note", { style: "margin:.15rem 0 0",
+                                                   text: spot.note }));
+          }
+          var actions = el("div.row.no-print", { style: "margin:.3rem 0 0" });
+          if (spot.can_open && spot.exists) {
+            actions.appendChild(el("button.link-button", {
+              text: "Show me", onclick: function () {
+                return api("/api/where/open", { body: { path: spot.where } })
+                  .catch(function (error) { UI.flash(error.message, "bad"); });
+              }}));
+          }
+          if (spot.where) {
+            actions.appendChild(el("button.link-button", {
+              text: "Copy the path", onclick: function (event) {
+                UI.copyText(spot.link || spot.where, event.currentTarget);
+              }}));
+          }
+          if (spot.link) {
+            var open = el("a.link-button", { text: "Open in Drive" });
+            open.href = spot.link;
+            open.target = "_blank";
+            open.rel = "noopener";
+            actions.appendChild(open);
+          }
+          if (actions.childNodes.length) { line.appendChild(actions); }
+          host.appendChild(line);
+        });
+        if (found.on_the_web) {
+          host.appendChild(el("p.card-note", { text: "This copy runs in a browser, so "
+            + "the folders above are on the computer that keeps the books, not here." }));
+        }
+      }).catch(function (error) {
+        UI.clear(host);
+        host.appendChild(el("p.card-note", { text: error.message }));
+      });
+      return card;
     }
 
     function explainer() {

@@ -1079,3 +1079,16 @@ tr.is-cleared:hover td { background: var(--good-soft); }
   .calc-button span { display: none; }
   .calc-button { padding: .32rem .42rem; }
 }
+
+/* Where everything is kept. One block per place, with the path itself set as
+   code so a long folder name reads as a path rather than as a sentence. */
+.place { padding: .6rem 0; border-top: 1px solid var(--line-soft); }
+.place:first-child { border-top: 0; padding-top: .2rem; }
+.place-what {
+  display: flex; align-items: center; gap: .45rem;
+  font-weight: 600; font-size: .9rem; margin-bottom: .2rem;
+}
+.place-where {
+  display: block; font-size: .78rem; color: var(--ink-soft);
+  word-break: break-all; line-height: 1.45;
+}
