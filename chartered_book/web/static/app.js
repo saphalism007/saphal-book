@@ -663,18 +663,51 @@ var App = (function () {
       settle = setTimeout(function () { run("entered"); }, 2000);
     }
 
+    /* When it is safe to go to the network.
+
+       In the browser version the request is made the blocking kind, because
+       everything above it is ordinary top to bottom Python that expects an
+       answer on the next line. Blocking on the main thread means the page
+       really does stop: a click does nothing and nothing repaints until the
+       answer comes back. Three sets of books is four or five round trips, so a
+       sync landing while somebody is working is a freeze of a second or two,
+       and that is the freeze that keeps being reported.
+
+       So it never runs while somebody is using the software. Any key or click
+       pushes it back, and it goes only after a few seconds of quiet, when a
+       pause costs nobody anything. Pressing Check now is different: that is
+       somebody asking for it, and it gets the bar. */
+
+    var lastTouch = Date.now();
+    var QUIET_FOR = 4000;
+
+    function busyRightNow() {
+      return Date.now() - lastTouch < QUIET_FOR;
+    }
+
+    function whenQuiet(why) {
+      if (busyRightNow()) { return; }
+      run(why);
+    }
+
     function start() {
       if (timer) { return; }
-      // Every minute rather than every two. The cost is one small call; the
-      // saving is not being asked which copy to keep.
-      timer = setInterval(function () { run("timer"); }, 60000);
+      ["pointerdown", "keydown", "wheel", "touchstart"].forEach(function (event) {
+        document.addEventListener(event, function () { lastTouch = Date.now(); },
+                                  { passive: true, capture: true });
+      });
+      timer = setInterval(function () { whenQuiet("timer"); }, 60000);
       window.addEventListener("focus", function () {
-        if (Date.now() - last > 30000) { run("focus"); }
+        lastTouch = Date.now();
+        if (Date.now() - last > 30000) { setTimeout(function () { whenQuiet("focus"); }, QUIET_FOR); }
       });
       document.addEventListener("visibilitychange", function () {
-        if (!document.hidden && Date.now() - last > 30000) { run("visible"); }
+        if (document.hidden || Date.now() - last <= 30000) { return; }
+        setTimeout(function () { whenQuiet("visible"); }, QUIET_FOR);
       });
-      run("start");
+      // Once, a moment after the screen has settled, rather than during the
+      // rush of everything else that happens as the software opens.
+      setTimeout(function () { whenQuiet("start"); }, 3000);
     }
 
     function forget(slug) { delete told[slug]; }
@@ -1562,14 +1595,10 @@ var App = (function () {
       // The quick answer costs nothing and never leaves this device, so the
       // screen is up straight away. The account is then asked properly, behind
       // the screen, and what it says is drawn in when it arrives.
-      return api("/api/cloud/status", { query: { quick: "1" } }).then(function (known) {
-        draw(known);
-        Sync.run("opened the account screen").then(function () {
-          return api("/api/cloud/status");
-        }).then(function (fresh) {
-          if (App.state.route === "cloud") { draw(fresh); }
-        }).catch(function () { /* offline. What is drawn is still true. */ });
-      });
+      // Only the quick answer, which never leaves this device. Checking with
+      // the account blocks the page while it waits, so it is not done on the
+      // way in to a screen. Check now does it, because that is somebody asking.
+      return api("/api/cloud/status", { query: { quick: "1" } }).then(draw);
     }
 
     function draw(state) {
@@ -1592,7 +1621,6 @@ var App = (function () {
       page.appendChild(standing(state, split.length));
       if (showWorkings) { page.appendChild(workings(state)); }
       page.appendChild(places());
-      page.appendChild(explainer());
     }
 
     function reload() {
@@ -1947,34 +1975,35 @@ var App = (function () {
             line.appendChild(el("div.card-note", { style: "margin:.15rem 0 0",
                                                    text: spot.note }));
           }
-          var actions = el("div.row.no-print", { style: "margin:.3rem 0 0" });
+          // One row, one kind of control. A button and a link styled to look
+          // alike still do not sit alike, because one carries a baseline the
+          // other does not, and that is the small crookedness that makes a
+          // screen look unfinished.
+          var actions = el("div.place-actions.no-print");
           if (spot.can_open && spot.exists) {
-            actions.appendChild(el("button.link-button", {
+            actions.appendChild(el("button.place-action", {
               text: "Show me", onclick: function () {
                 return api("/api/where/open", { body: { path: spot.where } })
                   .catch(function (error) { UI.flash(error.message, "bad"); });
               }}));
           }
-          if (spot.where) {
-            actions.appendChild(el("button.link-button", {
-              text: "Copy the path", onclick: function (event) {
-                UI.copyText(spot.link || spot.where, event.currentTarget);
+          if (spot.link) {
+            actions.appendChild(el("button.place-action", {
+              text: "Open in Drive", onclick: function () {
+                window.open(spot.link, "_blank", "noopener");
               }}));
           }
-          if (spot.link) {
-            var open = el("a.link-button", { text: "Open in Drive" });
-            open.href = spot.link;
-            open.target = "_blank";
-            open.rel = "noopener";
-            actions.appendChild(open);
+          if (spot.where && (spot.can_open || spot.link)) {
+            actions.appendChild(el("button.place-action", {
+              text: spot.link ? "Copy the link" : "Copy the path",
+              onclick: function (event) {
+                UI.copyText(spot.link || spot.where, event.currentTarget);
+              }}));
           }
           if (actions.childNodes.length) { line.appendChild(actions); }
           host.appendChild(line);
         });
-        if (found.on_the_web) {
-          host.appendChild(el("p.card-note", { text: "This copy runs in a browser, so "
-            + "the folders above are on the computer that keeps the books, not here." }));
-        }
+
       }).catch(function (error) {
         UI.clear(host);
         host.appendChild(el("p.card-note", { text: error.message }));
@@ -1982,18 +2011,6 @@ var App = (function () {
       return card;
     }
 
-    function explainer() {
-      return el("div.card", {}, [
-        el("div.card-head", {}, [el("h2", { text: "What is kept, and who can read it" })]),
-        el("p.card-note", { text: "The books on this device are the real ones. Everything "
-          + "goes on working with the internet unplugged. The account is how a copy "
-          + "reaches your other devices." }),
-        el("p.card-note", { text: "What is sent is locked with a key made from your "
-          + "password on this device. The password itself never leaves, so the company "
-          + "holding the copies cannot read them. Even the name of the company is inside "
-          + "the locked file rather than beside it." })
-      ]);
-    }
   });
 
   /* Use on your phone */

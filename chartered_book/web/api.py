@@ -1890,14 +1890,31 @@ def where_things_are(request):
         places.append({"what": what, "where": where, "note": note,
                        "exists": exists, "can_open": opens and not _WEB})
 
-    add("The books themselves", core_db.BOOKS_DIR,
-        "One file for each company. These are the real ones.")
-    add("Backups on this device", backup.export_folder(),
-        "One file, replaced each time you back up.")
-
-    for folder in backup.get_destinations(system) or []:
-        path = folder["path"] if isinstance(folder, dict) else folder
-        add("Also copied to", path, "Set under Backup and safety.")
+    if _WEB:
+        # There is no folder here to name. Inside a browser the books live in
+        # storage the browser keeps for this address, and printing the path the
+        # engine uses for it, /books/books, tells nobody anything and is not
+        # somewhere anybody can go. Say what is true instead.
+        places.append({
+            "what": "The books themselves",
+            "where": "Kept by this browser, on this device",
+            "note": "There is no folder to open. The books belong to this address "
+                    "and this device, and nothing else can read them.",
+            "exists": True, "can_open": False})
+        places.append({
+            "what": "Backups on this device",
+            "where": "Saved to your downloads when you press Backup now",
+            "note": "A browser cannot write into a folder on its own, so the backup "
+                    "is handed to you to save.",
+            "exists": True, "can_open": False})
+    else:
+        add("The books themselves", core_db.BOOKS_DIR,
+            "One file for each company. These are the real ones.")
+        add("Backups on this device", backup.export_folder(),
+            "One file, replaced each time you back up.")
+        for folder in backup.get_destinations(system) or []:
+            path = folder["path"] if isinstance(folder, dict) else folder
+            add("Also copied to", path, "Set under Backup and safety.")
 
     settings = backup.google_settings(system)
     if settings:

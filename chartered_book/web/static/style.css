@@ -1092,3 +1092,16 @@ tr.is-cleared:hover td { background: var(--good-soft); }
   display: block; font-size: .78rem; color: var(--ink-soft);
   word-break: break-all; line-height: 1.45;
 }
+
+/* Every control in this row is the same element, so they sit on the same line
+   whatever the browser thinks about baselines. */
+.place-actions {
+  display: flex; align-items: center; gap: .9rem; margin-top: .4rem;
+  flex-wrap: wrap;
+}
+.place-action {
+  appearance: none; border: 0; background: none; padding: 0; margin: 0;
+  font: inherit; font-size: .8rem; line-height: 1.3; color: var(--accent);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px;
+}
+.place-action:hover { color: var(--ink); }
