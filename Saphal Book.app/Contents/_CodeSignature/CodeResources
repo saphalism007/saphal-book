@@ -18,7 +18,7 @@
 		</data>
 		<key>Resources/app/chartered_book/BUILD.txt</key>
 		<data>
-		Dmd9EZNVoiVC9rRbiy2tkpjb+p4=
+		TxdQYn6sHR3bYuVW5g05LXvcTpA=
 		</data>
 		<key>Resources/app/chartered_book/__init__.py</key>
 		<data>
@@ -218,7 +218,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/static/app.js</key>
 		<data>
-		hhyTEye2odhpNO1iKudm3kjgsPg=
+		TZZslYKFdKEsv+Z6+wxP3oM3hB8=
 		</data>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
 		<data>
@@ -302,7 +302,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/static/ui.js</key>
 		<data>
-		grPaoBHU1S+HfMj2WVsKVWxLap0=
+		S6k4T0i+OJCaBzmYc0JILoXfLao=
 		</data>
 		<key>Resources/app/chartered_book/web/static/vouchers.js</key>
 		<data>
@@ -359,6 +359,10 @@
 		<key>Resources/app/tests/test_schedules.py</key>
 		<data>
 		924Id4HRXDpg8BTUzcjPHTvEU5w=
+		</data>
+		<key>Resources/app/tests/test_screens.py</key>
+		<data>
+		RZvrtO7eV3i77l6sVzeFhtMuvOQ=
 		</data>
 		<key>Resources/app/tests/test_settle_on_invoice.py</key>
 		<data>
@@ -445,7 +449,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			mMOg66br47k21/sfzLQ3SRHNeuC7tbxE1Ccn9e4guyc=
+			9aoaTCXK81Xw9MjmY3NW97rR7ffI5nfGcJ/fvA7D1QI=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/__init__.py</key>
@@ -788,7 +792,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			Z+7wOD8kc0/AynV7QI7vDnXZVUs7AlS0mojBkAfJYGg=
+			oYu+a8HLLsIHTVWx2EBHs0JXRMel81fEa+8Yhvnakl0=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
@@ -935,7 +939,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			jnxVVKa7Wv4oY+Pok9cdSEF0f8ETumbi1Dr9wm+g0No=
+			Tl2aB6YNG9P4pCdqOyWPLQ7OsyEG+ADHALLhVTdXaMQ=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/vouchers.js</key>
@@ -1034,6 +1038,13 @@
 			<key>hash2</key>
 			<data>
 			ntU9wkoGj/dOfnf6jkHMWLo39XrAH0HOg/bfBkFEOyU=
+			</data>
+		</dict>
+		<key>Resources/app/tests/test_screens.py</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			6mJL5LzRIx7m8Mflt4Jmg9OnvMX7zhNeM7ZJX+xFbLE=
 			</data>
 		</dict>
 		<key>Resources/app/tests/test_settle_on_invoice.py</key>

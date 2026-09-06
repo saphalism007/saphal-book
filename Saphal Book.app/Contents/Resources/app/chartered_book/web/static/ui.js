@@ -24,7 +24,14 @@ var UI = (function () {
         if (value === null || value === undefined || value === false) { return; }
         if (key === "class") { node.className = node.className ? node.className + " " + value : value; }
         else if (key === "text") { node.textContent = value; }
-        else if (key === "html") { node.innerHTML = value; }
+        // There is deliberately no way to hand this function a piece of markup.
+        // Every screen in here is built out of names, narrations and item
+        // descriptions that somebody typed, and if any of that were ever set as
+        // markup rather than as text, a party named after a script tag would run
+        // it. Text is the only door, so there is nothing to get wrong later.
+        else if (key === "html") {
+          throw new Error("el() will not set markup. Pass text, or build nodes.");
+        }
         else if (key === "value") { node.value = value; }
         else if (key.slice(0, 2) === "on" && typeof value === "function") {
           node.addEventListener(key.slice(2).toLowerCase(), value);

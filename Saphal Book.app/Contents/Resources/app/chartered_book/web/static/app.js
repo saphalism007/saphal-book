@@ -325,9 +325,9 @@ var App = (function () {
     var switcher = qs("#gate-switch");
 
     function paintMode() {
-      qs("#gate-title").textContent = making ? "Sign up" : "Sign in";
-      qs("#gate-submit").textContent = making ? "Sign up" : "Sign in";
-      switcher.textContent = making ? "Sign in instead" : "Sign up";
+      qs("#gate-title").textContent = making ? "Sign Up" : "Sign In";
+      qs("#gate-submit").textContent = making ? "Sign Up" : "Sign In";
+      switcher.textContent = making ? "Sign In instead" : "Sign Up";
       qs("#login-password").setAttribute(
         "autocomplete", making ? "new-password" : "current-password");
       UI.qsa(".hidden-when-login").forEach(function (node) {
@@ -958,12 +958,18 @@ var App = (function () {
         + "the connection until it is opened again.",
         function () {
           return api("/api/close", { body: {} }).then(function () {
-            document.body.innerHTML =
-              "<div style=\"display:grid;place-items:center;height:100vh;"
-              + "font:16px -apple-system,system-ui,sans-serif;color:#334\">"
-              + "<div style=\"text-align:center\"><p><b>Saphal Book is closed.</b></p>"
-              + "<p style=\"color:#889\">A backup was taken. Open it again from the "
-              + "icon whenever you need it.</p></div></div>";
+            UI.clear(document.body);
+            document.body.appendChild(el("div", {
+              style: "display:grid;place-items:center;height:100vh;"
+                     + "font:16px -apple-system,system-ui,sans-serif;color:#334"
+            }, [
+              el("div", { style: "text-align:center" }, [
+                el("p", {}, [el("b", { text: "Saphal Book is closed." })]),
+                el("p", { style: "color:#889",
+                          text: "A backup was taken. Open it again from the icon "
+                                + "whenever you need it." })
+              ])
+            ]));
           });
         }, "Close it");
     };
@@ -1818,7 +1824,7 @@ var App = (function () {
       var bs = NP.adToBs(iso);
       var dow = NP.weekdayIndex(iso);
       var fy = NP.fiscalYearOf(iso);
-      result.innerHTML = "";
+      UI.clear(result);
       [
         NP.formatBs(bs, "long") + ", " + NP.DOW_EN[dow] + "bar",
         "Gregorian: " + new Date(iso + "T00:00:00").toDateString(),
@@ -1872,11 +1878,11 @@ var App = (function () {
       var classes = "div.day";
       if (dayIso === todayIso) { classes += ".today"; }
       if (NP.weekdayIndex(dayIso) === 6) { classes += ".holiday"; }
-      grid.appendChild(el(classes, {
-        style: "padding:.5rem 0;line-height:1.1",
-        html: "<strong>" + d + "</strong><br><span style='font-size:.62rem;color:var(--ink-faint)'>"
-          + dayIso.slice(5) + "</span>"
-      }));
+      grid.appendChild(el(classes, { style: "padding:.5rem 0;line-height:1.1" }, [
+        el("strong", { text: String(d) }),
+        el("div", { style: "font-size:.62rem;color:var(--ink-faint)",
+                    text: dayIso.slice(5) })
+      ]));
     }
     card.appendChild(head);
     card.appendChild(grid);
