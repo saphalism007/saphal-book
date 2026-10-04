@@ -447,6 +447,66 @@ class Cloud(object):
             raise CloudError(self._complain(detail, "Could not remove those books."))
         return True
 
+    # Changing the password, which is also changing the key
+    #
+    # The password does two jobs. One half of it signs in to the account and the
+    # other half is the key every copy on the server is locked with, and both
+    # are worked out from the same thing somebody types. So a new password that
+    # stopped at this device would leave the account answering to the old one
+    # and every copy on it locked with a key nobody would ever type again.
+    # These four are what moving the whole lot needs. The moving itself is in
+    # modules/rekey.py.
+
+    def fetch_raw(self, book_id):
+        """One row exactly as the server holds it, still locked."""
+        self._require()
+        import base64
+        status, rows = self._call(
+            "/rest/v1/books?book_id=eq.%s&select=payload,version,device"
+            % urllib.parse.quote(book_id))
+        if status != 200:
+            raise CloudError(self._complain(rows, "Could not fetch those books."))
+        if not rows:
+            return None
+        try:
+            blob = base64.b64decode(rows[0]["payload"])
+        except Exception:
+            raise CloudError("The copy on the server is damaged and will not decode.")
+        return {"blob": blob, "version": rows[0]["version"],
+                "device": rows[0].get("device", "")}
+
+    def put_raw(self, book_id, blob, version, device=""):
+        """File a locked copy under a name, at the version it already had."""
+        self._require()
+        import base64
+        row = {"owner": self.user_id, "book_id": book_id, "version": version,
+               "device": (device or "")[:80],
+               "payload": base64.b64encode(blob).decode("ascii")}
+        status, detail = self._call(
+            "/rest/v1/books?on_conflict=owner,book_id", "POST", row,
+            headers={"Prefer": "resolution=merge-duplicates,return=minimal"})
+        if status not in (200, 201, 204):
+            raise CloudError(self._complain(detail, "The server would not take the books."))
+        return True
+
+    def forget_by_id(self, book_id):
+        self._require()
+        status, detail = self._call(
+            "/rest/v1/books?book_id=eq.%s" % urllib.parse.quote(book_id), "DELETE")
+        if status not in (200, 204):
+            raise CloudError(self._complain(detail, "Could not remove those books."))
+        return True
+
+    def change_sign_in(self, sign_in_secret):
+        """Tell the account to answer to a new password from now on."""
+        self._require()
+        status, detail = self._call("/auth/v1/user", "PUT",
+                                    {"password": sign_in_secret})
+        if status != 200:
+            raise CloudError(self._complain(
+                detail, "The account would not take the new password."))
+        return True
+
     def _vault_password(self):
         """
         The key the books are locked with, as bytes.

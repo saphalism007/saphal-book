@@ -57,6 +57,8 @@ def dispatch(method, path, query="", body="", token=""):
         return json.dumps({"status": 404, "payload": {"error": "No such address."}})
 
     request = Request(method, path, query_map, body_map, {}, {})
+    # Inside a browser there is nobody else: the books are in this browser.
+    request.local = True
     try:
         request.system = system_conn()
     except Exception as exc:

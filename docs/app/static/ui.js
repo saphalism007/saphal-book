@@ -215,9 +215,26 @@ var UI = (function () {
   /* Messages */
 
   var flashTimer = null;
+  var flashHome = null;
+
   function flash(message, kind) {
     var node = qs("#flash");
-    node.className = "flash " + (kind || "good");
+    if (!flashHome) { flashHome = { parent: node.parentNode, next: node.nextSibling }; }
+
+    // Its home is the top of the page. While somebody is signed out the page
+    // is not on screen at all, and while a panel is open it is dimmed behind
+    // it, so every message from the sign in screen, the wrong code and the
+    // changed password included, was being written somewhere nobody could see.
+    var shell = qs("#shell");
+    var away = (shell && shell.classList.contains("hidden"))
+               || document.body.classList.contains("has-modal");
+    if (away) {
+      if (node.parentNode !== document.body) { document.body.appendChild(node); }
+    } else if (node.parentNode !== flashHome.parent) {
+      flashHome.parent.insertBefore(node, flashHome.next);
+    }
+
+    node.className = "flash " + (kind || "good") + (away ? " floating" : "");
     node.textContent = message;
     node.classList.remove("hidden");
     if (flashTimer) { clearTimeout(flashTimer); }

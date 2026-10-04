@@ -91,9 +91,69 @@ def mask(address):
 
 def _user(system, username):
     row = system.execute(
-        "SELECT id, username, full_name, email, mobile, active FROM users "
+        "SELECT id, username, full_name, email, mobile, active, role FROM users "
         "WHERE lower(username) = lower(?)", ((username or "").strip(),)).fetchone()
     return row
+
+
+def way(system, username, can_send, at_the_machine):
+    """
+    Which way back in is open to this person on this device.
+
+    There are three, and exactly one is offered.
+
+    "code" where the account has an address and this device can send to it.
+    That is the strong one and where it exists nothing weaker is offered.
+
+    "device" for an owner with nowhere to send a code, sitting at the machine
+    the books are on. This exists because the code needs an address on the
+    account and a way of sending, both of which are set up from inside, by an
+    owner who is signed in. An only owner who forgets the password before
+    doing either had no way back at all, and that is precisely who gets locked
+    out. What it rests on is being at the device, and it is worth being plain
+    about what that is worth: the books on a device are not locked by the
+    login password, so somebody at the device could already read them. This
+    does not hand over anything the device did not already give. It is not
+    offered to anything reaching the books over the wifi, and it stops being
+    offered the moment the account has an address a code can go to.
+
+    "owner" for everybody else: a member of staff, whose password an owner
+    sets under Setup, Users.
+    """
+    row = _user(system, username)
+    if row is None or not row["active"]:
+        raise ResetError(
+            "There is no account here with that username, or it has been "
+            "switched off. Check the spelling. On a device that has never been "
+            "signed in to before, the username will not be here yet.")
+    if (row["email"] or "").strip() and can_send:
+        return {"way": "code", "sent_to": mask(row["email"])}
+    if row["role"] == "owner" and at_the_machine:
+        return {"way": "device"}
+    if row["role"] == "owner":
+        return {"way": "owner", "why":
+                "Do this on the computer Saphal Book is installed on, not from a "
+                "phone or tablet reaching it over the wifi."}
+    return {"way": "owner", "why":
+            "Somebody with an owner login can set you a new password under "
+            "Setup, Users."}
+
+
+def on_this_device(system, username, new_password, can_send, at_the_machine):
+    """Set a new password for an owner with nowhere to send a code."""
+    if way(system, username, can_send, at_the_machine)["way"] != "device":
+        raise ResetError("That is not open to this account from here.")
+    problems = auth.password_problems(new_password or "")
+    if problems:
+        raise ResetError(" ".join(problems))
+    row = _user(system, username)
+    auth.set_password(system, row["id"], new_password)
+    system.execute("DELETE FROM password_resets WHERE user_id = ?", (row["id"],))
+    system.execute("DELETE FROM sessions WHERE user_id = ?", (row["id"],))
+    system.commit()
+    auth._record_login(system, row["username"], "password reset", "at this device")
+    system.commit()
+    return {"username": row["username"]}
 
 
 def begin(system, username, send):

@@ -41,6 +41,47 @@ ALLOWED = set()
 FAILURES = []
 
 
+def layer(css, selector):
+    """The z-index a selector's own block gives it."""
+    found = re.search(r"(?m)^" + re.escape(selector) + r"\s*\{([^}]*)\}", css)
+    if not found:
+        return None
+    index = re.search(r"z-index:\s*(\d+)", found.group(1))
+    return int(index.group(1)) if index else None
+
+
+def check_what_sits_on_top_of_what():
+    """
+    Anything opened from the sign in screen has to be on top of it.
+
+    The reset panel opened behind the sign in screen for as long as it existed.
+    It was in the page, its text could be read by a program, and every check
+    made of it passed, while the person pressing "Forgot your password?" saw
+    nothing happen at all. The panel was one layer under the screen it was
+    opened from. The same went for every message shown while signed out.
+
+    A test that reads what a screen says cannot see this, so the order is
+    checked for itself.
+    """
+    css = io.open(os.path.join(SCREENS, "style.css"), encoding="utf-8").read()
+    gate, modal = layer(css, ".gate"), layer(css, ".modal")
+    picker, floating = layer(css, ".picker"), layer(css, ".flash.floating")
+    for name, value in (("sign in screen", gate), ("panel", modal),
+                        ("picker", picker), ("message", floating)):
+        if value is None:
+            FAILURES.append("could not find which layer the %s is on" % name)
+            return
+    if not modal > gate:
+        FAILURES.append("a panel (%d) opens behind the sign in screen (%d)"
+                        % (modal, gate))
+    if not picker > modal:
+        FAILURES.append("a picker (%d) opens behind the panel it is in (%d)"
+                        % (picker, modal))
+    if not floating > modal:
+        FAILURES.append("a message (%d) is hidden behind a panel (%d)"
+                        % (floating, modal))
+
+
 def main():
     checked = 0
     for name in sorted(os.listdir(SCREENS)):
@@ -59,6 +100,8 @@ def main():
 
     if not checked:
         FAILURES.append("no screens were found to check")
+
+    check_what_sits_on_top_of_what()
 
     if FAILURES:
         print("Screens: %d place%s where typed text could become part of the page"

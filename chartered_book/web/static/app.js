@@ -336,56 +336,61 @@ var App = (function () {
                                    autocomplete: "username" });
       username.value = qs("#login-username").value.trim();
 
-      api("/api/reset/how").then(function (how) {
-        var body = el("div", {}, [
-          el("p", { text: "A code goes to the email address on your account. "
-                          + "Type it back on the next screen and you can choose a "
-                          + "new password." }),
-          UI.field("Your username", username)
-        ]);
+      var body = el("div", {}, [
+        el("p", { text: "Put in your username and you will be shown the way back "
+                        + "in. Your books are not touched by this." }),
+        UI.field("Your username", username)
+      ]);
 
-        // Say what this particular device can actually do, and never leave a
-        // button on screen that cannot work.
-        if (!how.can_send) {
-          if (!how.configured) {
-            body.appendChild(el("p.card-note", { text:
-              "Nothing has been set up yet for codes to be sent from, so there "
-              + "is nowhere for one to come from. An owner can set that up under "
-              + "Setup, Email for codes. Until then, an owner can set your "
-              + "password directly under Setup, Users." }));
-          } else {
-            body.appendChild(el("p.card-note", { text:
-              "Codes here are set up to go through a mail provider, which the "
-              + "Mac and Windows apps can do but a browser tab cannot. An owner "
-              + "can add the small Google script under Setup, Email for codes "
-              + "and it will work here too. Until then, do this from the app, or "
-              + "ask an owner to set your password under Setup, Users." }));
+      // One button, and it always does something. Which way is open depends on
+      // the account, so the books are asked rather than the screen guessing,
+      // and nothing is offered here that is already known not to work.
+      UI.modal("Reset your password", body, [
+        { label: "Cancel" },
+        { label: "Continue", kind: "primary", action: function () {
+          var who = username.value.trim();
+          if (!who) {
+            UI.flash("Put in your username first.", "warn");
+            return false;
           }
-        }
-
-        var buttons = [{ label: "Cancel" }];
-        if (!how.can_send) {
-          // No point offering a button that is known to fail.
-          UI.modal("Reset your password", body, buttons, { slim: true });
-          return;
-        }
-        UI.modal("Reset your password", body, [
-          { label: "Cancel" },
-          { label: "Send me a code", kind: "primary", action: function () {
-            if (!username.value.trim()) {
-              UI.flash("Put in your username first.", "warn");
-              return false;
-            }
-            return api("/api/reset/start", { body: { username: username.value.trim() } })
-              .then(function (sent) {
+          return api("/api/reset/way", { body: { username: who } })
+            .then(function (open) {
+              if (open.way === "code") {
+                return api("/api/reset/start", { body: { username: who } })
+                  .then(function (sent) {
+                    UI.closeModal();
+                    askForCode(who, sent);
+                    return false;
+                  });
+              }
+              if (open.way === "device") {
                 UI.closeModal();
-                askForCode(username.value.trim(), sent);
+                chooseNewPassword(who, null);
                 return false;
-              })
-              .catch(function (error) { UI.flash(error.message, "bad"); return false; });
-          }}
-        ], { slim: true });
-      }).catch(function (error) { UI.flash(error.message, "bad"); });
+              }
+              UI.flash(open.why, "warn");
+              return false;
+            })
+            .catch(function (error) { UI.flash(error.message, "bad"); return false; });
+        }}
+      ], { slim: true });
+    }
+
+    function afterReset(who, done) {
+      var account = (done && done.account) || {};
+      qs("#login-username").value = who;
+      qs("#login-password").value = "";
+      qs("#login-password").focus();
+      if (account.state === "moved") {
+        UI.flash("Password changed, here and on your account. Sign in with the "
+                 + "new one. Your other devices will ask for it too.", "good");
+      } else if (account.state === "unreachable" || account.state === "failed") {
+        UI.flash("Password changed on this device. Sign in with the new one. "
+                 + "Your account on the server could not be changed just now, and "
+                 + "it will be tried again when you sign in.", "warn");
+      } else {
+        UI.flash("Password changed. Sign in with the new one.", "good");
+      }
     }
 
     function askForCode(who, sent) {
@@ -416,6 +421,12 @@ var App = (function () {
       var fresh = el("input", { type: "password", autocomplete: "new-password" });
       var again = el("input", { type: "password", autocomplete: "new-password" });
       var body = el("div", {}, [
+        // With no ticket this is the owner at the device, with nowhere a code
+        // could have been sent. Say what it is resting on.
+        ticket ? null : el("p", { text: "There is no email on this account for a "
+          + "code to go to, and you are the owner, so you can set a new password "
+          + "here on this device. Add your email afterwards under Your account, "
+          + "My details, and next time a code will be asked for instead." }),
         UI.field("New password", fresh, "At least eight characters."),
         UI.field("Type it again", again),
         el("p.card-note", { text: "Your books are not touched by this. Every entry, "
@@ -429,14 +440,13 @@ var App = (function () {
             UI.flash("The two passwords are not the same.", "bad");
             return false;
           }
-          return api("/api/reset/finish", {
-            body: { username: who, ticket: ticket, new_password: fresh.value }
-          }).then(function () {
-            qs("#login-username").value = who;
-            qs("#login-password").value = "";
-            qs("#login-password").focus();
-            UI.flash("Password changed. Sign in with the new one.", "good");
-          }).catch(function (error) { UI.flash(error.message, "bad"); return false; });
+          var call = ticket
+            ? api("/api/reset/finish", { body: { username: who, ticket: ticket,
+                                                 new_password: fresh.value } })
+            : api("/api/reset/here", { body: { username: who,
+                                               new_password: fresh.value } });
+          return call.then(function (done) { afterReset(who, done); })
+            .catch(function (error) { UI.flash(error.message, "bad"); return false; });
         }}
       ], { slim: true });
     }
@@ -937,9 +947,32 @@ var App = (function () {
           UI.flash("The two new passwords are not the same.", "bad");
           return false;
         }
-        return api("/api/change-password", {
-          body: { current_password: current.value, new_password: fresh.value }
-        }).then(function () { UI.flash("Password changed.", "good"); });
+        var asked = { current_password: current.value, new_password: fresh.value };
+        function said(result) {
+          if (result.ok) {
+            UI.flash(result.account && result.account.state === "moved"
+              ? "Password changed, here and on your account. Your other devices "
+                + "will ask for the new one."
+              : "Password changed.", "good");
+            return true;
+          }
+          // The account could not be moved, so nothing has been changed. Doing
+          // this device alone is possible, and is a decision, not a default.
+          UI.closeModal();
+          UI.confirmAction("The password was not changed",
+            result.why + " You can change it on this device alone. Your other "
+            + "devices and your account will go on using the old password until "
+            + "this device can reach the server, when they are brought into line.",
+            function () {
+              asked.this_device_only = true;
+              return api("/api/change-password", { body: asked })
+                .then(function () { UI.flash("Password changed on this device.", "good"); })
+                .catch(function (error) { UI.flash(error.message, "bad"); return false; });
+            }, "Change it on this device only");
+          return false;
+        }
+        return api("/api/change-password", { body: asked }).then(said)
+          .catch(function (error) { UI.flash(error.message, "bad"); return false; });
       }}
     ]);
   }

@@ -51,6 +51,84 @@ def clean_up(system):
     system.commit()
 
 
+def check_an_only_owner_is_never_stranded(system):
+    """
+    Somebody who owns the books and forgets the password must have a way back.
+
+    This is here because the owner of these books was locked out of them. The
+    code by email needs an address on the account and a way of sending, and
+    both are set up from inside, by an owner who is signed in. An only owner
+    who forgot the password before doing either was shown a panel with a
+    Cancel button on it and nothing else.
+
+    So an owner with nowhere to send a code can set a new password at the
+    device the books are on. What is checked is that it is there for exactly
+    that person and for nobody else: not for staff, not for anything reaching
+    the books over the wifi, and not once a code can be sent instead.
+    """
+    owner = PREFIX + "soleowner"
+    staff = PREFIX + "counter"
+    owner_id = auth.create_user(system, owner, "what was forgotten", "Owner", "owner")
+    auth.create_user(system, staff, "staff pass word", "Staff", "operator")
+    system.commit()
+
+    check("an owner with no address, at the device, is offered the device",
+          resets.way(system, owner, False, True)["way"], "device")
+    check("the same owner over the wifi is not",
+          resets.way(system, owner, False, False)["way"], "owner")
+    check("a member of staff is sent to an owner",
+          resets.way(system, staff, False, True)["way"], "owner")
+
+    refuses("staff setting their own password at the device",
+            lambda: resets.on_this_device(system, staff, "a new pass word",
+                                          False, True), "not open")
+    refuses("an owner doing it from over the wifi",
+            lambda: resets.on_this_device(system, owner, "a new pass word",
+                                          False, False), "not open")
+    refuses("a new password that is too short",
+            lambda: resets.on_this_device(system, owner, "short", False, True),
+            "8 characters")
+
+    token = auth.start_session(system, owner_id)
+    system.commit()
+    done = resets.on_this_device(system, owner, "what replaces it", False, True)
+    check("the owner is back in", done["username"], owner)
+    try:
+        auth.authenticate(system, owner, "what was forgotten")
+        FAILURES.append("the forgotten password still worked")
+    except auth.AuthError:
+        pass
+    check("the new password signs in",
+          auth.authenticate(system, owner, "what replaces it") is not None, True)
+    check("and whatever was signed in as them is signed out",
+          auth.load_session(system, token), None)
+    last = system.execute("SELECT outcome, note FROM login_history WHERE username = ? "
+                          "AND outcome = 'password reset' ORDER BY id DESC LIMIT 1",
+                          (owner,)).fetchone()
+    check("and it is written down that it happened, and how",
+          last and last["note"], "at this device")
+
+    # Too many wrong guesses locks an account for a while. A reset has to lift
+    # that, or the person is let back in and then told to wait.
+    system.execute("UPDATE users SET locked_until = '2999-01-01 00:00:00', "
+                   "failed_attempts = 7 WHERE id = ?", (owner_id,))
+    system.commit()
+    resets.on_this_device(system, owner, "and once again", False, True)
+    check("a reset lifts the lock that wrong guesses put on",
+          auth.authenticate(system, owner, "and once again") is not None, True)
+
+    # Once a code can reach them, the code is the only way.
+    auth.set_details(system, owner_id, email="owner@example.com")
+    system.commit()
+    check("with an address and a way of sending, a code is asked for",
+          resets.way(system, owner, True, True)["way"], "code")
+    refuses("and the device way is closed",
+            lambda: resets.on_this_device(system, owner, "yet another one",
+                                          True, True), "not open")
+    check("an address with no way of sending still leaves the device open",
+          resets.way(system, owner, False, True)["way"], "device")
+
+
 def check_the_relay_asks_no_permission():
     """
     The relay has to send the kind of request a browser will send unasked.
@@ -313,6 +391,7 @@ def main():
 
     check_it_works_without_ssl()
     check_the_relay_asks_no_permission()
+    check_an_only_owner_is_never_stranded(system)
 
     clean_up(system)
 

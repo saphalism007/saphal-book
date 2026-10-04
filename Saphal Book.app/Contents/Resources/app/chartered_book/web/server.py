@@ -59,6 +59,9 @@ class Request:
         self._company_conn = None
         self.set_cookie = None
         self.clear_cookie = False
+        # Whether this came from the machine the books are on. Set by whatever
+        # built the request, and false unless it says otherwise.
+        self.local = False
 
     def arg(self, name, default=None):
         if name in self.body:
@@ -202,6 +205,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         cookies = http.cookies.SimpleCookie(self.headers.get("Cookie") or "")
         request = Request(method, path, query, body, cookies, self.headers)
+        request.local = self.client_address[0] in ("127.0.0.1", "::1", "localhost")
         request.system = system_conn()
         token = cookies[COOKIE_NAME].value if COOKIE_NAME in cookies else None
         request.session = auth.load_session(request.system, token)

@@ -331,6 +331,14 @@ button.today::before {
   font-size: .85rem; border: 1px solid transparent; box-shadow: var(--shadow-sm);
   animation: flash-in .16s ease-out;
 }
+/* A message with nowhere to sit. Its usual place is the top of the page, which
+   is not on screen while somebody is signed out and is dimmed while a panel is
+   open, and those are exactly the moments a message matters most. */
+.flash.floating {
+  position: fixed; top: .9rem; left: 0; right: 0; margin: 0 auto;
+  width: fit-content; max-width: min(92vw, 36rem); z-index: 95;
+  box-shadow: var(--shadow-lg);
+}
 @keyframes flash-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 .flash.good { background: var(--good-soft); color: var(--good); border-color: var(--good-line); }
 .flash.bad  { background: var(--bad-soft);  color: var(--bad);  border-color: var(--bad-line); }
@@ -620,7 +628,10 @@ input.unlinked { border-color: var(--bad); background: var(--bad-soft); }
 
 .modal {
   position: fixed; inset: 0; background: rgba(14, 24, 36, .58); display: grid; place-items: center;
-  z-index: 70; padding: 1rem;
+  /* Above the sign in screen, which is 80. It was 70, so anything opened from
+     the sign in screen opened behind it: the reset panel was there, could be
+     read by a program, and could not be seen by a person. */
+  z-index: 85; padding: 1rem;
   animation: fade-in .12s ease-out;
 }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
@@ -646,7 +657,7 @@ input.unlinked { border-color: var(--bad); background: var(--bad-soft); }
 /* Search picker */
 
 .picker {
-  position: absolute; z-index: 75; background: var(--paper); border: 1px solid var(--line);
+  position: absolute; z-index: 87; background: var(--paper); border: 1px solid var(--line);
   border-radius: var(--radius); box-shadow: var(--shadow-lg); max-height: 300px;
   overflow-y: auto; min-width: 270px;
 }

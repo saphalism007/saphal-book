@@ -381,6 +381,56 @@ def _finish_account(request, note, token):
     _hold_account(request.system, token, note["session"])
 
 
+def _move_account(request, username, new_password, session=None):
+    """
+    Take the account on the server to a new password, with everything on it.
+
+    Says what happened rather than raising, because what to do about a failure
+    differs: somebody changing a password they know should be stopped, and
+    somebody locked out should still be let back in to the books on the device.
+
+      none         there is no account for this to apply to
+      moved        the account and every copy on it now answer to the new one
+      unreachable  there is an account, and this device could not get to it
+      failed       it was reached and would not be moved; nothing was changed
+    """
+    from ..core import cloud, cloud_config
+    from ..modules import rekey
+    try:
+        if not cloud_config.configured(request.system):
+            return {"state": "none"}
+        settings = cloud_config.settings(request.system)
+    except Exception:                                               # noqa: BLE001
+        return {"state": "none"}
+
+    if session is None:
+        try:
+            row = request.system.execute(
+                "SELECT username FROM cloud_account WHERE id = 1").fetchone()
+        except Exception:                                           # noqa: BLE001
+            row = None
+        if row is None or (row["username"] or "").strip().lower() != username.strip().lower():
+            return {"state": "none"}
+        try:
+            session = _cloud_session(request, required=False)
+        except Exception:                                           # noqa: BLE001
+            session = None
+        if session is None:
+            return {"state": "unreachable"}
+
+    try:
+        result = rekey.move(session, username, new_password,
+                            lambda: cloud.Cloud(settings["url"], settings["anon_key"]))
+    except rekey.RekeyError as exc:
+        return {"state": "failed", "why": str(exc)}
+    except Exception as exc:                                        # noqa: BLE001
+        return {"state": "failed", "why": str(exc)}
+
+    token = request.session["token"] if request.session else ""
+    _hold_account(request.system, token, result["session"])
+    return {"state": "moved", "moved": result["moved"], "left": result["left"]}
+
+
 @route("POST", "/api/login")
 def login(request):
     """
@@ -420,6 +470,17 @@ def login(request):
     _finish_account(request, note, token)
     request.set_cookie = token
 
+    # The login here is right and the account says the password is wrong. That
+    # is what a password changed on this device alone looks like, which is all
+    # changing one used to do, and what a reset leaves when the server could
+    # not be reached at the time. This device was signed in to that account and
+    # still holds the means to prove it, so the account is brought to the
+    # password that has just been shown to be the real one. Nothing happens
+    # where the device holds no such thing, or the server cannot be reached.
+    healed = None
+    if note and not note.get("reached") and "do not match" in (note.get("why") or ""):
+        healed = _move_account(request, user["username"], password)
+
     # Signing in does not wait for the books.
     #
     # It used to fetch whatever was waiting on the account before it would let
@@ -431,7 +492,8 @@ def login(request):
     # afterwards and says what arrived.
     return {"ok": True, "username": user["username"], "role": user["role"],
             "must_change": user["must_change"],
-            "account": bool(note and note.get("reached")),
+            "account": bool((note and note.get("reached"))
+                            or (healed and healed.get("state") == "moved")),
             "account_note": "" if not note else note.get("why", "")}
 
 
@@ -538,6 +600,34 @@ def reset_how(request):
             ).fetchone())}
 
 
+@route("POST", "/api/reset/way")
+def reset_way(request):
+    """Which way back in is open to this username on this device."""
+    from ..core import mailer, resets
+    try:
+        return resets.way(request.system, request.arg("username") or "",
+                          mailer.settings(request.system)["can_send"],
+                          bool(request.local))
+    except resets.ResetError as exc:
+        raise ApiError(str(exc))
+
+
+@route("POST", "/api/reset/here")
+def reset_here(request):
+    """An owner with nowhere to send a code, at the machine the books are on."""
+    from ..core import mailer, resets
+    username = request.arg("username") or ""
+    fresh = request.arg("new_password") or ""
+    try:
+        done = resets.on_this_device(request.system, username, fresh,
+                                     mailer.settings(request.system)["can_send"],
+                                     bool(request.local))
+    except resets.ResetError as exc:
+        raise ApiError(str(exc))
+    done["account"] = _move_account(request, done["username"], fresh)
+    return done
+
+
 @route("POST", "/api/reset/start")
 def reset_start(request):
     """Send a code to the address on the account."""
@@ -567,12 +657,14 @@ def reset_check(request):
 def reset_finish(request):
     """Set the new password against a proved ticket."""
     from ..core import resets
+    fresh = request.arg("new_password") or ""
     try:
-        return resets.finish(request.system, request.arg("username") or "",
-                             request.arg("ticket") or "",
-                             request.arg("new_password") or "")
+        done = resets.finish(request.system, request.arg("username") or "",
+                             request.arg("ticket") or "", fresh)
     except resets.ResetError as exc:
         raise ApiError(str(exc))
+    done["account"] = _move_account(request, done["username"], fresh)
+    return done
 
 
 # --- The address codes are sent from ------------------------------------
@@ -627,15 +719,48 @@ def test_mail_settings(request):
 
 @route("POST", "/api/change-password")
 def change_password(request):
+    """
+    Change the password, on this device and on the account together.
+
+    It used to change it here and nowhere else. The account went on answering
+    to the old one and the copies on it stayed locked with the old key, so the
+    next device to sign in with the new password was refused. The account is
+    moved first now, and the login here only follows once that has worked, so
+    the two cannot end up on different passwords.
+
+    Where the account cannot be got to, nothing is changed and the screen is
+    told why. It may then ask for this device alone to be changed, which is
+    somebody's decision to make with the consequence in front of them, not
+    something to do quietly.
+    """
     user = request.require_user()
     current = request.arg("current_password") or ""
     fresh = request.arg("new_password") or ""
     try:
         auth.authenticate(request.system, user["username"], current)
-        auth.set_password(request.system, user["user_id"], fresh)
     except auth.AuthError as exc:
         raise ApiError(str(exc))
-    return {"ok": True}
+    problems = auth.password_problems(fresh)
+    if problems:
+        raise ApiError(" ".join(problems))
+
+    note = _try_account(request, user["username"], current, False)
+    if note and note.get("reached"):
+        account = _move_account(request, user["username"], fresh, note["session"])
+    else:
+        account = _move_account(request, user["username"], fresh)
+
+    if account["state"] in ("unreachable", "failed") and not request.arg("this_device_only"):
+        return {"ok": False, "needs_choice": True, "account": account,
+                "why": ("Your account on the server could not be reached, so the "
+                        "password was not changed. Check the internet and try again."
+                        if account["state"] == "unreachable" else
+                        "Your account on the server would not take the new password, "
+                        "so nothing was changed. " + (account.get("why") or ""))}
+
+    auth.set_password(request.system, user["user_id"], fresh)
+    request.system.commit()
+    return {"ok": True, "account": account}
 
 
 @route("GET", "/api/users")
