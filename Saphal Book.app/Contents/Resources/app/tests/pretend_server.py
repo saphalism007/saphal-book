@@ -43,6 +43,9 @@ def _save(state):
 class PretendCloud(cloud.Cloud):
     def _call(self, path, method="GET", body=None, headers=None, token=None):
         state = _load()
+        if state.get("down"):
+            # Asleep, the way a free project goes after a week unused.
+            raise cloud.CloudError("The account server did not answer.")
         try:
             return self._answer(state, path, method, body or {}, token or self.token)
         finally:
@@ -174,6 +177,11 @@ def run(steps):
             from chartered_book.web import api
             api._CLOUD_SESSIONS.clear()
             out.append("lost")
+        elif what == "server":
+            state = _load()
+            state["down"] = (step[1] == "off")
+            _save(state)
+            out.append(step[1])
         elif what == "here":
             out.append(what_is_here())
         elif what == "sign-out":

@@ -140,6 +140,42 @@ def main():
         got = laptop.signs_in(THIRD, [["here"]])
         check("the laptop comes level as soon as the new one is typed",
               got[-1], {"shop_one": "entered on the tablet", "shop_two": "second shop"})
+
+        # --- The account server is not answering ---
+        #
+        # This is what was really wrong on the day the phone would not open.
+        # The server had gone to sleep. The laptop opened, because it has books
+        # of its own, and the phone was told its password was wrong, which it
+        # was not. Somebody retyping a right password is being lied to.
+        spare = Device(root, "spare")
+        laptop.does(["server", "off"])
+        got = spare.does(["post", "/api/login", {"username": NAME, "password": THIRD}])
+        said = got[0]["payload"].get("error", "")
+        check("a new device is not told its password is wrong",
+              "not correct" in said, False)
+        check("it is told the server is not answering", "not answering" in said, True)
+        check("and that it has not been refused", "not been refused" in said, True)
+
+        got = laptop.does(["post", "/api/login", {"username": NAME, "password": THIRD}],
+                          ["post", "/api/cloud/auto"],
+                          ["books", "shop_two", "Shop Two", "2026-10-03 15:00:00",
+                           "entered while the server slept"],
+                          ["server", "on"],
+                          ["post", "/api/cloud/reconnect", {"password": THIRD}],
+                          ["post", "/api/cloud/auto"])
+        check("a device with its own books still opens", got[0]["status"], 200)
+        check("knowing the server is what could not be reached",
+              got[0]["payload"].get("account_unreachable"), True)
+        check("and is told it is on its own for now",
+              got[1]["payload"].get("needs_sign_in"), True)
+        check("it joins again by itself when the server is back",
+              got[4]["payload"].get("connected"), True)
+        check("and what was entered meanwhile goes up",
+              got[5]["payload"].get("sent"), ["Shop Two"])
+        got = spare.signs_in(THIRD, [["here"]])
+        check("the new device opens once the server is back", got[0]["status"], 200)
+        check("with what was entered while it slept",
+              got[-1].get("shop_two"), "entered while the server slept")
     finally:
         shutil.rmtree(root, ignore_errors=True)
 

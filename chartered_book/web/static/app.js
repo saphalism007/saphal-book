@@ -512,13 +512,13 @@ var App = (function () {
             UI.flash("The password for this username was changed on another device. "
                      + "Sign out and sign in with the new one, and your books will "
                      + "be level again.", "warn");
-          } else if (result && result.account === false && result.account_note) {
-            UI.flash("Signed in on this device. Your account could not be reached, so "
-                     + "nothing travels to your other devices until it can. It is "
-                     + "tried again by itself.", "warn");
           }
+          // Kept only while this page is open, and only so the device can join
+          // the account by itself if the server was not answering just now.
+          Sync.keep(body.password);
           // Whatever is waiting on the account is fetched after the door is
           // open, not before it. Signing in should never wait on a download.
+          if (result && !result.account) { Sync.run("signed in"); }
           if (result && result.account) {
             state.fetching = true;
             api("/api/cloud/fetch-waiting", { body: {} }).then(function (got) {
@@ -1001,18 +1001,56 @@ var App = (function () {
        telling. The screen carries it from then on. */
     var told = {};
 
+    var kept = "";
+    function keep(password) { kept = password || ""; }
+
+    /* This device is signed in but is not on the account. Try to join it.
+
+       What is said depends on what is actually known. The old message blamed
+       the internet, on a machine whose internet was fine, when it was the
+       account server that was not answering. So the browser is asked whether
+       it is online, and the two are told apart. And it is said once, not every
+       time this runs. */
+    function rejoin() {
+      function say(text) {
+        if (told.apart === text) { return; }
+        told.apart = text;
+        UI.flash(text, "warn");
+      }
+      if (!kept) {
+        say("This device is working on its own just now. Sign out and sign in "
+            + "again to join it to your account. Your books here are safe.");
+        return null;
+      }
+      return api("/api/cloud/reconnect", { body: { password: kept } })
+        .then(function (got) {
+          if (got && got.connected) {
+            if (told.apart) { UI.flash("Connected to your account again.", "good"); }
+            told.apart = "";
+            running = false;
+            return run("joined");
+          }
+          if (got && got.why === "older") {
+            say(got.detail);
+          } else if (navigator.onLine === false) {
+            say("There is no internet just now, so this device is working on its "
+                + "own. Your books here are safe, and it joins your account by "
+                + "itself when the internet is back.");
+          } else {
+            say("Your account server is not answering, so this device is working "
+                + "on its own for now. Your books here are safe. It keeps trying "
+                + "and joins by itself as soon as the server is back.");
+          }
+        });
+    }
+
     function run(why) {
       if (running || !state.user) { return Promise.resolve(); }
       running = true;
       return api("/api/cloud/auto", { body: {} })
         .then(function (result) {
           last = Date.now();
-          if (result && !result.ran && result.needs_sign_in && !told.signIn) {
-            told.signIn = true;
-            UI.flash("This device is not connected to your account just now, so it "
-                     + "is working on its own. With the internet on, sign out and "
-                     + "sign in again and everything comes level by itself.", "warn");
-          }
+          if (result && !result.ran && result.needs_sign_in) { return rejoin(); }
           if (!result || !result.ran || result.quiet) { return; }
           var moved = (result.sent || []).length + (result.fetched || []).length;
           if (moved) {
@@ -1126,7 +1164,7 @@ var App = (function () {
 
     function forget(slug) { delete told[slug]; }
 
-    return { run: run, touched: touched, start: start, forget: forget };
+    return { run: run, touched: touched, start: start, forget: forget, keep: keep };
   }());
 
   /* Finding one thing, without knowing which screen it is on.
@@ -2328,9 +2366,10 @@ var App = (function () {
           }})
         ]),
         el("p.card-note", { text: "Your books are on this device and go on working. "
-          + "Sign in again with your username and password and everything goes to, "
-          + "and comes from, your other devices by itself. There is nothing to "
-          + "fetch or send by hand." })
+          + "Either the account server is not answering or this page was opened "
+          + "without signing in. It is tried again by itself. Signing in again "
+          + "also does it, and then everything goes to, and comes from, your "
+          + "other devices with nothing to fetch or send by hand." })
       ]);
     }
 

@@ -18,7 +18,7 @@
 		</data>
 		<key>Resources/app/chartered_book/BUILD.txt</key>
 		<data>
-		ugyShGJKm9uk+H45HhoPmaa9q6o=
+		0s5i8qPfyIdBxxcxrwJHeUcjCSA=
 		</data>
 		<key>Resources/app/chartered_book/__init__.py</key>
 		<data>
@@ -46,7 +46,7 @@
 		</data>
 		<key>Resources/app/chartered_book/core/cloud.py</key>
 		<data>
-		sMUQiZcTl+d+ee+ZI2kP6/xWbQw=
+		W62vKkse2u7iGReCY2J1pUjLlmA=
 		</data>
 		<key>Resources/app/chartered_book/core/cloud_config.py</key>
 		<data>
@@ -214,7 +214,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/api.py</key>
 		<data>
-		dPRgGybc6f2uKn6J188WqQlXdvc=
+		H71HE3Qlz+VfJBkFSwwHj8TV6nc=
 		</data>
 		<key>Resources/app/chartered_book/web/embedded.py</key>
 		<data>
@@ -230,7 +230,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/static/app.js</key>
 		<data>
-		z7GZm7lzuBEoBiibKu0oS0xZ5gE=
+		7GucrOhG7rsyJj+HUB0h+y6ogew=
 		</data>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
 		<data>
@@ -334,7 +334,7 @@
 		</data>
 		<key>Resources/app/tests/pretend_server.py</key>
 		<data>
-		+2FH2yti23d6N7XQKDBiOlwqTO8=
+		0GsfzhwruP+sg+kSyHYCtoLFVLQ=
 		</data>
 		<key>Resources/app/tests/test_accounting.py</key>
 		<data>
@@ -366,7 +366,7 @@
 		</data>
 		<key>Resources/app/tests/test_one_login.py</key>
 		<data>
-		tQx1JGT5/KETzSOvWfIxtfLeBo0=
+		/3iahirTTmxLxPbUgA6x1ReqOLk=
 		</data>
 		<key>Resources/app/tests/test_papers.py</key>
 		<data>
@@ -485,7 +485,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			dgPplE4Y42VM3PALJh4b13VJB0xNl0C0ua7x6XKmExc=
+			9XoVCqt5V8o0Zofq3ReJDNzvXNon5U4bQ6oJCtPMTA8=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/__init__.py</key>
@@ -534,7 +534,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			c2nO9tjUQrqSC0WIRvPFRfCLoxtkFpusKh76DfdrDj0=
+			O8a9BMrrRyuKG7k3qEp3PwfUiKUK5sDcDAgYLSFRZ+k=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/core/cloud_config.py</key>
@@ -821,7 +821,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			b2CYRB7apzeaRPU/KpKl0xMNJdB0Ymh4GlrJJJMiEnE=
+			vhMzCdSbiraxDzjEYj/vqbrPQjcfzAO8s8dMwVLn2bs=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/embedded.py</key>
@@ -849,7 +849,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			63Vda/Fi06qzdLIued8RlZpCroQMW1I0lPSCZv12xbI=
+			rpf07PFfG3UYm7TCTVtWR3b3WN10Dm+k4hPJqh5V2ME=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
@@ -1031,7 +1031,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			zdbRHg7DE/kj2lxgxfGlK+rddwlPqu1gRiJM24a/ekU=
+			T73tuHU2mAQVhju2wsO2pImPalPMfVX43m431xO3N2A=
 			</data>
 		</dict>
 		<key>Resources/app/tests/test_accounting.py</key>
@@ -1087,7 +1087,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			N1WIjkSv511EL1+I+m10jKK/dMBfoLwso+h2BMGPgoE=
+			w1h+sxMnAsYnPT66Klf0Olh7ieeqTe/4R61zDaqMzxE=
 			</data>
 		</dict>
 		<key>Resources/app/tests/test_papers.py</key>

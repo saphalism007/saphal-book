@@ -541,6 +541,19 @@ def login(request):
             request.system.commit()
             user = auth.authenticate(request.system, username, password)
         else:
+            unreachable = bool(note) and "do not match" not in (note.get("why") or "")
+            if unreachable and auth.find_user(request.system, username) is None:
+                # Not a wrong password. This device has never been signed in to
+                # as this person, so everything it could open is on the account,
+                # and the account is not answering. Saying the password was
+                # wrong sent somebody round in circles retyping a right one.
+                raise ApiError(
+                    "Your account server is not answering just now, and this "
+                    "device has not been signed in to as %s before, so there is "
+                    "nothing on it yet to open. Your username and password have "
+                    "not been refused. Your books are safe on the device you "
+                    "last used, and this one will open as soon as the server is "
+                    "back." % username, 503)
             raise ApiError(str(exc), 401)
 
     companies = company_module.list_companies(request.system)
@@ -578,6 +591,9 @@ def login(request):
             "account": bool((note and note.get("reached"))
                             or (healed and healed.get("state") in ("moved", "opened"))),
             "account_older": bool(healed and healed.get("state") == "older"),
+            "account_unreachable": bool(
+                note and not note.get("reached")
+                and "do not match" not in (note.get("why") or "")),
             "account_note": "" if not note else note.get("why", "")}
 
 
@@ -2453,6 +2469,39 @@ def close_the_software(request):
     threading.Timer(0.4, lambda: os.kill(os.getpid(), signal.SIGTERM)).start()
     return {"ok": True,
             "note": "Saphal Book is closing. A backup is being taken as it goes."}
+
+
+@route("POST", "/api/cloud/reconnect")
+def cloud_reconnect(request):
+    """
+    Join the account again, for somebody already signed in to this device.
+
+    Signing in when the server could not be reached leaves a device working on
+    its own. It used to stay that way until somebody signed out and in again,
+    which nobody thinks to do. The screen keeps the password it was given for
+    as long as it is open, and asks this every so often, so the device joins by
+    itself the moment the server is back.
+    """
+    user = request.require_user()
+    if _cloud_session(request, required=False) is not None:
+        return {"connected": True}
+    password = request.arg("password") or ""
+    row = request.system.execute("SELECT * FROM users WHERE id = ?",
+                                 (user["user_id"],)).fetchone()
+    if row is None or not auth.verify_password(password, row["password_hash"],
+                                               row["password_salt"], row["iterations"]):
+        return {"connected": False, "why": "password"}
+    note = _try_account(request, user["username"], password, False)
+    if note is None:
+        return {"connected": False, "why": "none"}
+    if note.get("reached"):
+        _hold_account(request.system, request.session["token"], note["session"])
+        return {"connected": True}
+    if "do not match" in (note.get("why") or ""):
+        follows = _account_follows(request, user["username"], password)
+        return {"connected": follows.get("state") in ("moved", "opened"),
+                "why": follows.get("state"), "detail": follows.get("why", "")}
+    return {"connected": False, "why": "unreachable"}
 
 
 @route("POST", "/api/cloud/auto")

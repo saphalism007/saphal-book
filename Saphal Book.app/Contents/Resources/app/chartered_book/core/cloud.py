@@ -149,7 +149,7 @@ def _machine_call(url, method, data, headers):
         return error.code, detail
     except urllib.error.URLError as error:
         raise CloudError(
-            "Could not reach the server. Check the internet connection. (%s)" % error.reason)
+            "The account server did not answer. (%s)" % error.reason)
 
 
 def _browser_call(url, method, data, headers):
@@ -181,12 +181,12 @@ def _browser_call(url, method, data, headers):
         xhr.send(data.decode("utf-8") if data is not None else None)
     except Exception as error:                                      # noqa: BLE001
         raise CloudError(
-            "Could not reach the server. Check the internet connection. (%s)" % error)
+            "The account server did not answer. (%s)" % error)
 
     status = int(xhr.status or 0)
     raw = xhr.responseText or ""
     if status == 0:
-        raise CloudError("Could not reach the server. Check the internet connection.")
+        raise CloudError("The account server did not answer.")
     try:
         return status, (json.loads(raw) if raw.strip() else None)
     except ValueError:
