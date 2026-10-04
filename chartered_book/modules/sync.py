@@ -505,7 +505,82 @@ def _decide(system, session, slug):
     return "nothing", state
 
 
-def auto(system, session):
+def last_worked_on(path):
+    """
+    When a set of books was last worked on, read out of the books themselves.
+
+    Not the date on the file. Opening the software can rewrite a file without
+    anybody entering anything, and a tidy up or an update would then make stale
+    books look like the newest ones. What is asked is when somebody last did
+    something: the newest line in the audit trail, or the newest voucher.
+    """
+    newest = ""
+    try:
+        conn = sqlite3.connect(path)
+    except sqlite3.Error:
+        return newest
+    try:
+        for query in ("SELECT MAX(at) FROM audit_log",
+                      "SELECT MAX(created_at) FROM vouchers",
+                      "SELECT MAX(updated_at) FROM vouchers"):
+            try:
+                found = conn.execute(query).fetchone()[0]
+            except sqlite3.Error:
+                continue
+            if found and str(found) > newest:
+                newest = str(found)
+    finally:
+        conn.close()
+    return newest
+
+
+def settle(system, session, slug):
+    """
+    Two devices have both changed the same books. Keep the one worked on last.
+
+    This used to stop and ask. Nobody wants to be asked: the question arrives
+    on a phone in the middle of something else, it is about version numbers,
+    and until it is answered nothing moves. Every other bookkeeping product
+    simply has the books be the same everywhere.
+
+    Two separate days of entries cannot be merged by any rule, so one copy has
+    to win, and the one that wins is the one somebody worked on most recently.
+    What that costs has to be said plainly: the entries made on the other
+    device since the two last agreed are not in the books afterwards.
+
+    They are not destroyed. The copy that loses is kept whole on the device it
+    was on, beside the books, named for the moment it was replaced, and the
+    screen says that it happened and where. That is why this is safe enough to
+    do without asking. It is also why it should be rare: books go up two
+    seconds after an entry and come down when a device is opened, so both
+    copies only move apart when a device has been working with no internet.
+    """
+    got = session.fetch(slug)
+    if got is None:
+        return {"kept": "here", "sent": send_up(system, session, slug, decided=True)}
+
+    handle, temp = tempfile.mkstemp(suffix=".db")
+    os.close(handle)
+    try:
+        with open(temp, "wb") as writer:
+            writer.write(got["data"])
+        there = last_worked_on(temp)
+    finally:
+        for leftover in (temp, temp + "-wal", temp + "-shm"):
+            if os.path.exists(leftover):
+                os.remove(leftover)
+    here = last_worked_on(db.company_db_path(slug))
+
+    if here > there:
+        send_up(system, session, slug, decided=True)
+        return {"kept": "here", "other": got.get("device", ""),
+                "here": here, "there": there}
+    done = _install(system, slug, got["data"], got["version"], got.get("device", ""))
+    return {"kept": "there", "other": got.get("device", ""), "here": here,
+            "there": there, "aside": done.get("previous_copy_kept_at", "")}
+
+
+def auto(system, session, only=None):
     """
     Keep every set of books level with the server, without being asked.
 
@@ -518,7 +593,7 @@ def auto(system, session):
         return {"ran": False, "why": "not signed in"}
 
     from ..core import cloud
-    sent, fetched, conflicts = [], [], []
+    sent, fetched, conflicts, settled = [], [], [], []
 
     try:
         new_ones = bring_new(system, session)
@@ -528,6 +603,8 @@ def auto(system, session):
 
     for row in system.execute("SELECT slug, name FROM companies ORDER BY id").fetchall():
         slug, name = row["slug"], row["name"]
+        if only is not None and slug not in only:
+            continue
         try:
             what, _ = _decide(system, session, slug)
             if what == "send":
@@ -537,16 +614,18 @@ def auto(system, session):
                 bring_down(system, session, slug)
                 fetched.append(name)
             elif what == "conflict":
-                held = session.remote_version(slug)
-                conflicts.append({
-                    "slug": slug, "name": name,
-                    "why": "Entries have been made here and on %s since these last agreed. "
-                           "Decide which copy to keep."
-                           % (held.get("device") or "another device")})
+                how = settle(system, session, slug)
+                how["name"] = name
+                settled.append(how)
+                if how["kept"] == "there":
+                    fetched.append(name)
+                else:
+                    sent.append(name)
         except cloud.Conflict as exc:
             conflicts.append({"slug": slug, "name": name, "why": str(exc)})
         except (cloud.CloudError, SyncError) as exc:
             conflicts.append({"slug": slug, "name": name, "why": str(exc)})
 
     return {"ran": True, "sent": sent, "fetched": fetched, "conflicts": conflicts,
+            "settled": settled,
             "quiet": not sent and not fetched and not conflicts}

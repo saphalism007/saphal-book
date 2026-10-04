@@ -274,7 +274,7 @@ def _try_account(request, username, password, making_account):
         if making_account:
             session.sign_up(username, password)
         else:
-            session.sign_in(username, password)
+            session.sign_in(username, password, _account_place(request.system, username))
     except cloud.CloudError as exc:
         message = str(exc)
         # A username somebody already holds is a real answer and has to stop an
@@ -354,6 +354,22 @@ def _hold_account(system, token, session):
     """
     import binascii
     _CLOUD_SESSIONS[token] = session
+
+    # Where each set of books stands is counted against one particular account.
+    # Signing in to a different one, which is what a username started again
+    # under a new password is, makes those counts mean nothing, and acting on
+    # them would have this device overwrite newer books with older ones. They
+    # are wiped, and each set of books is settled afresh by which copy was
+    # worked on last.
+    before = system.execute("SELECT user_id FROM cloud_account WHERE id = 1").fetchone()
+    if before is not None and before["user_id"] and session.user_id \
+            and before["user_id"] != session.user_id:
+        system.execute("UPDATE cloud_books SET version = 0, last_hash = ''")
+    system.execute(
+        "INSERT INTO app_settings (key, value) VALUES ('account_place', ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        ("%s|%d" % ((session.username or "").strip().lower(),
+                    getattr(session, "generation", 0) or 0),))
     system.execute(
         """INSERT INTO cloud_account (id, username, user_id, last_signed_in,
                                       master_key, refresh_token)
@@ -379,6 +395,69 @@ def _finish_account(request, note, token):
     if not note or not note.get("reached"):
         return
     _hold_account(request.system, token, note["session"])
+
+
+def _account_place(system, username):
+    """Which of a username's places on the server this device used last."""
+    try:
+        row = system.execute(
+            "SELECT value FROM app_settings WHERE key = 'account_place'").fetchone()
+        name, place = (row["value"] if row else "|0").rsplit("|", 1)
+        return int(place) if name == (username or "").strip().lower() else 0
+    except Exception:                                               # noqa: BLE001
+        return 0
+
+
+def _password_is_ahead(system, username):
+    """
+    Whether the password on this device is newer than the one the account has.
+
+    True where a password was reset or changed here since this device last
+    signed in to the account, or where this device has never been signed in to
+    the account as this person at all. That is the only case in which this
+    device is entitled to make the account follow it. Without it, a device
+    left on an old password could drag the account back to it.
+    """
+    name = (username or "").strip()
+    account = system.execute(
+        "SELECT username, last_signed_in FROM cloud_account WHERE id = 1").fetchone()
+    if account is None or (account["username"] or "").strip().lower() != name.lower():
+        return True
+    reset = system.execute(
+        "SELECT MAX(at) AS at FROM login_history WHERE lower(username) = lower(?) "
+        "AND outcome = 'password reset'", (name,)).fetchone()
+    return bool(reset and reset["at"] and reset["at"] > (account["last_signed_in"] or ""))
+
+
+def _account_follows(request, username, password):
+    """
+    Bring the account to the password this device has just accepted.
+
+    Called when the login here is right and the account says the password is
+    wrong. The account is moved where this device still holds a way in to it.
+    Where it does not, and the password here is the newer one, the account is
+    started again under it from this device, which has the books, and they go
+    up behind it. Either way the same username and password then open the same
+    books everywhere, which is the whole point of having an account.
+    """
+    from ..core import cloud, cloud_config
+    moved = _move_account(request, username, password)
+    if moved["state"] == "moved":
+        return moved
+    if not _password_is_ahead(request.system, username):
+        return {"state": "older", "why":
+                "The password for this username was changed on another device. "
+                "Sign out and sign in with the new one, and your books will be "
+                "level again."}
+    try:
+        settings = cloud_config.settings(request.system)
+        session = cloud.Cloud(settings["url"], settings["anon_key"])
+        session.open_afresh(username, password)
+    except Exception as exc:                                        # noqa: BLE001
+        return {"state": "failed", "why": str(exc)}
+    token = request.session["token"] if request.session else ""
+    _hold_account(request.system, token, session)
+    return {"state": "opened"}
 
 
 def _move_account(request, username, new_password, session=None):
@@ -479,7 +558,11 @@ def login(request):
     # where the device holds no such thing, or the server cannot be reached.
     healed = None
     if note and not note.get("reached") and "do not match" in (note.get("why") or ""):
-        healed = _move_account(request, user["username"], password)
+        healed = _account_follows(request, user["username"], password)
+        if healed.get("state") in ("moved", "opened"):
+            held = _CLOUD_SESSIONS.pop("", None)
+            if held is not None:
+                _CLOUD_SESSIONS[token] = held
 
     # Signing in does not wait for the books.
     #
@@ -493,7 +576,8 @@ def login(request):
     return {"ok": True, "username": user["username"], "role": user["role"],
             "must_change": user["must_change"],
             "account": bool((note and note.get("reached"))
-                            or (healed and healed.get("state") == "moved")),
+                            or (healed and healed.get("state") in ("moved", "opened"))),
+            "account_older": bool(healed and healed.get("state") == "older"),
             "account_note": "" if not note else note.get("why", "")}
 
 
@@ -759,6 +843,9 @@ def change_password(request):
                         "so nothing was changed. " + (account.get("why") or ""))}
 
     auth.set_password(request.system, user["user_id"], fresh)
+    if account["state"] != "moved":
+        auth._record_login(request.system, user["username"], "password reset",
+                           "changed on this device")
     request.system.commit()
     return {"ok": True, "account": account}
 
@@ -2067,6 +2154,7 @@ def _cloud_session(request, required=True):
             session = cloud.Cloud(settings["url"], settings["anon_key"])
             session.resume(row["username"], binascii.unhexlify(row["master_key"]),
                            row["refresh_token"])
+            session.generation = _account_place(request.system, row["username"])
             _hold_account(request.system, token, session)
             return session
         except Exception:                                           # noqa: BLE001
@@ -2380,7 +2468,9 @@ def cloud_auto(request):
     request.require_user()
     session = _cloud_session(request, required=False)
     if session is None:
-        return {"ran": False, "why": "not signed in"}
+        from ..core import cloud_config
+        return {"ran": False, "why": "not signed in",
+                "needs_sign_in": bool(cloud_config.configured(request.system))}
     return sync.auto(request.system, session)
 
 

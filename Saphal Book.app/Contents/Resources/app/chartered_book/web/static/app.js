@@ -508,20 +508,29 @@ var App = (function () {
       api(making ? "/api/register" : "/api/login", { body: body })
         .then(function (result) {
           qs("#login-password").value = "";
-          if (result && result.account === false && result.account_note) {
-            UI.flash("Signed in on this machine. The account could not be reached, so "
-                     + "nothing will travel to your other devices until it can.", "warn");
+          if (result && result.account_older) {
+            UI.flash("The password for this username was changed on another device. "
+                     + "Sign out and sign in with the new one, and your books will "
+                     + "be level again.", "warn");
+          } else if (result && result.account === false && result.account_note) {
+            UI.flash("Signed in on this device. Your account could not be reached, so "
+                     + "nothing travels to your other devices until it can. It is "
+                     + "tried again by itself.", "warn");
           }
           // Whatever is waiting on the account is fetched after the door is
           // open, not before it. Signing in should never wait on a download.
           if (result && result.account) {
+            state.fetching = true;
             api("/api/cloud/fetch-waiting", { body: {} }).then(function (got) {
-              if (!got || !got.count) { return; }
-              UI.flash(got.count === 1
-                ? "Brought down " + got.names[0] + "."
-                : "Brought down " + got.count + " sets of books.", "good");
+              state.fetching = false;
+              if (got && got.count) {
+                UI.flash(got.count === 1
+                  ? got.names[0] + " is here."
+                  : got.count + " companies are here.", "good");
+              }
               return refresh();
-            }).catch(function () { /* offline. The books here still open. */ });
+            }).catch(function () { state.fetching = false; return refresh(); })
+              .then(function () { return Sync.run("signed in"); });
           }
           return refresh();
         })
@@ -998,6 +1007,12 @@ var App = (function () {
       return api("/api/cloud/auto", { body: {} })
         .then(function (result) {
           last = Date.now();
+          if (result && !result.ran && result.needs_sign_in && !told.signIn) {
+            told.signIn = true;
+            UI.flash("This device is not connected to your account just now, so it "
+                     + "is working on its own. With the internet on, sign out and "
+                     + "sign in again and everything comes level by itself.", "warn");
+          }
           if (!result || !result.ran || result.quiet) { return; }
           var moved = (result.sent || []).length + (result.fetched || []).length;
           if (moved) {
@@ -1010,20 +1025,19 @@ var App = (function () {
             // Books that arrived change what is on the screen underneath.
             if ((result.fetched || []).length) { refresh(); }
           }
-          var waiting = (result.conflicts || []).filter(function (row) {
-            return row.slug && !told[row.slug];
+          // Two devices changed the same books while apart. The copy worked
+          // on last was kept and the other set aside whole. Nobody is asked,
+          // but it is never done without saying so.
+          (result.settled || []).forEach(function (row) {
+            UI.flash(row.kept === "there"
+              ? row.name + " was also changed on " + (row.other || "another device")
+                + ", more recently, so that copy is the one in use now. What was "
+                + "entered here in between was set aside, not deleted."
+              : row.name + " was also changed on " + (row.other || "another device")
+                + ". This device was worked on last, so its copy is the one in use.",
+              "warn");
           });
-          (result.conflicts || []).forEach(function (row) {
-            if (row.slug) { told[row.slug] = true; }
-          });
-          if (waiting.length) {
-            UI.flash(waiting.length === 1
-              ? waiting[0].name + " does not match your other device. Open Your account "
-                + "and pick which one to keep."
-              : waiting.length + " companies do not match your other device. Open Your "
-                + "account and pick which ones to keep.", "warn");
-          }
-          state.conflicts = result.conflicts || [];
+          state.conflicts = [];
         })
         .catch(function () { /* offline, or not signed in. Nothing to say. */ })
         .then(function () { running = false; });
@@ -1396,20 +1410,17 @@ var App = (function () {
       ]));
     }
 
-    // Somebody arriving on a second device wants the books they already have,
-    // not a new empty set. Being signed in to the software looks like being
-    // signed in, so this was easy to miss when the only way to it was a line
-    // near the bottom of the menu.
-    wrap.appendChild(el("div.card", { style: "margin-top:1.2rem" }, [
-      el("div.card-head", {}, [
-        el("h2", { text: state.companies.length
-          ? "Books kept on another device" : "Already have books on another device?" }),
-        el("button.primary", { text: "Bring my books down",
-          onclick: function () { go("cloud"); } })
-      ]),
-      el("p.card-note", { text: "Sign in to your account and fetch whatever is waiting. "
-        + "The same username reaches the same books on a computer, a phone or a tablet." })
-    ]));
+    // There used to be a card here with a button to fetch books from another
+    // device. A button is the wrong shape for that. Signing in is the request:
+    // the same username and password is the same books, on anything, and they
+    // are fetched the moment the door opens. What is left is one quiet line
+    // that says so while it happens.
+    if (state.fetching) {
+      wrap.appendChild(el("div.card", { style: "margin-top:1.2rem" }, [
+        el("p.card-note", { text: "Fetching your books from your account. They "
+          + "appear here by themselves in a moment." })
+      ]));
+    }
     page.appendChild(wrap);
   }
 
@@ -2305,51 +2316,21 @@ var App = (function () {
     /* Signing in */
 
     function gate(state) {
-      var username = el("input", { type: "text", value: state.remembered || "",
-                                   placeholder: "The name you sign in with" });
-      var password = el("input", { type: "password", placeholder: "Your password" });
-
-      function go(making) {
-        var name = username.value.trim();
-        var secret = password.value;
-        if (!name || !secret) { UI.flash("Both boxes are needed.", "bad"); return; }
-        if (making && secret.length < 8) {
-          UI.flash("Use at least eight characters. This password also unlocks the "
-                   + "books, so a short one is the weak link.", "bad");
-          return;
-        }
-        api(making ? "/api/cloud/sign-up" : "/api/cloud/sign-in",
-            { body: { username: name, password: secret } })
-          .then(function () {
-            password.value = "";
-            UI.flash(making ? "Account opened." : "Signed in.", "good");
-            return Sync.run("signed in").then(reload);
-          })
-          .catch(function (error) { UI.flash(error.message, "bad"); });
-      }
-
-      password.addEventListener("keydown", function (event) {
-        if (event.key === "Enter") { go(false); }
-      });
-
+      // There was a second sign in form here, with its own password box and
+      // its own way of failing. One username and one password open Saphal
+      // Book, and that same act is what connects the account. So where the
+      // connection has been lost, the answer is the one door, not another.
       return el("div.card", {}, [
-        el("div.card-head", {}, [el("h2", { text: "Your account" })]),
-        el("p.card-note", { text: "The same name and password you use to open Saphal Book. "
-          + "Sign in with it on a computer, a phone or a tablet and the same books are "
-          + "there." }),
-        el("div.row", {}, [
-          el("div", { style: "flex:1 1 220px" }, [UI.field("Username", username)]),
-          el("div", { style: "flex:1 1 220px" }, [UI.field("Password", password)])
+        el("div.card-head", {}, [
+          el("h2", { text: "Not connected to your account just now" }),
+          el("button.primary", { text: "Sign in again", onclick: function () {
+            api("/api/logout", { body: {} }).then(function () { location.reload(); });
+          }})
         ]),
-        el("div.row", {}, [
-          el("button.primary", { text: "Sign in", onclick: function () { go(false); } }),
-          el("button.secondary", { text: "Open a new account",
-                                   onclick: function () { go(true); } })
-        ]),
-        el("p.card-note", { style: "margin-top:.6rem", text: "This password also unlocks "
-          + "the books. Nobody can reset it, not the makers of this software and not the "
-          + "company holding the copies, because none of them ever see it. Write it down "
-          + "somewhere safe." })
+        el("p.card-note", { text: "Your books are on this device and go on working. "
+          + "Sign in again with your username and password and everything goes to, "
+          + "and comes from, your other devices by itself. There is nothing to "
+          + "fetch or send by hand." })
       ]);
     }
 

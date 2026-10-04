@@ -18,7 +18,7 @@
 		</data>
 		<key>Resources/app/chartered_book/BUILD.txt</key>
 		<data>
-		19KPqqPRu0ISYv8WZqCLM9EZnxA=
+		ugyShGJKm9uk+H45HhoPmaa9q6o=
 		</data>
 		<key>Resources/app/chartered_book/__init__.py</key>
 		<data>
@@ -46,7 +46,7 @@
 		</data>
 		<key>Resources/app/chartered_book/core/cloud.py</key>
 		<data>
-		q9kGaEyRH+God0Np+9a1Xs2fqxA=
+		sMUQiZcTl+d+ee+ZI2kP6/xWbQw=
 		</data>
 		<key>Resources/app/chartered_book/core/cloud_config.py</key>
 		<data>
@@ -194,7 +194,7 @@
 		</data>
 		<key>Resources/app/chartered_book/modules/sync.py</key>
 		<data>
-		Vxjn3Qyb7jliNd0OLBU7+RCQEGQ=
+		SctTVOcMLEWMgKwC5IM3ODW8r/0=
 		</data>
 		<key>Resources/app/chartered_book/modules/tb_import.py</key>
 		<data>
@@ -214,7 +214,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/api.py</key>
 		<data>
-		Qi63jzfL88ual5FDAfJr8Qa1wmg=
+		dPRgGybc6f2uKn6J188WqQlXdvc=
 		</data>
 		<key>Resources/app/chartered_book/web/embedded.py</key>
 		<data>
@@ -230,7 +230,7 @@
 		</data>
 		<key>Resources/app/chartered_book/web/static/app.js</key>
 		<data>
-		1pvkVLR45kJwYV8QRv2oCYg7s8U=
+		z7GZm7lzuBEoBiibKu0oS0xZ5gE=
 		</data>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
 		<data>
@@ -332,6 +332,10 @@
 		<data>
 		U3gAOFrUu/tSYZjWXKsQEXe6twA=
 		</data>
+		<key>Resources/app/tests/pretend_server.py</key>
+		<data>
+		+2FH2yti23d6N7XQKDBiOlwqTO8=
+		</data>
 		<key>Resources/app/tests/test_accounting.py</key>
 		<data>
 		iiaGZ7i36j/8hCUaj2KI7W766lc=
@@ -360,6 +364,10 @@
 		<data>
 		Y4Eq2u872Fa6H3Fl9sY3nOE2dEs=
 		</data>
+		<key>Resources/app/tests/test_one_login.py</key>
+		<data>
+		tQx1JGT5/KETzSOvWfIxtfLeBo0=
+		</data>
 		<key>Resources/app/tests/test_papers.py</key>
 		<data>
 		8kPKBrtEjfxqw8BjPInQfLbi5xI=
@@ -387,6 +395,10 @@
 		<key>Resources/app/tests/test_screens.py</key>
 		<data>
 		uNvA731ledjxpPu7/NlpDlTmsek=
+		</data>
+		<key>Resources/app/tests/test_settle.py</key>
+		<data>
+		/D2avJjjTFMx8rIsda+HileG+Q0=
 		</data>
 		<key>Resources/app/tests/test_settle_on_invoice.py</key>
 		<data>
@@ -473,7 +485,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			ZgQBMdY0L8JQc9cmrP3rNMRGc4QAJK03htZPc7KCsZY=
+			dgPplE4Y42VM3PALJh4b13VJB0xNl0C0ua7x6XKmExc=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/__init__.py</key>
@@ -522,7 +534,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			D6pIA7R/qBWsu8G5iX871Xgg0Bl9MzARevrJOEiUSEw=
+			c2nO9tjUQrqSC0WIRvPFRfCLoxtkFpusKh76DfdrDj0=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/core/cloud_config.py</key>
@@ -781,7 +793,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			uum0pvUejTlYWO3n9xm7TrR9EmVHyi0HhdK7/McaToY=
+			slWFkw7Rnl8DUIBRJbpSMe9dk+o8zHTTNWxDFECnHNM=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/modules/tb_import.py</key>
@@ -809,7 +821,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			nToGpCOr4Dyn5oqJRV1/C1NOjbGtU+WDzZKeJwHAh/s=
+			b2CYRB7apzeaRPU/KpKl0xMNJdB0Ymh4GlrJJJMiEnE=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/embedded.py</key>
@@ -837,7 +849,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			gcZ+t44ib78PrjGO9ewuzP0IoQSzkeajMctR5WscsXk=
+			63Vda/Fi06qzdLIued8RlZpCroQMW1I0lPSCZv12xbI=
 			</data>
 		</dict>
 		<key>Resources/app/chartered_book/web/static/assets.js</key>
@@ -1015,6 +1027,13 @@
 			xXPEexVWiU99BVnXa/dMFJfcZ3K0qsnLL7vnK7D2MGw=
 			</data>
 		</dict>
+		<key>Resources/app/tests/pretend_server.py</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			zdbRHg7DE/kj2lxgxfGlK+rddwlPqu1gRiJM24a/ekU=
+			</data>
+		</dict>
 		<key>Resources/app/tests/test_accounting.py</key>
 		<dict>
 			<key>hash2</key>
@@ -1064,6 +1083,13 @@
 			1rSKajLzoiAlb1TwbAClCkhHQ4t7Woyc3tiHY7FcfOU=
 			</data>
 		</dict>
+		<key>Resources/app/tests/test_one_login.py</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			N1WIjkSv511EL1+I+m10jKK/dMBfoLwso+h2BMGPgoE=
+			</data>
+		</dict>
 		<key>Resources/app/tests/test_papers.py</key>
 		<dict>
 			<key>hash2</key>
@@ -1111,6 +1137,13 @@
 			<key>hash2</key>
 			<data>
 			mDlLXPh/N+a/+FG0nhDGix8G2GLVpJlFs9hhLBZDzis=
+			</data>
+		</dict>
+		<key>Resources/app/tests/test_settle.py</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			30rS2xGbGGMx6i4AAFB9VX23oRzx/YxRvbkykGdvwZg=
 			</data>
 		</dict>
 		<key>Resources/app/tests/test_settle_on_invoice.py</key>

@@ -90,8 +90,17 @@ def _split_password(username, password):
     return sign_in, master
 
 
-def address_for(username):
-    """The address a username is filed under on the server."""
+# How many times one username can be opened afresh. See open_afresh.
+GENERATIONS = 4
+
+
+def address_for(username, generation=0):
+    """
+    The address a username is filed under on the server.
+
+    A plus sign cannot be typed into a username, so the addresses made with one
+    below can never be somebody else's name.
+    """
     cleaned = (username or "").strip().lower()
     if not cleaned:
         raise CloudError("Choose a username.")
@@ -102,6 +111,8 @@ def address_for(username):
             "and nothing else.")
     if len(cleaned) < 3:
         raise CloudError("A username needs at least three characters.")
+    if generation:
+        return "%s+%d@%s" % (cleaned, generation, USERNAME_DOMAIN)
     return "%s@%s" % (cleaned, USERNAME_DOMAIN)
 
 
@@ -228,6 +239,7 @@ class Cloud(object):
         self.user_id = None
         self.username = None
         self.master_key = None
+        self.generation = 0
 
     # Speaking to it
 
@@ -272,17 +284,59 @@ class Cloud(object):
                 "it, so choose another one." % username)
         raise CloudError(self._complain(detail, "The account could not be opened."))
 
-    def sign_in(self, username, password):
-        """Sign in, and work out the key that unlocks the books, without sending it."""
+    def sign_in(self, username, password, first=0):
+        """
+        Sign in, and work out the key that unlocks the books, without sending it.
+
+        A username can have been opened afresh, after a password nobody could
+        remember, so there may be more than one place to look. Each is tried,
+        starting with the one this device used last, and the one the password
+        fits is the account.
+        """
         sign_in_secret, master = _split_password(username, password)
-        status, detail = self._call("/auth/v1/token?grant_type=password", "POST", {
-            "email": address_for(username), "password": sign_in_secret})
-        if status == 200:
-            self._remember(detail, username, master)
-            return {"username": username, "user_id": self.user_id}
-        if status in (400, 401):
-            raise CloudError("That username and password do not match an account.")
-        raise CloudError(self._complain(detail, "Could not sign in."))
+        order = [first] + [n for n in range(GENERATIONS) if n != first]
+        for generation in order:
+            status, detail = self._call("/auth/v1/token?grant_type=password", "POST", {
+                "email": address_for(username, generation), "password": sign_in_secret})
+            if status == 200:
+                self._remember(detail, username, master)
+                self.generation = generation
+                return {"username": username, "user_id": self.user_id,
+                        "generation": generation}
+            if status not in (400, 401):
+                raise CloudError(self._complain(detail, "Could not sign in."))
+        raise CloudError("That username and password do not match an account.")
+
+    def open_afresh(self, username, password):
+        """
+        Open the account for a username under a password it does not answer to.
+
+        The password is the key to everything kept on the server, and the server
+        never sees it, so a forgotten one cannot be put right from the server's
+        side by anybody. What can be done is to start the account again from a
+        device that still has the books, under the new password, and send the
+        books up. That is what this is, and it is only ever called for somebody
+        who has just proved to this device that they are who they say.
+
+        The first place not already taken is used, starting with the plain
+        username, so a login that never had an account simply gets one.
+        """
+        sign_in_secret, master = _split_password(username, password)
+        for generation in range(GENERATIONS):
+            status, detail = self._call("/auth/v1/signup", "POST", {
+                "email": address_for(username, generation), "password": sign_in_secret})
+            if status in (200, 201):
+                self._remember(detail, username, master)
+                if not self.token:
+                    raise CloudError("The account was made but the server did not "
+                                     "sign you in.")
+                self.generation = generation
+                return {"username": username, "user_id": self.user_id,
+                        "generation": generation}
+            if status in (400, 422) and "already" in json.dumps(detail).lower():
+                continue
+            raise CloudError(self._complain(detail, "The account could not be opened."))
+        raise CloudError("This username has been started again too many times.")
 
     def resume(self, username, master_key, refresh_token):
         """
