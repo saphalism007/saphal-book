@@ -1,0 +1,47 @@
+# Keeps the account server from going to sleep.
+#
+# The server is a free Supabase project, and a free project is paused after
+# about a week in which nobody uses it. A paused project is not slow, it is
+# gone: its address stops existing, every device loses touch with the account,
+# and a phone that has never been signed in to before cannot open at all. That
+# happened, after a quiet month, and looked for all the world like a wrong
+# password.
+#
+# So something calls it twice a day. The key used here is the public one that
+# is already inside the app. It can read nothing: every table refuses it. The
+# call only has to arrive.
+#
+# If the server is already asleep this fails, on purpose, so that it shows up
+# as a red cross and an email rather than passing quietly. Waking it is done by
+# hand on supabase.com, under the project, with the Restore button.
+
+name: Keep the account server awake
+
+on:
+  schedule:
+    - cron: "17 3,15 * * *"
+  workflow_dispatch:
+
+jobs:
+  call:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call the server
+        env:
+          SERVER: https://oswbrodmrwprdydxvtmx.supabase.co
+          KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9zd2Jyb2RtcndwcmR5ZHh2dG14Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1MTcwODksImV4cCI6MjEwNDA5MzA4OX0.MOY7Ipgd5tf8tmL1kaJCE5qcZ59Lw9jY2pMoocrlXqE
+        run: |
+          # The sign in service, and then the database through its front door.
+          # The second is expected to be refused. Being refused is still being
+          # reached, and reaching the database is what counts as use.
+          health=$(curl -s -m 30 -o /dev/null -w "%{http_code}" \
+            -H "apikey: $KEY" "$SERVER/auth/v1/health" || true)
+          books=$(curl -s -m 30 -o /dev/null -w "%{http_code}" \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+            "$SERVER/rest/v1/books?select=book_id&limit=1" || true)
+          echo "sign in service answered $health, database answered $books"
+          if [ "$health" = "000" ] || [ "$books" = "000" ]; then
+            echo "The account server did not answer. It is probably paused."
+            echo "Open supabase.com, choose the project and press Restore."
+            exit 1
+          fi
