@@ -438,3 +438,22 @@ SYSTEM_MIGRATIONS.append((6, "getting back in without the password", """
 
     CREATE INDEX idx_password_resets_user ON password_resets(user_id);
 """))
+
+
+SYSTEM_MIGRATIONS.append((7, "staying joined to the account for good", """
+    -- The half of the password that signs in to the account, kept on the device.
+    --
+    -- A device used to stay joined to the account with a ticket from the server.
+    -- A ticket can be used once and is then replaced, and any slip in keeping
+    -- the replacement, a page closed at the wrong moment, two windows open, left
+    -- the device holding a spent one. The next morning it was signed in to the
+    -- books and not to the account, and showed a second Sign in button to
+    -- somebody who had already signed in.
+    --
+    -- With this the device can simply sign in to the account again by itself,
+    -- as often as it needs to, for as long as the password has not changed.
+    -- It is not the password. It is made from it, it cannot be turned back into
+    -- it, and it does not unlock the books. The key that does is already kept
+    -- beside it, so this adds nothing to what holding the device gives.
+    ALTER TABLE cloud_account ADD COLUMN sign_in_secret TEXT NOT NULL DEFAULT '';
+"""))

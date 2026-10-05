@@ -99,6 +99,7 @@ def move(session, username, new_password, fresh_session=None):
     # From here the account answers to the new password, and the new copies
     # are the real ones.
     session.master_key = new_master
+    session.sign_in_secret = new_secret
     holding = session
     if fresh_session is not None:
         try:

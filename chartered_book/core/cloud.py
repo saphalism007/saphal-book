@@ -240,10 +240,33 @@ class Cloud(object):
         self.username = None
         self.master_key = None
         self.generation = 0
+        self.sign_in_secret = None
 
     # Speaking to it
 
     def _call(self, path, method="GET", body=None, headers=None, token=None):
+        answer = self._send(path, method, body, headers, token)
+
+        # A ticket from the server lasts about an hour. When one has run out the
+        # server says so, and this signs in again and asks once more, so that a
+        # device left open all day carries on without anybody noticing.
+        if answer[0] == 401 and token is None and self.token and self.sign_in_secret \
+                and not path.startswith("/auth/v1/token") and not self._renewing:
+            self._renewing = True
+            try:
+                self.sign_in_with_secret(self.username, self.sign_in_secret,
+                                         self.master_key, self.generation)
+            except CloudError:
+                return answer
+            finally:
+                self._renewing = False
+            return self._send(path, method, body, headers, None)
+        return answer
+
+    _renewing = False
+
+    def _send(self, path, method="GET", body=None, headers=None, token=None):
+        """The request itself, leaving the machine."""
         data = json.dumps(body).encode("utf-8") if body is not None else None
         head = {"apikey": self.anon_key,
                 "Authorization": "Bearer " + (token or self.token or self.anon_key)}
@@ -253,6 +276,27 @@ class Cloud(object):
         if IN_BROWSER:
             return _browser_call(self.url + path, method, data, head)
         return _machine_call(self.url + path, method, data, head)
+
+    def sign_in_with_secret(self, username, sign_in_secret, master_key, first=0):
+        """
+        Sign in with what a device keeps, rather than with what a person types.
+
+        Same search as sign_in, and the same answer when nothing fits, which
+        from a device means the password has been changed somewhere else.
+        """
+        order = [first] + [n for n in range(GENERATIONS) if n != first]
+        for generation in order:
+            status, detail = self._call("/auth/v1/token?grant_type=password", "POST", {
+                "email": address_for(username, generation), "password": sign_in_secret})
+            if status == 200:
+                self._remember(detail, username, master_key)
+                self.generation = generation
+                self.sign_in_secret = sign_in_secret
+                return {"username": username, "user_id": self.user_id,
+                        "generation": generation}
+            if status not in (400, 401):
+                raise CloudError(self._complain(detail, "Could not sign in."))
+        raise CloudError("That username and password do not match an account.")
 
     @staticmethod
     def _complain(detail, fallback):
@@ -273,6 +317,7 @@ class Cloud(object):
             "email": address_for(username), "password": sign_in_secret})
         if status in (200, 201):
             self._remember(detail, username, master)
+            self.sign_in_secret = sign_in_secret
             if not self.token:
                 raise CloudError(
                     "The account was made but the server did not sign you in. Email "
@@ -300,6 +345,7 @@ class Cloud(object):
                 "email": address_for(username, generation), "password": sign_in_secret})
             if status == 200:
                 self._remember(detail, username, master)
+                self.sign_in_secret = sign_in_secret
                 self.generation = generation
                 return {"username": username, "user_id": self.user_id,
                         "generation": generation}
@@ -327,6 +373,7 @@ class Cloud(object):
                 "email": address_for(username, generation), "password": sign_in_secret})
             if status in (200, 201):
                 self._remember(detail, username, master)
+                self.sign_in_secret = sign_in_secret
                 if not self.token:
                     raise CloudError("The account was made but the server did not "
                                      "sign you in.")

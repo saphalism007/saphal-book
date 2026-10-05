@@ -41,7 +41,7 @@ def _save(state):
 
 
 class PretendCloud(cloud.Cloud):
-    def _call(self, path, method="GET", body=None, headers=None, token=None):
+    def _send(self, path, method="GET", body=None, headers=None, token=None):
         state = _load()
         if state.get("down"):
             # Asleep, the way a free project goes after a week unused.
@@ -182,6 +182,26 @@ def run(steps):
             state["down"] = (step[1] == "off")
             _save(state)
             out.append(step[1])
+        elif what == "a-night-passes":
+            # Every ticket the server handed out has run out, and the one this
+            # device kept to get a new one with has been spent.
+            state = _load()
+            state["tickets"], state["refresh"] = {}, {}
+            _save(state)
+            system = db.open_system()
+            system.execute("UPDATE cloud_account SET refresh_token = 'spent'")
+            system.commit()
+            out.append("morning")
+        elif what == "tickets-run-out":
+            state = _load()
+            state["tickets"] = {}
+            _save(state)
+            out.append("run out")
+        elif what == "token":
+            out.append(token)
+        elif what == "use-token":
+            token = step[1]
+            out.append("using")
         elif what == "here":
             out.append(what_is_here())
         elif what == "sign-out":

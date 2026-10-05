@@ -219,6 +219,13 @@ var App = (function () {
     var helpPanel = qs("#gate-help-panel");
     helpPanel.classList.add("hidden");
 
+    var sentHere = "";
+    try {
+      sentHere = sessionStorage.getItem("cb_gate_note") || "";
+      sessionStorage.removeItem("cb_gate_note");
+    } catch (e) { /* fine */ }
+    if (sentHere) { needsSetup = false; }
+
     // On Sign In this is a real reset, not an explanation. Somebody who cannot
     // get in wants a way in, and a link that only tells them about their
     // situation is the thing that makes people ring somebody up.
@@ -482,7 +489,7 @@ var App = (function () {
       // one reaches the backup screen and finds nothing to connect.
       qs("#gate-help").textContent = making
         ? "Your email is where backups go, so use the one your Google Drive uses."
-        : "";
+        : sentHere;
       qs("#gate-error").textContent = "";
     }
 
@@ -1011,16 +1018,40 @@ var App = (function () {
        account server that was not answering. So the browser is asked whether
        it is online, and the two are told apart. And it is said once, not every
        time this runs. */
-    function rejoin() {
+    function rejoin(apart) {
       function say(text) {
         if (told.apart === text) { return; }
         told.apart = text;
         UI.flash(text, "warn");
       }
       if (!kept) {
-        say("This device is working on its own just now. Sign out and sign in "
-            + "again to join it to your account. Your books here are safe.");
-        return null;
+        if (apart === "unreachable") {
+          say(navigator.onLine === false
+            ? "There is no internet just now, so this device is working on its own. "
+              + "Your books here are safe, and it joins your account by itself when "
+              + "the internet is back."
+            : "Your account server is not answering, so this device is working on "
+              + "its own for now. Your books here are safe. It keeps trying and "
+              + "joins by itself as soon as the server is back.");
+          return null;
+        }
+        // Only the password will do: it was changed on another device, or this
+        // device has never been joined. There is one door, so that is where
+        // this goes, once, rather than growing a second sign in inside.
+        var asked = false;
+        try { asked = sessionStorage.getItem("cb_asked_once") === "1"; } catch (e) { /* fine */ }
+        if (asked) {
+          say("This device is not joined to your account. If your password was "
+              + "changed on another device, sign in here with the new one.");
+          return null;
+        }
+        try {
+          sessionStorage.setItem("cb_asked_once", "1");
+          sessionStorage.setItem("cb_gate_note", "Sign in once to join this device "
+            + "to your account. If you changed your password on another device, "
+            + "use the new one.");
+        } catch (e) { /* fine */ }
+        return api("/api/logout", { body: {} }).then(function () { location.reload(); });
       }
       return api("/api/cloud/reconnect", { body: { password: kept } })
         .then(function (got) {
@@ -1050,7 +1081,10 @@ var App = (function () {
       return api("/api/cloud/auto", { body: {} })
         .then(function (result) {
           last = Date.now();
-          if (result && !result.ran && result.needs_sign_in) { return rejoin(); }
+          if (result && !result.ran && result.needs_sign_in) { return rejoin(result.apart); }
+          if (result && result.ran) {
+            try { sessionStorage.removeItem("cb_asked_once"); } catch (e) { /* fine */ }
+          }
           if (!result || !result.ran || result.quiet) { return; }
           var moved = (result.sent || []).length + (result.fetched || []).length;
           if (moved) {
@@ -2301,6 +2335,7 @@ var App = (function () {
        that is asked as a plain question with the two answers spelled out. */
 
     var showWorkings = false;
+    var triedJoining = false;
 
     return load();
 
@@ -2354,22 +2389,24 @@ var App = (function () {
     /* Signing in */
 
     function gate(state) {
-      // There was a second sign in form here, with its own password box and
-      // its own way of failing. One username and one password open Saphal
-      // Book, and that same act is what connects the account. So where the
-      // connection has been lost, the answer is the one door, not another.
+      // No button. There was a sign in form here once, and then a Sign in
+      // again button, and both were a second door inside a house somebody had
+      // already come in to. A device that has been signed in to joins the
+      // account by itself. This only ever shows in the moments before it has,
+      // or while the server cannot be reached.
+      if (!triedJoining) {
+        triedJoining = true;
+        Sync.run("asked").then(function () {
+          return api("/api/cloud/status", { query: { quick: "1" } });
+        }).then(function (now) { if (now && now.signed_in) { draw(now); } })
+          .catch(function () { /* stays as it is */ });
+      }
       return el("div.card", {}, [
-        el("div.card-head", {}, [
-          el("h2", { text: "Not connected to your account just now" }),
-          el("button.primary", { text: "Sign in again", onclick: function () {
-            api("/api/logout", { body: {} }).then(function () { location.reload(); });
-          }})
-        ]),
+        el("div.card-head", {}, [el("h2", { text: "Joining your account" })]),
         el("p.card-note", { text: "Your books are on this device and go on working. "
-          + "Either the account server is not answering or this page was opened "
-          + "without signing in. It is tried again by itself. Signing in again "
-          + "also does it, and then everything goes to, and comes from, your "
-          + "other devices with nothing to fetch or send by hand." })
+          + "This device joins your account by itself, and then everything goes "
+          + "to, and comes from, your other devices with nothing to press. If "
+          + "the account server cannot be reached it keeps trying." })
       ]);
     }
 
@@ -2377,15 +2414,6 @@ var App = (function () {
       return el("div.card", {}, [
         el("div.card-head", {}, [
           el("h2", { text: "Signed in as " + state.username }),
-          el("button.secondary", { text: "Sign out", onclick: function () {
-            UI.confirmAction("Sign out of your account",
-              "The books stay on this device and go on working. They simply stop going "
-              + "to and from your other devices until you sign in again.",
-              function () {
-                return api("/api/cloud/sign-out", { body: {} })
-                  .then(function () { UI.flash("Signed out.", "warn"); return reload(); });
-              }, "Sign out");
-          }})
         ]),
         el("p.card-note", {}, [
           el("span", { text: "This device is called " }),

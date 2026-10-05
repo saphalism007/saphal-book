@@ -176,6 +176,44 @@ def main():
         check("the new device opens once the server is back", got[0]["status"], 200)
         check("with what was entered while it slept",
               got[-1].get("shop_two"), "entered while the server slept")
+
+        # --- One sign in is enough, and it lasts ---
+        #
+        # Signed in at night, opened in the morning without typing anything,
+        # and shown a card saying not connected, with a second Sign in button.
+        # The device had been staying joined with a ticket that can be used
+        # once, and it was holding a spent one.
+        got = laptop.does(["post", "/api/login", {"username": NAME, "password": THIRD}],
+                          ["token"])
+        held = got[1]
+        got = laptop.does(["a-night-passes"], ["use-token", held],
+                          ["books", "shop_one", "Shop One", "2026-10-06 08:00:00",
+                           "entered the next morning"],
+                          ["post", "/api/cloud/auto"])
+        check("the next morning the device is still on the account",
+              got[3]["payload"].get("ran"), True)
+        check("and what is entered goes up, with nothing typed",
+              got[3]["payload"].get("sent"), ["Shop One"])
+
+        # And a page left open past the hour a ticket lasts.
+        got = laptop.does(["post", "/api/login", {"username": NAME, "password": THIRD}],
+                          ["post", "/api/cloud/auto"],
+                          ["tickets-run-out"],
+                          ["books", "shop_two", "Shop Two", "2026-10-06 11:00:00",
+                           "entered after a long morning"],
+                          ["post", "/api/cloud/auto"])
+        check("a page left open all morning carries on by itself",
+              got[4]["payload"].get("sent"), ["Shop Two"])
+
+        # Unless the password really was changed somewhere else. Then only the
+        # new password will do, and the device says so rather than guessing.
+        tablet.does(["post", "/api/login", {"username": NAME, "password": THIRD}],
+                    ["post", "/api/change-password",
+                     {"current_password": THIRD, "new_password": FIRST + " again"}])
+        got = laptop.does(["a-night-passes"], ["use-token", held],
+                          ["post", "/api/cloud/auto"])
+        check("a password changed elsewhere is the one thing that asks again",
+              got[2]["payload"].get("apart"), "needs_password")
     finally:
         shutil.rmtree(root, ignore_errors=True)
 

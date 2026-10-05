@@ -366,6 +366,9 @@ def _hold_account(system, token, session):
             and before["user_id"] != session.user_id:
         system.execute("UPDATE cloud_books SET version = 0, last_hash = ''")
     system.execute(
+        "INSERT INTO app_settings (key, value) VALUES ('password_ahead', '') "
+        "ON CONFLICT(key) DO UPDATE SET value = ''")
+    system.execute(
         "INSERT INTO app_settings (key, value) VALUES ('account_place', ?) "
         "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
         ("%s|%d" % ((session.username or "").strip().lower(),
@@ -382,11 +385,15 @@ def _hold_account(system, token, session):
         (session.username, session.user_id or "", db.now_stamp(),
          binascii.hexlify(session.master_key or b"").decode("ascii"),
          session.refresh_token or ""))
+    if getattr(session, "sign_in_secret", None):
+        system.execute("UPDATE cloud_account SET sign_in_secret = ? WHERE id = 1",
+                       (session.sign_in_secret,))
     system.commit()
 
 
 def _forget_account(system):
-    system.execute("UPDATE cloud_account SET master_key = '', refresh_token = '' WHERE id = 1")
+    system.execute("UPDATE cloud_account SET master_key = '', refresh_token = '', "
+                   "sign_in_secret = '' WHERE id = 1")
     system.commit()
 
 
@@ -423,10 +430,28 @@ def _password_is_ahead(system, username):
         "SELECT username, last_signed_in FROM cloud_account WHERE id = 1").fetchone()
     if account is None or (account["username"] or "").strip().lower() != name.lower():
         return True
+    # A mark, set when a password is reset or changed here without the account
+    # following, and cleared the moment this device joins the account. It used
+    # to be worked out by comparing two times kept to the second, and a reset
+    # and a sign in inside the same second came out either way.
+    mark = system.execute("SELECT value FROM app_settings WHERE key = 'password_ahead'"
+                          ).fetchone()
+    if mark is not None:
+        return mark["value"] == name.lower()
+    # A device that reset its password before there was a mark.
     reset = system.execute(
         "SELECT MAX(at) AS at FROM login_history WHERE lower(username) = lower(?) "
         "AND outcome = 'password reset'", (name,)).fetchone()
     return bool(reset and reset["at"] and reset["at"] > (account["last_signed_in"] or ""))
+
+
+def _mark_password_ahead(system, username):
+    """This device's password is now newer than the account's."""
+    system.execute(
+        "INSERT INTO app_settings (key, value) VALUES ('password_ahead', ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        ((username or "").strip().lower(),))
+    system.commit()
 
 
 def _account_follows(request, username, password):
@@ -724,6 +749,7 @@ def reset_here(request):
                                      bool(request.local))
     except resets.ResetError as exc:
         raise ApiError(str(exc))
+    _mark_password_ahead(request.system, done["username"])
     done["account"] = _move_account(request, done["username"], fresh)
     return done
 
@@ -763,6 +789,7 @@ def reset_finish(request):
                              request.arg("ticket") or "", fresh)
     except resets.ResetError as exc:
         raise ApiError(str(exc))
+    _mark_password_ahead(request.system, done["username"])
     done["account"] = _move_account(request, done["username"], fresh)
     return done
 
@@ -862,6 +889,7 @@ def change_password(request):
     if account["state"] != "moved":
         auth._record_login(request.system, user["username"], "password reset",
                            "changed on this device")
+        _mark_password_ahead(request.system, user["username"])
     request.system.commit()
     return {"ok": True, "account": account}
 
@@ -2163,20 +2191,42 @@ def _cloud_session(request, required=True):
 
     row = request.system.execute("SELECT * FROM cloud_account WHERE id = 1").fetchone()
     keys = row.keys() if row else []
-    if row and "master_key" in keys and row["master_key"] and row["refresh_token"]:
+    request.account_why = "needs_password"
+    secret = row["sign_in_secret"] if row and "sign_in_secret" in keys else ""
+    if row and "master_key" in keys and row["master_key"] and (secret or row["refresh_token"]):
+        import binascii
         try:
-            import binascii
             settings = cloud_config.settings(request.system)
             session = cloud.Cloud(settings["url"], settings["anon_key"])
-            session.resume(row["username"], binascii.unhexlify(row["master_key"]),
-                           row["refresh_token"])
-            session.generation = _account_place(request.system, row["username"])
+            master = binascii.unhexlify(row["master_key"])
+            place = _account_place(request.system, row["username"])
+            if secret:
+                # Signing in again with what the device keeps. Nothing here can
+                # go stale, so a device joined once stays joined.
+                session.sign_in_with_secret(row["username"], secret, master, place)
+            else:
+                session.resume(row["username"], master, row["refresh_token"])
+                session.generation = place
             _hold_account(request.system, token, session)
             return session
+        except Exception as exc:                                    # noqa: BLE001
+            if "do not match" in str(exc) or (not secret and "did not answer" not in str(exc)):
+                # The password was changed somewhere else, or an old style
+                # ticket has run out. Either way only the password will do now.
+                _forget_account(request.system)
+            else:
+                # Not reached. Nothing is thrown away: it is tried again.
+                request.account_why = "unreachable"
+
+    elif request.session:
+        # Nothing kept to join with, so the password is what is needed. But
+        # sending somebody back to the sign in screen is only worth doing if
+        # signing in could work, so the server is asked whether it is there.
+        try:
+            settings = cloud_config.settings(request.system)
+            cloud.Cloud(settings["url"], settings["anon_key"])._send("/auth/v1/health")
         except Exception:                                           # noqa: BLE001
-            # The ticket has run out or been withdrawn. Clear it so the screen
-            # asks for the password rather than trying this again on every call.
-            _forget_account(request.system)
+            request.account_why = "unreachable"
 
     if required:
         raise ApiError("Sign in to your account first.", 409)
@@ -2210,7 +2260,8 @@ def cloud_status(request):
         # Signed in is knowable without asking anybody: the key that unlocks the
         # copies is either kept on this device or it is not.
         found["signed_in"] = bool(
-            row and "master_key" in keys and row["master_key"] and row["refresh_token"])
+            row and "master_key" in keys and row["master_key"]
+            and (row["refresh_token"] or ("sign_in_secret" in keys and row["sign_in_secret"])))
         found["username"] = row["username"] if row else ""
         found["provisional"] = True
     else:
@@ -2220,6 +2271,7 @@ def cloud_status(request):
         found["provisional"] = False
 
     found["configured"] = cloud_config.configured(request.system)
+    found["apart"] = getattr(request, "account_why", "")
     found["remembered"] = row["username"] if row else ""
     return found
 
@@ -2519,7 +2571,8 @@ def cloud_auto(request):
     if session is None:
         from ..core import cloud_config
         return {"ran": False, "why": "not signed in",
-                "needs_sign_in": bool(cloud_config.configured(request.system))}
+                "needs_sign_in": bool(cloud_config.configured(request.system)),
+                "apart": getattr(request, "account_why", "needs_password")}
     return sync.auto(request.system, session)
 
 
