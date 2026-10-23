@@ -31,7 +31,7 @@ window.CB = (function () {
   function fail(message, detail) {
     var line = document.getElementById("startstep");
     if (line) {
-      line.innerHTML = "";
+      line.textContent = "";
       var strong = document.createElement("div");
       strong.textContent = message;
       strong.style.color = "var(--bad)";
@@ -44,6 +44,15 @@ window.CB = (function () {
         small.style.marginTop = ".4rem";
         line.appendChild(small);
       }
+      // A way out that is not closing the app, which on a phone is not
+      // obvious and was the only thing the old message offered.
+      var again = document.createElement("button");
+      again.type = "button";
+      again.textContent = "Try again";
+      again.style.cssText = "margin-top:1rem;padding:.6rem 1.4rem;border-radius:10px;"
+        + "border:0;background:var(--brand);color:#fff;font:inherit;font-weight:600";
+      again.onclick = function () { window.location.reload(); };
+      line.appendChild(again);
     }
     try { console.error("[Saphal Book]", message, detail); } catch (ignored) {}
   }
@@ -136,7 +145,7 @@ window.CB = (function () {
 
   function start() {
     try {
-      worker = new Worker("engine.js?v=aec316cd6cad");
+      worker = new Worker("engine.js?v=028b3c87da0a");
     } catch (error) {
       return fail("Saphal Book could not start.",
                   "This browser would not start the accounting engine. "
@@ -152,10 +161,14 @@ window.CB = (function () {
       if (msg.kind === "step") { return step(msg.text, msg.portion, msg.first); }
       if (msg.kind === "answer") { return settle(msg); }
       if (msg.kind === "failed") {
-        return fail("Saphal Book could not start.",
-                    "The first load needs the internet. Check the connection and open "
-                    + "it again. If it keeps failing: "
-                    + String(msg.detail || "").split(String.fromCharCode(10))[0].slice(0, 160));
+        var why = String(msg.detail || "").split(String.fromCharCode(10))[0].slice(0, 160);
+        return fail("Saphal Book could not finish opening.",
+                    (navigator.onLine === false
+                      ? "This device has no internet just now. "
+                      : "Part of it did not download, which is usually the connection "
+                        + "for a moment. ")
+                    + "Your books are safe on this device. Press Try again. "
+                    + (why ? "(" + why + ")" : ""));
       }
       if (msg.kind === "ready") {
         ready = true;

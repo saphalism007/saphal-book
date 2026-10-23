@@ -1,31 +1,31 @@
-var VERSION = "saphal-book-web-aec316cd6cad";
+var VERSION = "saphal-book-web-028b3c87da0a";
 var ENGINE = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
 var SHELL = [
 "./",
 "manifest.webmanifest",
-"boot.js?v=aec316cd6cad",
-"engine.js?v=aec316cd6cad",
-"chartered_book.zip?v=aec316cd6cad",
-"static/style.css?v=aec316cd6cad",
+"boot.js?v=028b3c87da0a",
+"engine.js?v=028b3c87da0a",
+"chartered_book.zip?v=028b3c87da0a",
+"static/style.css?v=028b3c87da0a",
 "static/icons/icon-192.png",
 "static/icons/icon-192.png?v=2",
 "static/icons/icon-180.png?v=2",
 "static/icons/icon-512.png",
-"static/nepali.js?v=aec316cd6cad",
-"static/ui.js?v=aec316cd6cad",
-"static/app.js?v=aec316cd6cad",
-"static/masters.js?v=aec316cd6cad",
-"static/vouchers.js?v=aec316cd6cad",
-"static/drill.js?v=aec316cd6cad",
-"static/reports.js?v=aec316cd6cad",
-"static/statements.js?v=aec316cd6cad",
-"static/banking.js?v=aec316cd6cad",
-"static/assets.js?v=aec316cd6cad",
-"static/incometax.js?v=aec316cd6cad",
-"static/analysis.js?v=aec316cd6cad",
-"static/recurring.js?v=aec316cd6cad",
-"static/quotations.js?v=aec316cd6cad",
-"static/audit.js?v=aec316cd6cad"
+"static/nepali.js?v=028b3c87da0a",
+"static/ui.js?v=028b3c87da0a",
+"static/app.js?v=028b3c87da0a",
+"static/masters.js?v=028b3c87da0a",
+"static/vouchers.js?v=028b3c87da0a",
+"static/drill.js?v=028b3c87da0a",
+"static/reports.js?v=028b3c87da0a",
+"static/statements.js?v=028b3c87da0a",
+"static/banking.js?v=028b3c87da0a",
+"static/assets.js?v=028b3c87da0a",
+"static/incometax.js?v=028b3c87da0a",
+"static/analysis.js?v=028b3c87da0a",
+"static/recurring.js?v=028b3c87da0a",
+"static/quotations.js?v=028b3c87da0a",
+"static/audit.js?v=028b3c87da0a"
 ];
 var ENGINE_STORE = "saphal-book-engine";
 

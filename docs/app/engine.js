@@ -4,7 +4,7 @@
 var PYODIDE = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
 var ENGINE_STORE = "saphal-book-engine";
 var SNAPSHOT = new URL("python-ready-v0.26.4", self.location).href;
-var ZIP = new URL("chartered_book.zip?v=aec316cd6cad", self.location).href;
+var ZIP = new URL("chartered_book.zip?v=028b3c87da0a", self.location).href;
 var BOOKS = "/books";
 var pyodide = null;
 var dispatch = null;
@@ -44,18 +44,35 @@ function save() {
    the engine came over the internet, or out of an ordinary cache that a
    phone empties whenever it wants the room. So the engine is read out of the
    store here, directly, and only fetched when it is not there. */
+/* A download that breaks off part way is asked for again, a few times, with
+   a short pause between. On a phone that happens: a signal drops for a
+   moment, or the browser cuts off a request while one offline helper hands
+   over to the next. Saphal Book used to give up on the first one and show
+   "could not start", over a file that was there and would have come the
+   second time. Only failing to reach anything counts; a file the server
+   says is not there is not asked for again. */
+async function patient(url, init) {
+  var last = null;
+  for (var attempt = 0; attempt < 4; attempt += 1) {
+    try { return await realFetch(url, init); }
+    catch (error) { last = error; }
+    await new Promise(function (wait) { setTimeout(wait, 500 * (attempt + 1)); });
+  }
+  throw last;
+}
+
 function engineFile(url) {
   return caches.open(ENGINE_STORE).then(function (store) {
     return store.match(url).then(function (hit) {
       if (hit) { return hit; }
-      return realFetch(url).then(function (response) {
+      return patient(url).then(function (response) {
         if (response && response.ok) {
           store.put(url, response.clone()).catch(function () { /* full, fine */ });
         }
         return response;
       });
     });
-  }, function () { return realFetch(url); });
+  }, function () { return patient(url); });
 }
 
 self.fetch = function (input, init) {
@@ -75,13 +92,15 @@ function engineIsHere() {
    as this thread starts, so it is in hand by the time Python wants it rather
    than being waited for afterwards. */
 function appFile() {
-  return caches.match(ZIP).then(function (hit) {
-    if (hit) { return hit.arrayBuffer(); }
-    return realFetch(ZIP, { cache: "no-cache" }).then(function (response) {
+  function download() {
+    return patient(ZIP, { cache: "no-cache" }).then(function (response) {
       if (!response.ok) { throw new Error("the Saphal Book file is missing"); }
       return response.arrayBuffer();
     });
-  });
+  }
+  return caches.match(ZIP).then(function (hit) {
+    return hit ? hit.arrayBuffer() : download();
+  }, download);
 }
 
 /* Python, ready to go.
@@ -182,13 +201,12 @@ async function start(device) {
   try {
     made = await open(device, zip, true, first);
   } catch (error) {
-    if (!fromSnapshot) {
-      return self.postMessage({ kind: "failed",
-                                detail: String((error && error.message) || error || "") });
-    }
-    // Something went wrong after starting from the saved Python. Throw it
-    // away and do the whole thing again the ordinary way.
-    await forgetSnapshot();
+    // Whatever went wrong, start once more from the beginning, the ordinary
+    // way, before saying anything. Most failures on a phone are a moment's
+    // trouble with the connection and do not happen twice.
+    if (fromSnapshot) { await forgetSnapshot(); }
+    step("Trying again", 0.1, first);
+    await new Promise(function (wait) { setTimeout(wait, 800); });
     try {
       made = await open(device, appFile(), false, first);
     } catch (again) {
