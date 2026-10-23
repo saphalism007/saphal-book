@@ -1,18 +1,61 @@
-var VERSION = "saphal-book-web-084963aa091f";
+var VERSION = "saphal-book-web-aec316cd6cad";
 var ENGINE = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
+var SHELL = [
+"./",
+"manifest.webmanifest",
+"boot.js?v=aec316cd6cad",
+"engine.js?v=aec316cd6cad",
+"chartered_book.zip?v=aec316cd6cad",
+"static/style.css?v=aec316cd6cad",
+"static/icons/icon-192.png",
+"static/icons/icon-192.png?v=2",
+"static/icons/icon-180.png?v=2",
+"static/icons/icon-512.png",
+"static/nepali.js?v=aec316cd6cad",
+"static/ui.js?v=aec316cd6cad",
+"static/app.js?v=aec316cd6cad",
+"static/masters.js?v=aec316cd6cad",
+"static/vouchers.js?v=aec316cd6cad",
+"static/drill.js?v=aec316cd6cad",
+"static/reports.js?v=aec316cd6cad",
+"static/statements.js?v=aec316cd6cad",
+"static/banking.js?v=aec316cd6cad",
+"static/assets.js?v=aec316cd6cad",
+"static/incometax.js?v=aec316cd6cad",
+"static/analysis.js?v=aec316cd6cad",
+"static/recurring.js?v=aec316cd6cad",
+"static/quotations.js?v=aec316cd6cad",
+"static/audit.js?v=aec316cd6cad"
+];
 var ENGINE_STORE = "saphal-book-engine";
-var SHELL = ["./", "index.html", "boot.js", "engine.js", "manifest.webmanifest",
-  "chartered_book.zip",
-  "static/style.css", "static/nepali.js", "static/ui.js", "static/app.js",
-  "static/masters.js", "static/vouchers.js", "static/drill.js",
-  "static/reports.js", "static/statements.js", "static/banking.js",
-  "static/assets.js", "static/incometax.js", "static/analysis.js", "static/recurring.js", "static/quotations.js", "static/audit.js",
-  "static/icons/icon-192.png", "static/icons/icon-512.png"];
+
+/* How this keeps Saphal Book on the device, and why it is this way round.
+
+   Everything a version needs is fetched in one go when the version is first
+   seen, into a store named after that version, and only if every piece
+   arrives. From then on Saphal Book opens out of that store, with no wait for
+   the internet at all. A newer version is fetched the same way, quietly, in
+   the background, and used the next time Saphal Book is opened.
+
+   It used to be the other way round: every file was asked for over the
+   internet on every opening, and the copy on the device was only used when
+   the internet could not be reached. On a phone that is a wait of seconds
+   before anything happens, every single time, and on a weak signal a good
+   deal longer, because a slow connection is not a failed one and so the copy
+   on the device was never reached for. The addresses it kept did not even
+   match the ones the page asks for, so the copy was never used at all.
+
+   The one cost is that a new version shows on the opening after the one that
+   noticed it, not the same one. That is how installed apps behave, and it is
+   what lets an opening never wait on the network. */
 
 self.addEventListener("install", function (event) {
   event.waitUntil(caches.open(VERSION).then(function (cache) {
-    return Promise.all(SHELL.map(function (url) {
-      return cache.add(url).catch(function () { return null; });
+    // All or nothing. A version with a piece missing would open broken, so if
+    // anything fails to arrive this version is not installed and the one
+    // before it carries on; it is tried again the next time.
+    return cache.addAll(SHELL.map(function (url) {
+      return new Request(url, { cache: "reload" });
     }));
   }).then(function () { return self.skipWaiting(); }));
 });
@@ -20,15 +63,16 @@ self.addEventListener("install", function (event) {
 self.addEventListener("activate", function (event) {
   event.waitUntil(caches.keys().then(function (names) {
     return Promise.all(names.map(function (name) {
-      if (name === VERSION || name === ENGINE_STORE) { return null; }
-      return caches.delete(name);
+      // Only this app's own older versions, and the second copy of the engine
+      // an earlier version used to keep. The engine store is never touched by
+      // an update: it is twelve megabytes and it has not changed.
+      var oldVersion = name.indexOf("saphal-book-web-") === 0 && name !== VERSION;
+      if (oldVersion || name === "saphal-book-engine-v1") { return caches.delete(name); }
+      return null;
     }));
   }).then(function () { return self.clients.claim(); }));
 });
 
-// The engine never changes for a given build of it, so once it is here it is
-// answered from here. This is what turns the second launch from thirty seconds
-// into one.
 function fromEngineStore(request) {
   return caches.open(ENGINE_STORE).then(function (cache) {
     return cache.match(request).then(function (hit) {
@@ -43,6 +87,17 @@ function fromEngineStore(request) {
   });
 }
 
+function thePage(request) {
+  return caches.open(VERSION).then(function (cache) {
+    return cache.match("./");
+  }).then(function (hit) {
+    if (hit) { return hit; }
+    return fetch(request, { cache: "no-store" }).catch(function () {
+      return caches.match("./");
+    });
+  });
+}
+
 self.addEventListener("fetch", function (event) {
   var request = event.request;
   if (request.method !== "GET") { return; }
@@ -50,33 +105,25 @@ self.addEventListener("fetch", function (event) {
     event.respondWith(fromEngineStore(request));
     return;
   }
-  if (new URL(request.url).origin !== self.location.origin) { return; }
-  // no-store, and this is the whole point of the line.
-  //
-  // This already went to the network first and fell back to the cache, which
-  // sounded like enough. It was not. A plain fetch is still answered out of the
-  // browser's own HTTP cache, and GitHub Pages sends max-age=600 on everything,
-  // so for ten minutes after a change the network was never actually asked.
-  //
-  // What that cost was not ten minutes. index.html carries the build stamp on
-  // every script it loads, so a stale index.html asks for the old app.js by
-  // name, gets it, and keeps asking for it. Three fixes in a row looked to the
-  // person using this like nothing had happened, because the screens they were
-  // pressing were still the old ones.
-  //
-  // Offline still works. The cache is written on every good answer and read
-  // whenever the network cannot be reached, which is what the catch below is.
-  event.respondWith(
-    fetch(request, { cache: "no-store" }).then(function (response) {
-      if (response && response.status === 200) {
+  var url = new URL(request.url);
+  if (url.origin !== self.location.origin) { return; }
+  var scope = new URL("./", self.location).pathname;
+  if (url.pathname.indexOf(scope) !== 0) { return; }
+
+  if (request.mode === "navigate"
+      && (url.pathname === scope || url.pathname === scope + "index.html")) {
+    event.respondWith(thePage(request));
+    return;
+  }
+  event.respondWith(caches.match(request).then(function (hit) {
+    if (hit) { return hit; }
+    return fetch(request).then(function (response) {
+      // A file named with its version never changes, so it can be kept.
+      if (response && response.status === 200 && url.search.indexOf("v=") !== -1) {
         var copy = response.clone();
         caches.open(VERSION).then(function (cache) { cache.put(request, copy); });
       }
       return response;
-    }).catch(function () {
-      return caches.match(request).then(function (hit) {
-        return hit || caches.match("index.html");
-      });
-    })
-  );
+    });
+  }));
 });

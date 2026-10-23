@@ -148,6 +148,10 @@ var App = (function () {
     // The worker is what lets a phone, tablet or desktop install this as an
     // app. It never caches an accounting figure, only the screens themselves.
     if (!("serviceWorker" in navigator)) { return; }
+    // The browser version brings its own, registered by its page. This one is
+    // the desktop app's and does not exist there, so asking for it was a
+    // failed request on every opening.
+    if (window.CHARTERED_BOOK_WEB) { return; }
     if (location.protocol !== "https:" && location.hostname !== "localhost"
         && location.hostname !== "127.0.0.1") {
       // Browsers only allow installing over a secure connection or from this

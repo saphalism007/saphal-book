@@ -16,6 +16,7 @@ The books made this way live in the browser's own storage on that device. They
 are a separate set from the ones on the computer and do not sync with them.
 """
 
+import json
 import os
 import shutil
 import sys
@@ -58,6 +59,14 @@ def copy_static(target_dir):
     return copied
 
 
+# The screens, in the order the page loads them. The service worker keeps
+# exactly these addresses, so the two are made from the one list.
+SCRIPTS = ["nepali.js", "ui.js", "app.js", "masters.js", "vouchers.js",
+           "drill.js", "reports.js", "statements.js", "banking.js",
+           "assets.js", "incometax.js", "analysis.js", "recurring.js", "quotations.js",
+           "audit.js"]
+
+
 def shell_html(stamp="1"):
     """
     The page the browser opens.
@@ -66,11 +75,8 @@ def shell_html(stamp="1"):
     browser takes a few seconds the first time and a blank screen would look
     broken. Afterwards it is cached and opens quickly.
     """
-    scripts = ["nepali.js", "ui.js", "app.js", "masters.js", "vouchers.js",
-               "drill.js", "reports.js", "statements.js", "banking.js",
-               "assets.js", "incometax.js", "analysis.js", "recurring.js", "quotations.js", "audit.js"]
     tags = "\n".join('<script src="static/%s?v=%s"></script>' % (s, stamp)
-                     for s in scripts)
+                     for s in SCRIPTS)
     source = open(os.path.join(PKG, "web", "templates", "index.html"), encoding="utf-8").read()
 
     body_start = source.index("<body>") + len("<body>")
@@ -104,7 +110,8 @@ def shell_html(stamp="1"):
 #starting .bar{height:3px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:1rem}
 #starting .bar span{display:block;height:100%;width:0;border-radius:3px;
   background:linear-gradient(90deg,var(--brand),var(--teal));transition:width .4s}
-#starting .slow{color:var(--ink-faint);font-size:.76rem;margin-top:1.1rem;line-height:1.5}
+#starting .slow{display:none;color:var(--ink-faint);font-size:.76rem;margin-top:1.1rem;line-height:1.5}
+#starting .slow.shown{display:block}
 </style>
 </head>
 <body>
@@ -116,9 +123,8 @@ def shell_html(stamp="1"):
     <p>Bookkeeping and accounts for Nepal</p>
     <div class="bar"><span id="startbar"></span></div>
     <div class="step" id="startstep">Starting</div>
-    <div class="slow">The first time needs the internet while the accounting
-      engine is fetched and put away. After that it opens from the device.
-      Your books never leave this device.</div>
+    <div class="slow" id="startslow">Setting up on this device for the first
+      time, which needs the internet once. After this it opens from the device.</div>
   </div>
 </div>
 
@@ -129,26 +135,27 @@ window.CHARTERED_BOOK_WEB = true;
 window.SAPHAL_BUILD = "__STAMP__";
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", function () {
-    navigator.serviceWorker.register("sw.js").then(function (reg) {
-      // Ask outright whether there is a newer one, rather than waiting for the
-      // browser to get round to it. Without this a tab that is left open for a
-      // day never notices a change at all.
-      reg.update();
-      // And when a new worker takes over, the page in front of somebody is
-      // still the old one until it is loaded again. Doing that here, once, is
-      // the difference between a fix arriving and a fix being reported as not
-      // working.
-      // Only when one is being replaced. On a first visit there is no
-      // controller until the new worker claims the page, and reloading then
-      // would restart the engine for nothing.
-      var hadOne = !!navigator.serviceWorker.controller;
-      var swapping = false;
-      navigator.serviceWorker.addEventListener("controllerchange", function () {
-        if (!hadOne || swapping) { return; }
-        swapping = true;
-        window.location.reload();
-      });
-    }).catch(function () { /* nothing lost */ });
+    // A new version is fetched quietly in the background and used the next
+    // time Saphal Book is opened. It never restarts a page somebody is using.
+    //
+    // It used to. When a new version arrived the open page reloaded itself,
+    // so after every update the loading screen ran twice, and while updates
+    // were going out several times a day that was most openings. Reloading a
+    // page in the middle of an entry is also the one way to lose what is
+    // typed into it.
+    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" })
+      .then(function (reg) {
+        var asked = Date.now();
+        reg.update().catch(function () { /* offline, try later */ });
+        // A phone keeps an app in the background for days, so ask again when
+        // it comes back to the front, but not more than every fifteen minutes.
+        document.addEventListener("visibilitychange", function () {
+          if (document.visibilityState !== "visible") { return; }
+          if (Date.now() - asked < 15 * 60 * 1000) { return; }
+          asked = Date.now();
+          reg.update().catch(function () { /* offline, try later */ });
+        });
+      }).catch(function () { /* nothing lost */ });
   });
 }
 </script>
@@ -184,12 +191,30 @@ def engine_js(stamp="1"):
    tools/make_web_app.py for why. */
 
 var PYODIDE = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
+var ENGINE_STORE = "saphal-book-engine";
+var SNAPSHOT = new URL("python-ready-v0.26.4", self.location).href;
+var ZIP = new URL("chartered_book.zip?v=__STAMP__", self.location).href;
 var BOOKS = "/books";
 var pyodide = null;
 var dispatch = null;
+var fromSnapshot = false;
+var realFetch = self.fetch.bind(self);
 
-function step(text, portion) {
-  self.postMessage({ kind: "step", text: text, portion: portion });
+// How long each part of starting took, kept so a slow opening on somebody's
+// phone can be looked into rather than guessed at.
+var timings = [];
+var lastMark = performance.now();
+var lastName = "Before starting";
+function mark(name) {
+  var now = performance.now();
+  timings.push([lastName, Math.round(now - lastMark)]);
+  lastMark = now;
+  lastName = name;
+}
+
+function step(text, portion, first) {
+  mark(text);
+  self.postMessage({ kind: "step", text: text, portion: portion, first: !!first });
 }
 
 function save() {
@@ -199,61 +224,170 @@ function save() {
   });
 }
 
-async function warmEngine() {
-  // Keep the engine on the device so the second start needs no internet.
-  try {
-    var cache = await caches.open("saphal-book-engine-v1");
-    var wanted = ["pyodide.js", "pyodide.asm.js", "pyodide.asm.wasm",
-                  "python_stdlib.zip", "pyodide-lock.json"];
-    for (var i = 0; i < wanted.length; i += 1) {
-      var url = PYODIDE + wanted[i];
-      if (await cache.match(url)) { continue; }
-      try { await cache.add(url); } catch (ignored) { /* skip it */ }
+/* The engine, out of this device's own store.
+
+   It is about twelve megabytes, from a different address, and it never
+   changes for a given version. It used to be left to the service worker to
+   answer from its store, and the service worker is not asked by every
+   browser about requests made from inside a worker thread. Where it is not,
+   the engine came over the internet, or out of an ordinary cache that a
+   phone empties whenever it wants the room. So the engine is read out of the
+   store here, directly, and only fetched when it is not there. */
+function engineFile(url) {
+  return caches.open(ENGINE_STORE).then(function (store) {
+    return store.match(url).then(function (hit) {
+      if (hit) { return hit; }
+      return realFetch(url).then(function (response) {
+        if (response && response.ok) {
+          store.put(url, response.clone()).catch(function () { /* full, fine */ });
+        }
+        return response;
+      });
+    });
+  }, function () { return realFetch(url); });
+}
+
+self.fetch = function (input, init) {
+  var url = typeof input === "string" ? input : ((input && input.url) || String(input));
+  if (url.indexOf(PYODIDE) === 0) { return engineFile(url); }
+  return realFetch(input, init);
+};
+
+function engineIsHere() {
+  return caches.open(ENGINE_STORE)
+    .then(function (store) { return store.match(PYODIDE + "pyodide.asm.wasm"); })
+    .then(function (hit) { return !!hit; }, function () { return false; });
+}
+
+/* Saphal Book itself, which is the same file for the whole of one version,
+   so the copy on the device is used whenever there is one. Asked for as soon
+   as this thread starts, so it is in hand by the time Python wants it rather
+   than being waited for afterwards. */
+function appFile() {
+  return caches.match(ZIP).then(function (hit) {
+    if (hit) { return hit.arrayBuffer(); }
+    return realFetch(ZIP, { cache: "no-cache" }).then(function (response) {
+      if (!response.ok) { throw new Error("the Saphal Book file is missing"); }
+      return response.arrayBuffer();
+    });
+  });
+}
+
+/* Python, ready to go.
+
+   Starting Python is most of the wait, and it is the same work every time:
+   nothing about it depends on the books. So the first time it is started the
+   result is saved, and every time after it is picked up from there, which
+   was measured at thirty milliseconds against half a second, and a phone is
+   slower than that.
+
+   This is an experimental feature of the engine. Anything at all that goes
+   wrong with the saved copy throws it away and starts Python the ordinary
+   way, so the worst it can do is be no faster than before. */
+function readSnapshot() {
+  return caches.open(ENGINE_STORE)
+    .then(function (store) { return store.match(SNAPSHOT); })
+    .then(function (hit) { return hit ? hit.arrayBuffer() : null; })
+    .then(function (buffer) { return buffer ? new Uint8Array(buffer) : null; },
+          function () { return null; });
+}
+
+function forgetSnapshot() {
+  return caches.open(ENGINE_STORE)
+    .then(function (store) { return store.delete(SNAPSHOT); })
+    .catch(function () { /* nothing to forget */ });
+}
+
+function keepSnapshot(bytes) {
+  return caches.open(ENGINE_STORE)
+    .then(function (store) { return store.put(SNAPSHOT, new Response(bytes)); })
+    .catch(function () { /* no room, it is simply slower next time */ });
+}
+
+async function startPython(useSnapshot) {
+  fromSnapshot = false;
+  if (useSnapshot) {
+    var stored = await readSnapshot();
+    if (stored) {
+      try {
+        var restored = await loadPyodide({ indexURL: PYODIDE, _loadSnapshot: stored });
+        restored.runPython("import sys, os, json");
+        fromSnapshot = true;
+        return { py: restored, made: null };
+      } catch (error) {
+        await forgetSnapshot();
+      }
     }
-  } catch (ignored) { /* nothing here is worth interrupting the books for */ }
+  }
+  try {
+    var fresh = await loadPyodide({ indexURL: PYODIDE, _makeSnapshot: true });
+    var made = null;
+    try { made = fresh.makeMemorySnapshot(); } catch (error) { made = null; }
+    return { py: fresh, made: made };
+  } catch (error) {
+    // An engine that does not know about saving: start it the ordinary way.
+    return { py: await loadPyodide({ indexURL: PYODIDE }), made: null };
+  }
+}
+
+async function open(device, zip, useSnapshot, first) {
+  step(first ? "Fetching the accounting engine" : "Starting", 0.15, first);
+  if (typeof loadPyodide === "undefined") { importScripts(PYODIDE + "pyodide.js"); }
+
+  var started = await startPython(useSnapshot);
+  pyodide = started.py;
+
+  step("Loading the database", 0.5, first);
+  await pyodide.loadPackage("sqlite3");
+
+  step("Opening your books", 0.62, first);
+  pyodide.FS.mkdirTree(BOOKS);
+  pyodide.FS.mount(pyodide.FS.filesystems.IDBFS, {}, BOOKS);
+  await new Promise(function (resolve) {
+    pyodide.FS.syncfs(true, function () { resolve(); });
+  });
+
+  step("Unpacking Saphal Book", 0.78, first);
+  await pyodide.unpackArchive(await zip, "zip");
+
+  step("Setting it up", 0.9, first);
+  pyodide.runPython(
+    "import os, sys\\n" +
+    "os.environ['CHARTERED_BOOK_DATA'] = '" + BOOKS + "'\\n" +
+    "os.environ['SAPHAL_DEVICE'] = " + JSON.stringify(device || "") + "\\n" +
+    "sys.path.insert(0, '/')\\n" +
+    "from chartered_book.web import embedded\\n"
+  );
+  dispatch = pyodide.runPython("embedded.dispatch");
+  await save();
+  return started.made;
 }
 
 async function start(device) {
+  var first = !(await engineIsHere());
+  var zip = appFile();
+  zip.catch(function () { /* reported when it is needed */ });
+  var made = null;
   try {
-    step("Fetching the accounting engine", 0.1);
-    importScripts(PYODIDE + "pyodide.js");
-
-    step("Starting Python", 0.35);
-    pyodide = await loadPyodide({ indexURL: PYODIDE });
-
-    step("Loading the database", 0.5);
-    await pyodide.loadPackage("sqlite3");
-
-    step("Opening your books", 0.6);
-    pyodide.FS.mkdirTree(BOOKS);
-    pyodide.FS.mount(pyodide.FS.filesystems.IDBFS, {}, BOOKS);
-    await new Promise(function (resolve) {
-      pyodide.FS.syncfs(true, function () { resolve(); });
-    });
-
-    step("Unpacking Saphal Book", 0.75);
-    var response = await fetch("chartered_book.zip?v=__STAMP__", { cache: "no-cache" });
-    if (!response.ok) { throw new Error("the engine file is missing"); }
-    await pyodide.unpackArchive(await response.arrayBuffer(), "zip");
-
-    step("Setting it up", 0.9);
-    pyodide.runPython(
-      "import os, sys\\n" +
-      "os.environ['CHARTERED_BOOK_DATA'] = '" + BOOKS + "'\\n" +
-      "os.environ['SAPHAL_DEVICE'] = " + JSON.stringify(device || "") + "\\n" +
-      "sys.path.insert(0, '/')\\n" +
-      "from chartered_book.web import embedded\\n"
-    );
-    dispatch = pyodide.runPython("embedded.dispatch");
-    await save();
-
-    step("Ready", 1);
-    self.postMessage({ kind: "ready" });
-    warmEngine();
+    made = await open(device, zip, true, first);
   } catch (error) {
-    self.postMessage({ kind: "failed",
-                       detail: String((error && error.message) || error || "") });
+    if (!fromSnapshot) {
+      return self.postMessage({ kind: "failed",
+                                detail: String((error && error.message) || error || "") });
+    }
+    // Something went wrong after starting from the saved Python. Throw it
+    // away and do the whole thing again the ordinary way.
+    await forgetSnapshot();
+    try {
+      made = await open(device, appFile(), false, first);
+    } catch (again) {
+      return self.postMessage({ kind: "failed",
+                                detail: String((again && again.message) || again || "") });
+    }
   }
+  step("Ready", 1, first);
+  self.postMessage({ kind: "ready", fromSnapshot: fromSnapshot, timings: timings });
+  if (made) { keepSnapshot(made); }
 }
 
 self.onmessage = async function (event) {
@@ -313,11 +447,15 @@ window.CB = (function () {
   var waiting = {};
   var TOKEN_KEY = "cb_token";
 
-  function step(text, portion) {
+  function step(text, portion, first) {
     var line = document.getElementById("startstep");
     var bar = document.getElementById("startbar");
+    var slow = document.getElementById("startslow");
     if (line) { line.textContent = text; }
     if (bar) { bar.style.width = Math.round(portion * 100) + "%"; }
+    // Only the first time is slow, so only the first time says so. It used to
+    // say it every time, which made every opening look like the first.
+    if (slow) { slow.className = first ? "slow shown" : "slow"; }
   }
 
   function fail(message, detail) {
@@ -441,7 +579,7 @@ window.CB = (function () {
     };
     worker.onmessage = function (event) {
       var msg = event.data || {};
-      if (msg.kind === "step") { return step(msg.text, msg.portion); }
+      if (msg.kind === "step") { return step(msg.text, msg.portion, msg.first); }
       if (msg.kind === "answer") { return settle(msg); }
       if (msg.kind === "failed") {
         return fail("Saphal Book could not start.",
@@ -452,6 +590,9 @@ window.CB = (function () {
       if (msg.kind === "ready") {
         ready = true;
         window.CB.ready = true;
+        window.CB.startedIn = Math.round(performance.now());
+        window.CB.fromSnapshot = !!msg.fromSnapshot;
+        window.CB.timings = msg.timings || [];
         var screen = document.getElementById("starting");
         if (screen) { screen.style.display = "none"; }
         document.dispatchEvent(new Event("saphal-book-ready"));
@@ -490,6 +631,12 @@ def build_stamp():
                 continue
             with open(os.path.join(root, name), "rb") as handle:
                 digest.update(handle.read())
+    # And the files that carry the stamp, as they would be without it. They
+    # were left out entirely, so a change to how Saphal Book starts, which
+    # lives only in those, kept the old name, and a device holding the old
+    # copy under that name went on using it.
+    for template in (shell_html, engine_js, boot_js, worker_js):
+        digest.update(template("").encode("utf-8"))
     return digest.hexdigest()[:12]
 
 
@@ -515,21 +662,44 @@ def worker_js(stamp="1"):
     there on the first run and it stays, because a service worker cache is not
     thrown away the way an ordinary one is.
     """
+    shell = (["./", "manifest.webmanifest",
+              "boot.js?v=%s" % stamp, "engine.js?v=%s" % stamp,
+              "chartered_book.zip?v=%s" % stamp, "static/style.css?v=%s" % stamp,
+              "static/icons/icon-192.png", "static/icons/icon-192.png?v=2",
+              "static/icons/icon-180.png?v=2", "static/icons/icon-512.png"]
+             + ["static/%s?v=%s" % (name, stamp) for name in SCRIPTS])
     return ("""var VERSION = "saphal-book-web-%s";
-var ENGINE = "%s";""" % (stamp, PYODIDE)) + """
+var ENGINE = "%s";
+var SHELL = %s;""" % (stamp, PYODIDE, json.dumps(shell, indent=0))) + """
 var ENGINE_STORE = "saphal-book-engine";
-var SHELL = ["./", "index.html", "boot.js", "engine.js", "manifest.webmanifest",
-  "chartered_book.zip",
-  "static/style.css", "static/nepali.js", "static/ui.js", "static/app.js",
-  "static/masters.js", "static/vouchers.js", "static/drill.js",
-  "static/reports.js", "static/statements.js", "static/banking.js",
-  "static/assets.js", "static/incometax.js", "static/analysis.js", "static/recurring.js", "static/quotations.js", "static/audit.js",
-  "static/icons/icon-192.png", "static/icons/icon-512.png"];
+
+/* How this keeps Saphal Book on the device, and why it is this way round.
+
+   Everything a version needs is fetched in one go when the version is first
+   seen, into a store named after that version, and only if every piece
+   arrives. From then on Saphal Book opens out of that store, with no wait for
+   the internet at all. A newer version is fetched the same way, quietly, in
+   the background, and used the next time Saphal Book is opened.
+
+   It used to be the other way round: every file was asked for over the
+   internet on every opening, and the copy on the device was only used when
+   the internet could not be reached. On a phone that is a wait of seconds
+   before anything happens, every single time, and on a weak signal a good
+   deal longer, because a slow connection is not a failed one and so the copy
+   on the device was never reached for. The addresses it kept did not even
+   match the ones the page asks for, so the copy was never used at all.
+
+   The one cost is that a new version shows on the opening after the one that
+   noticed it, not the same one. That is how installed apps behave, and it is
+   what lets an opening never wait on the network. */
 
 self.addEventListener("install", function (event) {
   event.waitUntil(caches.open(VERSION).then(function (cache) {
-    return Promise.all(SHELL.map(function (url) {
-      return cache.add(url).catch(function () { return null; });
+    // All or nothing. A version with a piece missing would open broken, so if
+    // anything fails to arrive this version is not installed and the one
+    // before it carries on; it is tried again the next time.
+    return cache.addAll(SHELL.map(function (url) {
+      return new Request(url, { cache: "reload" });
     }));
   }).then(function () { return self.skipWaiting(); }));
 });
@@ -537,15 +707,16 @@ self.addEventListener("install", function (event) {
 self.addEventListener("activate", function (event) {
   event.waitUntil(caches.keys().then(function (names) {
     return Promise.all(names.map(function (name) {
-      if (name === VERSION || name === ENGINE_STORE) { return null; }
-      return caches.delete(name);
+      // Only this app's own older versions, and the second copy of the engine
+      // an earlier version used to keep. The engine store is never touched by
+      // an update: it is twelve megabytes and it has not changed.
+      var oldVersion = name.indexOf("saphal-book-web-") === 0 && name !== VERSION;
+      if (oldVersion || name === "saphal-book-engine-v1") { return caches.delete(name); }
+      return null;
     }));
   }).then(function () { return self.clients.claim(); }));
 });
 
-// The engine never changes for a given build of it, so once it is here it is
-// answered from here. This is what turns the second launch from thirty seconds
-// into one.
 function fromEngineStore(request) {
   return caches.open(ENGINE_STORE).then(function (cache) {
     return cache.match(request).then(function (hit) {
@@ -560,6 +731,17 @@ function fromEngineStore(request) {
   });
 }
 
+function thePage(request) {
+  return caches.open(VERSION).then(function (cache) {
+    return cache.match("./");
+  }).then(function (hit) {
+    if (hit) { return hit; }
+    return fetch(request, { cache: "no-store" }).catch(function () {
+      return caches.match("./");
+    });
+  });
+}
+
 self.addEventListener("fetch", function (event) {
   var request = event.request;
   if (request.method !== "GET") { return; }
@@ -567,35 +749,27 @@ self.addEventListener("fetch", function (event) {
     event.respondWith(fromEngineStore(request));
     return;
   }
-  if (new URL(request.url).origin !== self.location.origin) { return; }
-  // no-store, and this is the whole point of the line.
-  //
-  // This already went to the network first and fell back to the cache, which
-  // sounded like enough. It was not. A plain fetch is still answered out of the
-  // browser's own HTTP cache, and GitHub Pages sends max-age=600 on everything,
-  // so for ten minutes after a change the network was never actually asked.
-  //
-  // What that cost was not ten minutes. index.html carries the build stamp on
-  // every script it loads, so a stale index.html asks for the old app.js by
-  // name, gets it, and keeps asking for it. Three fixes in a row looked to the
-  // person using this like nothing had happened, because the screens they were
-  // pressing were still the old ones.
-  //
-  // Offline still works. The cache is written on every good answer and read
-  // whenever the network cannot be reached, which is what the catch below is.
-  event.respondWith(
-    fetch(request, { cache: "no-store" }).then(function (response) {
-      if (response && response.status === 200) {
+  var url = new URL(request.url);
+  if (url.origin !== self.location.origin) { return; }
+  var scope = new URL("./", self.location).pathname;
+  if (url.pathname.indexOf(scope) !== 0) { return; }
+
+  if (request.mode === "navigate"
+      && (url.pathname === scope || url.pathname === scope + "index.html")) {
+    event.respondWith(thePage(request));
+    return;
+  }
+  event.respondWith(caches.match(request).then(function (hit) {
+    if (hit) { return hit; }
+    return fetch(request).then(function (response) {
+      // A file named with its version never changes, so it can be kept.
+      if (response && response.status === 200 && url.search.indexOf("v=") !== -1) {
         var copy = response.clone();
         caches.open(VERSION).then(function (cache) { cache.put(request, copy); });
       }
       return response;
-    }).catch(function () {
-      return caches.match(request).then(function (hit) {
-        return hit || caches.match("index.html");
-      });
-    })
-  );
+    });
+  }));
 });
 """
 

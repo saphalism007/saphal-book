@@ -14,7 +14,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="static/icons/icon-192.png?v=2">
 <link rel="icon" sizes="any" href="static/icons/icon-192.png?v=2">
 <link rel="apple-touch-icon" href="static/icons/icon-180.png?v=2">
-<link rel="stylesheet" href="static/style.css?v=084963aa091f">
+<link rel="stylesheet" href="static/style.css?v=aec316cd6cad">
 <style>
 #starting{position:fixed;inset:0;display:grid;place-items:center;background:var(--ground);z-index:200}
 #starting .inner{text-align:center;max-width:22rem;padding:1.5rem}
@@ -25,7 +25,8 @@
 #starting .bar{height:3px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:1rem}
 #starting .bar span{display:block;height:100%;width:0;border-radius:3px;
   background:linear-gradient(90deg,var(--brand),var(--teal));transition:width .4s}
-#starting .slow{color:var(--ink-faint);font-size:.76rem;margin-top:1.1rem;line-height:1.5}
+#starting .slow{display:none;color:var(--ink-faint);font-size:.76rem;margin-top:1.1rem;line-height:1.5}
+#starting .slow.shown{display:block}
 </style>
 </head>
 <body>
@@ -37,9 +38,8 @@
     <p>Bookkeeping and accounts for Nepal</p>
     <div class="bar"><span id="startbar"></span></div>
     <div class="step" id="startstep">Starting</div>
-    <div class="slow">The first time needs the internet while the accounting
-      engine is fetched and put away. After that it opens from the device.
-      Your books never leave this device.</div>
+    <div class="slow" id="startslow">Setting up on this device for the first
+      time, which needs the internet once. After this it opens from the device.</div>
   </div>
 </div>
 
@@ -191,47 +191,48 @@
 
 <script>
 window.CHARTERED_BOOK_WEB = true;
-window.SAPHAL_BUILD = "084963aa091f";
+window.SAPHAL_BUILD = "aec316cd6cad";
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", function () {
-    navigator.serviceWorker.register("sw.js").then(function (reg) {
-      // Ask outright whether there is a newer one, rather than waiting for the
-      // browser to get round to it. Without this a tab that is left open for a
-      // day never notices a change at all.
-      reg.update();
-      // And when a new worker takes over, the page in front of somebody is
-      // still the old one until it is loaded again. Doing that here, once, is
-      // the difference between a fix arriving and a fix being reported as not
-      // working.
-      // Only when one is being replaced. On a first visit there is no
-      // controller until the new worker claims the page, and reloading then
-      // would restart the engine for nothing.
-      var hadOne = !!navigator.serviceWorker.controller;
-      var swapping = false;
-      navigator.serviceWorker.addEventListener("controllerchange", function () {
-        if (!hadOne || swapping) { return; }
-        swapping = true;
-        window.location.reload();
-      });
-    }).catch(function () { /* nothing lost */ });
+    // A new version is fetched quietly in the background and used the next
+    // time Saphal Book is opened. It never restarts a page somebody is using.
+    //
+    // It used to. When a new version arrived the open page reloaded itself,
+    // so after every update the loading screen ran twice, and while updates
+    // were going out several times a day that was most openings. Reloading a
+    // page in the middle of an entry is also the one way to lose what is
+    // typed into it.
+    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" })
+      .then(function (reg) {
+        var asked = Date.now();
+        reg.update().catch(function () { /* offline, try later */ });
+        // A phone keeps an app in the background for days, so ask again when
+        // it comes back to the front, but not more than every fifteen minutes.
+        document.addEventListener("visibilitychange", function () {
+          if (document.visibilityState !== "visible") { return; }
+          if (Date.now() - asked < 15 * 60 * 1000) { return; }
+          asked = Date.now();
+          reg.update().catch(function () { /* offline, try later */ });
+        });
+      }).catch(function () { /* nothing lost */ });
   });
 }
 </script>
-<script src="boot.js?v=084963aa091f"></script>
-<script src="static/nepali.js?v=084963aa091f"></script>
-<script src="static/ui.js?v=084963aa091f"></script>
-<script src="static/app.js?v=084963aa091f"></script>
-<script src="static/masters.js?v=084963aa091f"></script>
-<script src="static/vouchers.js?v=084963aa091f"></script>
-<script src="static/drill.js?v=084963aa091f"></script>
-<script src="static/reports.js?v=084963aa091f"></script>
-<script src="static/statements.js?v=084963aa091f"></script>
-<script src="static/banking.js?v=084963aa091f"></script>
-<script src="static/assets.js?v=084963aa091f"></script>
-<script src="static/incometax.js?v=084963aa091f"></script>
-<script src="static/analysis.js?v=084963aa091f"></script>
-<script src="static/recurring.js?v=084963aa091f"></script>
-<script src="static/quotations.js?v=084963aa091f"></script>
-<script src="static/audit.js?v=084963aa091f"></script>
+<script src="boot.js?v=aec316cd6cad"></script>
+<script src="static/nepali.js?v=aec316cd6cad"></script>
+<script src="static/ui.js?v=aec316cd6cad"></script>
+<script src="static/app.js?v=aec316cd6cad"></script>
+<script src="static/masters.js?v=aec316cd6cad"></script>
+<script src="static/vouchers.js?v=aec316cd6cad"></script>
+<script src="static/drill.js?v=aec316cd6cad"></script>
+<script src="static/reports.js?v=aec316cd6cad"></script>
+<script src="static/statements.js?v=aec316cd6cad"></script>
+<script src="static/banking.js?v=aec316cd6cad"></script>
+<script src="static/assets.js?v=aec316cd6cad"></script>
+<script src="static/incometax.js?v=aec316cd6cad"></script>
+<script src="static/analysis.js?v=aec316cd6cad"></script>
+<script src="static/recurring.js?v=aec316cd6cad"></script>
+<script src="static/quotations.js?v=aec316cd6cad"></script>
+<script src="static/audit.js?v=aec316cd6cad"></script>
 </body>
 </html>

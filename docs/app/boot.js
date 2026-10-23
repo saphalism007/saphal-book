@@ -17,11 +17,15 @@ window.CB = (function () {
   var waiting = {};
   var TOKEN_KEY = "cb_token";
 
-  function step(text, portion) {
+  function step(text, portion, first) {
     var line = document.getElementById("startstep");
     var bar = document.getElementById("startbar");
+    var slow = document.getElementById("startslow");
     if (line) { line.textContent = text; }
     if (bar) { bar.style.width = Math.round(portion * 100) + "%"; }
+    // Only the first time is slow, so only the first time says so. It used to
+    // say it every time, which made every opening look like the first.
+    if (slow) { slow.className = first ? "slow shown" : "slow"; }
   }
 
   function fail(message, detail) {
@@ -132,7 +136,7 @@ window.CB = (function () {
 
   function start() {
     try {
-      worker = new Worker("engine.js?v=084963aa091f");
+      worker = new Worker("engine.js?v=aec316cd6cad");
     } catch (error) {
       return fail("Saphal Book could not start.",
                   "This browser would not start the accounting engine. "
@@ -145,7 +149,7 @@ window.CB = (function () {
     };
     worker.onmessage = function (event) {
       var msg = event.data || {};
-      if (msg.kind === "step") { return step(msg.text, msg.portion); }
+      if (msg.kind === "step") { return step(msg.text, msg.portion, msg.first); }
       if (msg.kind === "answer") { return settle(msg); }
       if (msg.kind === "failed") {
         return fail("Saphal Book could not start.",
@@ -156,6 +160,9 @@ window.CB = (function () {
       if (msg.kind === "ready") {
         ready = true;
         window.CB.ready = true;
+        window.CB.startedIn = Math.round(performance.now());
+        window.CB.fromSnapshot = !!msg.fromSnapshot;
+        window.CB.timings = msg.timings || [];
         var screen = document.getElementById("starting");
         if (screen) { screen.style.display = "none"; }
         document.dispatchEvent(new Event("saphal-book-ready"));
